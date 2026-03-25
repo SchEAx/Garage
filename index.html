@@ -343,7 +343,7 @@
           ? [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }]
           : [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }, { key: "kurulum", label: "Sonraki Adım" }];
         const rows = filteredRecords();
-        const selected = selectedRecord();
+        const selected = state.selectedId ? selectedRecord() : null;
 
         app.innerHTML = `
           <div class="min-h-screen bg-zinc-950 text-white">
@@ -528,8 +528,16 @@ ${selected ? `
     document.querySelectorAll("[data-duplicate]").forEach(btn => btn.addEventListener("click", () => duplicateRecordToForm(btn.dataset.duplicate)));
         document.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", () => deleteRecord(btn.dataset.delete)));
         document.querySelectorAll("[data-print]").forEach(btn => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
-        document.getElementById("closeModal")?.addEventListener("click", () => { state.selectedId = null; render(); });
-        document.getElementById("modalOverlay")?.addEventListener("click", (e) => { if (e.target.id === "modalOverlay") { state.selectedId = null; render(); } });
+        document.getElementById("closeModal")?.addEventListener("click", () => { 
+    state.selectedId = null; 
+    render(); 
+    });
+        document.getElementById("modalOverlay")?.addEventListener("click", (e) => {
+  if (e.target.id === "modalOverlay") {
+    state.selectedId = null;
+    render();
+  }
+});    
     if (selected) {
   const modalTitle = document.getElementById("modalTitle");
   const mPhone = document.getElementById("mPhone");
