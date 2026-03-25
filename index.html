@@ -454,23 +454,61 @@
               <div class="grid gap-4 lg:grid-cols-3"><div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white"><div class="p-6 pb-3"><h2 class="text-lg font-semibold">Bu ilk sürümde hazır olanlar</h2></div><div class="grid gap-3 p-6 pt-0 text-sm text-zinc-300"><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Müşteri kabul formu</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Tablet ekranında imza alma alanı</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kayıtların cihazda tutulması</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Arama ve detay görüntüleme</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• CSV ve JSON dışa aktarma</div></div></div><div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white"><div class="p-6 pb-3"><h2 class="text-lg font-semibold">Sıradaki gerçek sürüm</h2></div><div class="space-y-3 p-6 pt-0 text-sm text-zinc-300"><div>📱 Tablet için tam ekran müşteri kabul modu</div><div>🖥️ PC tarafında yönetim paneli ve raporlama</div><div>📄 PDF servis fişi oluşturma</div><div>💾 Bulut veritabanı ile merkezi kayıt</div></div></div></div>` : ""}
             </div>
           </div>
+${selected ? `
+  <div id="modalOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
+      <div class="flex justify-end p-3">
+        <button id="closeModal" class="rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm text-white">✕</button>
+      </div>
+      <div class="px-6 pb-6 space-y-4">
+        <h2 class="text-lg font-semibold">${selected.customerName} · ${selected.recordNo}</h2>
 
-          ${selected ? `
-            <div id="modalOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-              <div class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
-                <div class="flex justify-end p-3"><button id="closeModal" class="rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm text-white">✕</button></div>
-                <div class="px-6 pb-6 space-y-4">
-                  <h2 class="text-lg font-semibold">${selected.customerName} · ${selected.recordNo}</h2>
-                  <div class="grid gap-4 md:grid-cols-2">
-                    <div><h3 class="mb-2 font-semibold">Müşteri Bilgileri</h3><div class="space-y-2 text-sm text-zinc-300"><div><span class="text-zinc-500">Telefon:</span> ${selected.phone}</div><div><span class="text-zinc-500">E-posta:</span> ${selected.email || "-"}</div><div><span class="text-zinc-500">Adres:</span> ${selected.address || "-"}</div><div><span class="text-zinc-500">Teslim Alan:</span> ${selected.receiver || "-"}</div></div></div>
-                    <div><h3 class="mb-2 font-semibold">Cihaz Bilgileri</h3><div class="space-y-2 text-sm text-zinc-300"><div><span class="text-zinc-500">Tür:</span> ${selected.deviceType}</div><div><span class="text-zinc-500">Marka / Model:</span> ${selected.brand} ${selected.model}</div><div><span class="text-zinc-500">Seri No:</span> ${selected.serialNo || "-"}</div><div><span class="text-zinc-500">Aksesuar:</span> ${selected.accessories || "-"}</div></div></div>
-                  </div>
-                  <div class="h-px w-full bg-white/10"></div>
-                  <div class="space-y-3 text-sm text-zinc-300"><div><div class="mb-1 font-semibold">Müşteri Şikayeti</div><div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.issue}</div></div><div><div class="mb-1 font-semibold">Servis Notu</div><div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.notes || "-"}</div></div><div><div class="mb-1 font-semibold">İmza</div>${selected.signature ? `<img src="${selected.signature}" class="rounded-2xl border border-white/10" />` : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-zinc-500">İmza yok</div>`}</div></div>
-                </div>
-              </div>
-            </div>` : ""}
-        `;
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <h3 class="mb-2 font-semibold">Müşteri Bilgileri</h3>
+            <div class="space-y-2 text-sm text-zinc-300">
+              <div><span class="text-zinc-500">Telefon:</span> ${selected.phone}</div>
+              <div><span class="text-zinc-500">E-posta:</span> ${selected.email || "-"}</div>
+              <div><span class="text-zinc-500">Adres:</span> ${selected.address || "-"}</div>
+              <div><span class="text-zinc-500">Teslim Alan:</span> ${selected.receiver || "-"}</div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="mb-2 font-semibold">Cihaz Bilgileri</h3>
+            <div class="space-y-2 text-sm text-zinc-300">
+              <div><span class="text-zinc-500">Tür:</span> ${selected.deviceType}</div>
+              <div><span class="text-zinc-500">Marka / Model:</span> ${selected.brand} ${selected.model}</div>
+              <div><span class="text-zinc-500">Seri No:</span> ${selected.serialNo || "-"}</div>
+              <div><span class="text-zinc-500">Aksesuar:</span> ${selected.accessories || "-"}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="h-px w-full bg-white/10"></div>
+
+        <div class="space-y-3 text-sm text-zinc-300">
+          <div>
+            <div class="mb-1 font-semibold">Müşteri Şikayeti</div>
+            <div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.issue}</div>
+          </div>
+
+          <div>
+            <div class="mb-1 font-semibold">Servis Notu</div>
+            <div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.notes || "-"}</div>
+          </div>
+
+          <div>
+            <div class="mb-1 font-semibold">İmza</div>
+            ${selected.signature
+              ? `<img src="${selected.signature}" class="rounded-2xl border border-white/10" />`
+              : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-zinc-500">İmza yok</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+` : ""}
 
         document.getElementById("toggleTablet")?.addEventListener("click", () => { state.tabletMode = !state.tabletMode; render(); });
         document.querySelectorAll("[data-tab]").forEach(btn => btn.addEventListener("click", () => { state.activeTab = btn.dataset.tab; render(); }));
