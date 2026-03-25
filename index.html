@@ -19,6 +19,81 @@
 
     <script>
       const STORAGE_KEY = "musteri-kabul-static-v1";
+      <script>
+  const SUPABASE_URL = window.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+
+  async function dbFetchRecords() {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/records?select=*&order=id.desc`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    if (!res.ok) throw new Error("Kayıtlar alınamadı");
+    return await res.json();
+  }
+
+  async function dbInsertRecord(record) {
+    const payload = {
+      record_no: record.recordNo,
+      customer_name: record.customerName,
+      phone: record.phone,
+      email: record.email,
+      address: record.address,
+      device_type: record.deviceType,
+      brand: record.brand,
+      model: record.model,
+      serial_no: record.serialNo,
+      accessories: record.accessories,
+      issue: record.issue,
+      notes: record.notes,
+      receiver: record.receiver,
+      status: record.status,
+      signature: record.signature
+    };
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: "return=representation"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error("Kayıt eklenemedi");
+    return await res.json();
+  }
+
+  async function dbUpdateStatus(dbId, status) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${dbId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ status })
+    });
+
+    if (!res.ok) throw new Error("Durum güncellenemedi");
+  }
+
+  async function dbDeleteRecord(dbId) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${dbId}`, {
+      method: "DELETE",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+
+    if (!res.ok) throw new Error("Kayıt silinemedi");
+  }
+</script>
 
       function formatDateTime(value) {
         if (!value) return "-";
@@ -86,14 +161,35 @@
         form: emptyForm(),
       };
 
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) state.records = JSON.parse(saved);
-      } catch {}
+      async function loadRecordsFromDb() {
+  try {
+    const rows = await dbFetchRecords();
+    state.records = rows.map((r) => ({
+      id: String(r.id),
+      recordNo: r.record_no,
+      createdAt: r.created_at,
+      customerName: r.customer_name || "",
+      phone: r.phone || "",
+      email: r.email || "",
+      address: r.address || "",
+      deviceType: r.device_type || "",
+      brand: r.brand || "",
+      model: r.model || "",
+      serialNo: r.serial_no || "",
+      accessories: r.accessories || "",
+      issue: r.issue || "",
+      notes: r.notes || "",
+      receiver: r.receiver || "",
+      status: r.status || "",
+      signature: r.signature || ""
+    }));
+  } catch (e) {
+    alert("Veritabanına bağlanamadı");
+    console.error(e);
+  }
+}
 
-      function saveState() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
-      }
+      function saveState() {}
 
       function updateForm(key, value) {
         state.form[key] = value;
@@ -105,35 +201,69 @@
       }
 
       function saveRecord() {
-        const form = state.form;
-        if (!form.customerName || !form.phone || !form.deviceType || !form.issue) {
-          alert("Lütfen müşteri adı, telefon, cihaz türü ve şikayet alanlarını doldur.");
-          return;
-        }
-        const record = {
-          id: String(Date.now()),
-          recordNo: `SRV-${Date.now().toString().slice(-6)}`,
-          createdAt: new Date().toISOString(),
-          ...form,
-        };
-        state.records.unshift(record);
-        state.form = emptyForm();
-        state.activeTab = "liste";
-        saveState();
-        render();
+        async function saveRecord() {
+  const form = state.form;
+  if (!form.customerName || !form.phone || !form.deviceType || !form.issue) {
+    alert("Lütfen müşteri adı, telefon, cihaz türü ve şikayet alanlarını doldur.");
+    return;
+  }
+
+  const record = {
+    recordNo: `SRV-${Date.now().toString().slice(-6)}`,
+    customerName: form.customerName,
+    phone: form.phone,
+    email: form.email,
+    address: form.address,
+    deviceType: form.deviceType,
+    brand: form.brand,
+    model: form.model,
+    serialNo: form.serialNo,
+    accessories: form.accessories,
+    issue: form.issue,
+    notes: form.notes,
+    receiver: form.receiver,
+    status: form.status,
+    signature: form.signature
+  };
+
+  try {
+    await dbInsertRecord(record);
+    state.form = emptyForm();
+    state.activeTab = "liste";
+    await loadRecordsFromDb();
+    render();
+  } catch (e) {
+    alert("Kayıt veritabanına eklenemedi");
+    console.error(e);
+  }
+}
       }
 
       function deleteRecord(id) {
-        state.records = state.records.filter(r => r.id !== id);
-        if (state.selectedId === id) state.selectedId = null;
-        saveState();
-        render();
+        async function deleteRecord(id) {
+  try {
+    await dbDeleteRecord(id);
+    if (state.selectedId === id) state.selectedId = null;
+    await loadRecordsFromDb();
+    render();
+  } catch (e) {
+    alert("Kayıt silinemedi");
+    console.error(e);
+  }
+}
       }
 
       function updateRecordStatus(id, status) {
-        state.records = state.records.map(r => r.id === id ? { ...r, status } : r);
-        saveState();
-        render();
+        async function updateRecordStatus(id, status) {
+  try {
+    await dbUpdateStatus(id, status);
+    await loadRecordsFromDb();
+    render();
+  } catch (e) {
+    alert("Durum güncellenemedi");
+    console.error(e);
+  }
+}
       }
 
       function duplicateRecordToForm(id) {
@@ -419,7 +549,10 @@
         });
       }
 
-      render();
+      (async function init() {
+  await loadRecordsFromDb();
+  render();
+})();
     </script>
   </body>
 </html>
