@@ -460,27 +460,28 @@ ${selected ? `
       <div class="flex justify-end p-3">
         <button id="closeModal" class="rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm text-white">✕</button>
       </div>
+
       <div class="px-6 pb-6 space-y-4">
-        <h2 class="text-lg font-semibold">${selected.customerName} · ${selected.recordNo}</h2>
+        <h2 id="modalTitle" class="text-lg font-semibold"></h2>
 
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <h3 class="mb-2 font-semibold">Müşteri Bilgileri</h3>
             <div class="space-y-2 text-sm text-zinc-300">
-              <div><span class="text-zinc-500">Telefon:</span> ${selected.phone}</div>
-              <div><span class="text-zinc-500">E-posta:</span> ${selected.email || "-"}</div>
-              <div><span class="text-zinc-500">Adres:</span> ${selected.address || "-"}</div>
-              <div><span class="text-zinc-500">Teslim Alan:</span> ${selected.receiver || "-"}</div>
+              <div><span class="text-zinc-500">Telefon:</span> <span id="mPhone"></span></div>
+              <div><span class="text-zinc-500">E-posta:</span> <span id="mEmail"></span></div>
+              <div><span class="text-zinc-500">Adres:</span> <span id="mAddress"></span></div>
+              <div><span class="text-zinc-500">Teslim Alan:</span> <span id="mReceiver"></span></div>
             </div>
           </div>
 
           <div>
             <h3 class="mb-2 font-semibold">Cihaz Bilgileri</h3>
             <div class="space-y-2 text-sm text-zinc-300">
-              <div><span class="text-zinc-500">Tür:</span> ${selected.deviceType}</div>
-              <div><span class="text-zinc-500">Marka / Model:</span> ${selected.brand} ${selected.model}</div>
-              <div><span class="text-zinc-500">Seri No:</span> ${selected.serialNo || "-"}</div>
-              <div><span class="text-zinc-500">Aksesuar:</span> ${selected.accessories || "-"}</div>
+              <div><span class="text-zinc-500">Tür:</span> <span id="mDeviceType"></span></div>
+              <div><span class="text-zinc-500">Marka / Model:</span> <span id="mBrandModel"></span></div>
+              <div><span class="text-zinc-500">Seri No:</span> <span id="mSerialNo"></span></div>
+              <div><span class="text-zinc-500">Aksesuar:</span> <span id="mAccessories"></span></div>
             </div>
           </div>
         </div>
@@ -490,26 +491,23 @@ ${selected ? `
         <div class="space-y-3 text-sm text-zinc-300">
           <div>
             <div class="mb-1 font-semibold">Müşteri Şikayeti</div>
-            <div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.issue}</div>
+            <div id="mIssue" class="rounded-2xl border border-white/10 bg-black/30 p-3"></div>
           </div>
 
           <div>
             <div class="mb-1 font-semibold">Servis Notu</div>
-            <div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.notes || "-"}</div>
+            <div id="mNotes" class="rounded-2xl border border-white/10 bg-black/30 p-3"></div>
           </div>
 
           <div>
             <div class="mb-1 font-semibold">İmza</div>
-            ${selected.signature
-              ? `<img src="${selected.signature}" class="rounded-2xl border border-white/10" />`
-              : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-zinc-500">İmza yok</div>`}
+            <div id="mSignatureWrap"></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 ` : ""}
-
         document.getElementById("toggleTablet")?.addEventListener("click", () => { state.tabletMode = !state.tabletMode; render(); });
         document.querySelectorAll("[data-tab]").forEach(btn => btn.addEventListener("click", () => { state.activeTab = btn.dataset.tab; render(); }));
         document.querySelectorAll("[data-form]").forEach(el => el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value)));
@@ -527,7 +525,26 @@ ${selected ? `
         document.querySelectorAll("[data-print]").forEach(btn => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
         document.getElementById("closeModal")?.addEventListener("click", () => { state.selectedId = null; render(); });
         document.getElementById("modalOverlay")?.addEventListener("click", (e) => { if (e.target.id === "modalOverlay") { state.selectedId = null; render(); } });
+if (selected) {
+  document.getElementById("modalTitle").textContent = `${selected.customerName} · ${selected.recordNo}`;
+  document.getElementById("mPhone").textContent = selected.phone || "-";
+  document.getElementById("mEmail").textContent = selected.email || "-";
+  document.getElementById("mAddress").textContent = selected.address || "-";
+  document.getElementById("mReceiver").textContent = selected.receiver || "-";
+  document.getElementById("mDeviceType").textContent = selected.deviceType || "-";
+  document.getElementById("mBrandModel").textContent = `${selected.brand || "-"} ${selected.model || ""}`.trim();
+  document.getElementById("mSerialNo").textContent = selected.serialNo || "-";
+  document.getElementById("mAccessories").textContent = selected.accessories || "-";
+  document.getElementById("mIssue").textContent = selected.issue || "-";
+  document.getElementById("mNotes").textContent = selected.notes || "-";
 
+  const signWrap = document.getElementById("mSignatureWrap");
+  if (selected.signature) {
+    signWrap.innerHTML = `<img src="${selected.signature}" class="rounded-2xl border border-white/10" />`;
+  } else {
+    signWrap.innerHTML = `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-zinc-500">İmza yok</div>`;
+  }
+}
         setupSignaturePad();
       }
 
