@@ -519,30 +519,49 @@ ${selected ? `
         document.getElementById("search")?.addEventListener("input", (e) => { state.search = e.target.value; });
         document.getElementById("statusFilter")?.addEventListener("input", (e) => { state.statusFilter = e.target.value; });
         document.querySelectorAll("[data-status]").forEach(btn => btn.addEventListener("click", () => updateRecordStatus(btn.dataset.id, btn.dataset.status)));
-        document.querySelectorAll("[data-detail]").forEach(btn => btn.addEventListener("click", () => { state.selectedId = btn.dataset.detail; render(); }));
-        document.querySelectorAll("[data-duplicate]").forEach(btn => btn.addEventListener("click", () => duplicateRecordToForm(btn.dataset.duplicate)));
+       document.querySelectorAll("[data-detail]").forEach(btn =>
+  btn.addEventListener("click", () => {
+    state.selectedId = btn.dataset.detail;
+    render();
+  })
+);
+    document.querySelectorAll("[data-duplicate]").forEach(btn => btn.addEventListener("click", () => duplicateRecordToForm(btn.dataset.duplicate)));
         document.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", () => deleteRecord(btn.dataset.delete)));
         document.querySelectorAll("[data-print]").forEach(btn => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
         document.getElementById("closeModal")?.addEventListener("click", () => { state.selectedId = null; render(); });
         document.getElementById("modalOverlay")?.addEventListener("click", (e) => { if (e.target.id === "modalOverlay") { state.selectedId = null; render(); } });
 if (selected) {
-  document.getElementById("modalTitle").textContent = `${selected.customerName} · ${selected.recordNo}`;
-  document.getElementById("mPhone").textContent = selected.phone || "-";
-  document.getElementById("mEmail").textContent = selected.email || "-";
-  document.getElementById("mAddress").textContent = selected.address || "-";
-  document.getElementById("mReceiver").textContent = selected.receiver || "-";
-  document.getElementById("mDeviceType").textContent = selected.deviceType || "-";
-  document.getElementById("mBrandModel").textContent = `${selected.brand || "-"} ${selected.model || ""}`.trim();
-  document.getElementById("mSerialNo").textContent = selected.serialNo || "-";
-  document.getElementById("mAccessories").textContent = selected.accessories || "-";
-  document.getElementById("mIssue").textContent = selected.issue || "-";
-  document.getElementById("mNotes").textContent = selected.notes || "-";
+  const modalTitle = document.getElementById("modalTitle");
+  const mPhone = document.getElementById("mPhone");
+  const mEmail = document.getElementById("mEmail");
+  const mAddress = document.getElementById("mAddress");
+  const mReceiver = document.getElementById("mReceiver");
+  const mDeviceType = document.getElementById("mDeviceType");
+  const mBrandModel = document.getElementById("mBrandModel");
+  const mSerialNo = document.getElementById("mSerialNo");
+  const mAccessories = document.getElementById("mAccessories");
+  const mIssue = document.getElementById("mIssue");
+  const mNotes = document.getElementById("mNotes");
+  const mSignatureWrap = document.getElementById("mSignatureWrap");
 
-  const signWrap = document.getElementById("mSignatureWrap");
-  if (selected.signature) {
-    signWrap.innerHTML = `<img src="${selected.signature}" class="rounded-2xl border border-white/10" />`;
-  } else {
-    signWrap.innerHTML = `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-zinc-500">İmza yok</div>`;
+  if (modalTitle) modalTitle.textContent = `${selected.customerName || "-"} · ${selected.recordNo || "-"}`;
+  if (mPhone) mPhone.textContent = selected.phone || "-";
+  if (mEmail) mEmail.textContent = selected.email || "-";
+  if (mAddress) mAddress.textContent = selected.address || "-";
+  if (mReceiver) mReceiver.textContent = selected.receiver || "-";
+  if (mDeviceType) mDeviceType.textContent = selected.deviceType || "-";
+  if (mBrandModel) mBrandModel.textContent = `${selected.brand || "-"} ${selected.model || ""}`.trim();
+  if (mSerialNo) mSerialNo.textContent = selected.serialNo || "-";
+  if (mAccessories) mAccessories.textContent = selected.accessories || "-";
+  if (mIssue) mIssue.textContent = selected.issue || "-";
+  if (mNotes) mNotes.textContent = selected.notes || "-";
+
+  if (mSignatureWrap) {
+    if (selected.signature) {
+      mSignatureWrap.innerHTML = `<img src="${selected.signature}" class="rounded-2xl border border-white/10" />`;
+    } else {
+      mSignatureWrap.innerHTML = `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-zinc-500">İmza yok</div>`;
+    }
   }
 }
         setupSignaturePad();
