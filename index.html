@@ -127,7 +127,8 @@
           status: STATUS_OPTIONS[0] || "Beklemede",
           vehicleImage: "",
           noteText: "",
-          technician: ""
+          technician: "",
+          signature: ""
         };
       }
 
@@ -139,11 +140,10 @@
         statusFilter: "Tümü",
         activeTab: "kayit",
         loading: false,
-        company: {
-          name: "Servis Merkezim",
-          phone: "0 (5__) ___ __ __",
-          email: "info@firma.com",
-          address: "Firma adresi buraya gelecek",
+        company: "Garage İstanbul Oto Aksesuar",
+          phone: "0 (554) 537 36 36",
+          email: "garageistanbul.satis@gmail.com",
+          address: "CUMHURİYET MAH. 676 SOK. NO:85 MURATPAŞA / ANTALYA",
         },
         form: emptyForm(),
       };
@@ -172,6 +172,7 @@
           vehicleImage: form.vehicleImage,
           noteText: form.noteText,
           technician: form.technician,
+          signature: form.signature,
         };
 
         return {
@@ -186,7 +187,7 @@
           notes: JSON.stringify(meta),
           receiver: "",
           status: form.status,
-          signature: "",
+          signature: form.signature || "",
         };
       }
 
@@ -267,6 +268,7 @@
               noteText: meta.noteText || "",
               vehicleImage: meta.vehicleImage || "",
               technician: meta.technician || "",
+              signature: meta.signature || r.signature || "",
               status: r.status || STATUS_OPTIONS[0] || "Beklemede",
             };
           });
@@ -343,6 +345,69 @@
         reader.readAsDataURL(file);
       }
 
+      function setupSignaturePad() {
+        const canvas = document.getElementById("signaturePad");
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+        let drawing = false;
+
+        function repaint() {
+          ctx.fillStyle = "#09090b";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          if (state.form.signature) {
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            img.src = state.form.signature;
+          }
+        }
+
+        repaint();
+
+        const getPos = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const point = e.touches ? e.touches[0] : e;
+          return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+        };
+
+        const start = (e) => {
+          drawing = true;
+          const { x, y } = getPos(e);
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineWidth = 2;
+          ctx.lineCap = "round";
+          ctx.strokeStyle = "#ffffff";
+        };
+
+        const move = (e) => {
+          if (!drawing) return;
+          if (e.cancelable) e.preventDefault();
+          const { x, y } = getPos(e);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+        };
+
+        const end = () => {
+          if (!drawing) return;
+          drawing = false;
+          state.form.signature = canvas.toDataURL("image/png");
+        };
+
+        canvas.onmousedown = start;
+        canvas.onmousemove = move;
+        canvas.onmouseup = end;
+        canvas.onmouseleave = end;
+        canvas.ontouchstart = start;
+        canvas.ontouchmove = move;
+        canvas.ontouchend = end;
+
+        document.getElementById("clearSignature")?.addEventListener("click", () => {
+          state.form.signature = "";
+          repaint();
+        });
+      }
+
       async function saveRecord() {
         const form = state.form;
         if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
@@ -409,7 +474,8 @@
           status: record.status || STATUS_OPTIONS[0] || "Beklemede",
           vehicleImage: record.vehicleImage || "",
           noteText: record.noteText || "",
-          technician: record.technician || ""
+          technician: record.technician || "",
+          signature: record.signature || ""
         };
 
         state.activeTab = "kayit";
@@ -497,6 +563,10 @@
                   <div class="box">
                     <h3>Araç Görseli</h3>
                     ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
+                    <div style="margin-top:8px;">
+                      <h3 style="margin-bottom:6px;">İmza</h3>
+                      ${record.signature ? `<img src="${record.signature}" style="width:100%; max-height:110px; object-fit:contain; border-radius:8px; border:1px solid #ddd;" />` : `<p>İmza alınmadı.</p>`}
+                    </div>
                   </div>
                 </div>
 
@@ -621,7 +691,7 @@
 
                       <div class="space-y-2 md:col-span-2">
                         <label class="text-sm text-zinc-300">Yapılacak İşlemler *</label>
-                        <div class="grid gap-3 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-2">
+                        <div class="grid max-h-80 gap-3 overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-1">
                           ${OPERATION_OPTIONS.map((op) => `
                             <label class="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-zinc-200">
                               <input type="checkbox" data-operation="${op}" ${state.form.operations.includes(op) ? "checked" : ""} />
@@ -647,6 +717,16 @@
                           </div>
                         </div>
                       ` : ""}
+
+                      <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm text-zinc-300">Müşteri İmzası</label>
+                        <div class="rounded-2xl border border-white/10 bg-zinc-950 p-3">
+                          <canvas id="signaturePad" width="700" height="180" class="w-full rounded-xl bg-black/30"></canvas>
+                          <div class="mt-3 flex justify-end">
+                            <button id="clearSignature" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">İmzayı Temizle</button>
+                          </div>
+                        </div>
+                      </div>
 
                       <div class="space-y-2 md:col-span-2">
                         <label class="text-sm text-zinc-300">Ek Notlar</label>
@@ -834,6 +914,10 @@
                     <div>
                       <h3 class="mb-2 font-semibold">Araç Görseli</h3>
                       ${selected.vehicleImage ? `<img src="${selected.vehicleImage}" class="h-56 w-full rounded-2xl border border-white/10 object-cover" />` : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-sm text-zinc-500">Görsel yok</div>`}
+                      <div class="mt-4">
+                        <h3 class="mb-2 font-semibold">İmza</h3>
+                        ${selected.signature ? `<img src="${selected.signature}" class="h-40 w-full rounded-2xl border border-white/10 object-contain bg-black/20" />` : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-sm text-zinc-500">İmza yok</div>`}
+                      </div>
                     </div>
                   </div>
 
@@ -856,6 +940,7 @@
         document.querySelectorAll("[data-operation-fee]").forEach((el) => el.addEventListener("input", (e) => updateOperationFee(el.dataset.operationFee, e.target.value)));
         document.getElementById("vehicleImageInput")?.addEventListener("change", (e) => handleVehicleImage(e.target.files?.[0]));
         document.getElementById("removeVehicleImage")?.addEventListener("click", () => { state.form.vehicleImage = ""; render(); });
+        setupSignaturePad();
         document.getElementById("saveRecord")?.addEventListener("click", saveRecord);
         document.getElementById("exportCsv")?.addEventListener("click", exportCsv);
         document.getElementById("exportJson")?.addEventListener("click", exportJson);
