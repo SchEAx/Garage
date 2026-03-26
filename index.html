@@ -639,6 +639,7 @@
       }
 
       function render() {
+        const scrollY = window.scrollY;
         const app = document.getElementById("app");
         const s = stats();
         const rows = filteredRecords();
@@ -1046,7 +1047,7 @@
         });
         document.getElementById("closeModal")?.addEventListener("click", () => { state.selectedId = null; render(); });
         document.getElementById("modalOverlay")?.addEventListener("click", (e) => { if (e.target.id === "modalOverlay") { state.selectedId = null; render(); } });
-
+        window.scrollTo(0, scrollY);
         setupSignaturePad();
       }
 
