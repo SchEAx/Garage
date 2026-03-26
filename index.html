@@ -8,21 +8,61 @@
     <style>
       body { margin: 0; font-family: Arial, sans-serif; background: #09090b; }
       canvas { touch-action: none; }
+      input[type="checkbox"] { accent-color: #ffffff; }
+      @media print {
+        @page { size: A4 portrait; margin: 8mm; }
+        html, body { background: #fff !important; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }
     </style>
-    <link rel="manifest" href="/manifest.json" />
-<meta name="theme-color" content="#09090b" />
-<link rel="apple-touch-icon" href="/icon-192.png" />
   </head>
   <body>
     <div id="app"></div>
 
     <script>
-      const SUPABASE_URL = "https://sltuupvattwfbidxlcej.supabase.co";
-      const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
+      const SUPABASE_URL = "BURAYA_SUPABASE_URL";
+      const SUPABASE_ANON_KEY = "BURAYA_SUPABASE_ANON_KEY";
+
+      // GitHub üzerinden kolayca artırıp azaltabileceğin yapılacak işlem listesi
+      const OPERATION_OPTIONS = [
+        "Cam Filmi",
+        "Seramik Kaplama",
+        "PPF Kaplama",
+        "Boya Koruma",
+        "Detaylı Temizlik",
+        "Kaput Koruma"
+      ];
+
+      // GitHub üzerinden kolayca değiştirebileceğin durum listesi
+      const STATUS_OPTIONS = [
+        "Beklemede",
+        "Montaj Sürecinde",
+        "Montaj Bitti",
+        "Montaj İptal Oldu",
+        "Garantiye Gitti"
+      ];
 
       function formatDateTime(value) {
         if (!value) return "-";
         return new Date(value).toLocaleString("tr-TR");
+      }
+
+      function safeParseJson(value, fallback) {
+        try {
+          return value ? JSON.parse(value) : fallback;
+        } catch {
+          return fallback;
+        }
+      }
+
+      function formatMoney(value) {
+        const num = Number(value || 0);
+        if (!num) return "-";
+        return new Intl.NumberFormat("tr-TR", {
+          style: "currency",
+          currency: "TRY",
+          maximumFractionDigits: 2,
+        }).format(num);
       }
 
       function downloadFile(filename, content, type = "application/json") {
@@ -39,8 +79,8 @@
 
       function toCsv(rows) {
         const headers = [
-          "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Cihaz Türü", "Marka",
-          "Model", "Şikayet", "Teslim Alan", "Durum"
+          "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Araç Marka", "Araç Modeli",
+          "Yapılacak İşlemler", "Fatura Adresi", "Durum"
         ];
 
         const escapeCsv = (v) => {
@@ -56,12 +96,10 @@
           formatDateTime(r.createdAt),
           r.customerName,
           r.phone,
-          r.deviceType,
           r.brand,
           r.model,
-          r.serialNo,
-          r.issue,
-          r.receiver,
+          (r.operations || []).map((op) => `${op.name}${op.fee ? ` (${formatMoney(op.fee)})` : ""}`).join(" | "),
+          r.invoiceAddress || "",
           r.status,
         ].map(escapeCsv).join(","));
 
@@ -72,18 +110,14 @@
         return {
           customerName: "",
           phone: "",
-          email: "",
-          address: "",
-          deviceType: "Telefon",
+          invoiceAddress: "",
           brand: "",
           model: "",
-          serialNo: "",
-          accessories: "",
-          issue: "",
-          notes: "",
-          receiver: "",
-          status: "Kabul Edildi",
-          signature: "",
+          operations: [],
+          operationFees: {},
+          status: STATUS_OPTIONS[0] || "Beklemede",
+          vehicleImage: "",
+          noteText: ""
         };
       }
 
@@ -120,25 +154,33 @@
         return await res.json();
       }
 
-      async function dbInsertRecord(record) {
-        const payload = {
-          record_no: record.recordNo,
-          customer_name: record.customerName,
-          phone: record.phone,
-          email: record.email,
-          address: record.address,
-          device_type: record.deviceType,
-          brand: record.brand,
-          model: record.model,
-          serial_no: record.serialNo,
-          accessories: record.accessories,
-          issue: record.issue,
-          notes: record.notes,
-          receiver: record.receiver,
-          status: record.status,
-          signature: record.signature,
+      function formToPayload(form) {
+        const meta = {
+          invoiceAddress: form.invoiceAddress,
+          operations: form.operations,
+          operationFees: form.operationFees,
+          vehicleImage: form.vehicleImage,
+          noteText: form.noteText,
         };
 
+        return {
+          record_no: `SRV-${Date.now().toString().slice(-6)}`,
+          customer_name: form.customerName,
+          phone: form.phone,
+          address: form.invoiceAddress || "",
+          device_type: (form.operations || []).join(", "),
+          brand: form.brand,
+          model: form.model,
+          issue: (form.operations || []).join(", "),
+          notes: JSON.stringify(meta),
+          receiver: "",
+          status: form.status,
+          signature: "",
+        };
+      }
+
+      async function dbInsertRecord(form) {
+        const payload = formToPayload(form);
         const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
           method: "POST",
           headers: apiHeaders({
@@ -174,25 +216,27 @@
         render();
         try {
           const rows = await dbFetchRecords();
-          state.records = rows.map((r) => ({
-            id: String(r.id),
-            recordNo: r.record_no || "-",
-            createdAt: r.created_at,
-            customerName: r.customer_name || "",
-            phone: r.phone || "",
-            email: r.email || "",
-            address: r.address || "",
-            deviceType: r.device_type || "",
-            brand: r.brand || "",
-            model: r.model || "",
-            serialNo: r.serial_no || "",
-            accessories: r.accessories || "",
-            issue: r.issue || "",
-            notes: r.notes || "",
-            receiver: r.receiver || "",
-            status: r.status || "",
-            signature: r.signature || "",
-          }));
+          state.records = rows.map((r) => {
+            const meta = safeParseJson(r.notes, {});
+            const operations = Array.isArray(meta.operations)
+              ? meta.operations.map((name) => ({ name, fee: meta.operationFees?.[name] || "" }))
+              : [];
+
+            return {
+              id: String(r.id),
+              recordNo: r.record_no || "-",
+              createdAt: r.created_at,
+              customerName: r.customer_name || "",
+              phone: r.phone || "",
+              invoiceAddress: meta.invoiceAddress || r.address || "",
+              brand: r.brand || "",
+              model: r.model || "",
+              operations,
+              noteText: meta.noteText || "",
+              vehicleImage: meta.vehicleImage || "",
+              status: r.status || STATUS_OPTIONS[0] || "Beklemede",
+            };
+          });
         } finally {
           state.loading = false;
           render();
@@ -203,7 +247,13 @@
         const q = state.search.toLowerCase().trim();
         return state.records.filter((r) => {
           const matchesSearch = !q || [
-            r.recordNo, r.customerName, r.phone, r.brand, r.model, r.serialNo, r.status,
+            r.recordNo,
+            r.customerName,
+            r.phone,
+            r.brand,
+            r.model,
+            (r.operations || []).map((op) => op.name).join(" "),
+            r.status,
           ].join(" ").toLowerCase().includes(q);
 
           const matchesStatus = state.statusFilter === "Tümü" || r.status === state.statusFilter;
@@ -219,9 +269,9 @@
       function stats() {
         return {
           total: state.records.length,
-          pending: state.records.filter((r) => r.status === "Kabul Edildi").length,
-          service: state.records.filter((r) => r.status === "Serviste").length,
-          completed: state.records.filter((r) => r.status === "Teslime Hazır").length,
+          pending: state.records.filter((r) => r.status === "Beklemede").length,
+          inProgress: state.records.filter((r) => r.status === "Montaj Sürecinde").length,
+          completed: state.records.filter((r) => r.status === "Montaj Bitti").length,
         };
       }
 
@@ -233,33 +283,41 @@
         state.company[key] = value;
       }
 
+      function toggleOperation(name, checked) {
+        if (checked) {
+          if (!state.form.operations.includes(name)) {
+            state.form.operations.push(name);
+          }
+        } else {
+          state.form.operations = state.form.operations.filter((op) => op !== name);
+          delete state.form.operationFees[name];
+        }
+        render();
+      }
+
+      function updateOperationFee(name, value) {
+        state.form.operationFees[name] = value;
+      }
+
+      function handleVehicleImage(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          state.form.vehicleImage = reader.result;
+          render();
+        };
+        reader.readAsDataURL(file);
+      }
+
       async function saveRecord() {
         const form = state.form;
-        if (!form.customerName || !form.phone || !form.deviceType || !form.issue) {
-          alert("Lütfen müşteri adı, telefon, cihaz türü ve şikayet alanlarını doldur.");
+        if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
+          alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
           return;
         }
 
-        const record = {
-          recordNo: `SRV-${Date.now().toString().slice(-6)}`,
-          customerName: form.customerName,
-          phone: form.phone,
-          email: form.email,
-          address: form.address,
-          deviceType: form.deviceType,
-          brand: form.brand,
-          model: form.model,
-          serialNo: form.serialNo,
-          accessories: form.accessories,
-          issue: form.issue,
-          notes: form.notes,
-          receiver: form.receiver,
-          status: form.status,
-          signature: form.signature,
-        };
-
         try {
-          await dbInsertRecord(record);
+          await dbInsertRecord(form);
           state.form = emptyForm();
           state.activeTab = "liste";
           await loadRecordsFromDb();
@@ -297,18 +355,14 @@
         state.form = {
           customerName: record.customerName || "",
           phone: record.phone || "",
-          email: record.email || "",
-          address: record.address || "",
-          deviceType: record.deviceType || "Telefon",
+          invoiceAddress: record.invoiceAddress || "",
           brand: record.brand || "",
           model: record.model || "",
-          serialNo: record.serialNo || "",
-          accessories: record.accessories || "",
-          issue: record.issue || "",
-          notes: record.notes || "",
-          receiver: record.receiver || "",
-          status: record.status || "Kabul Edildi",
-          signature: record.signature || "",
+          operations: (record.operations || []).map((op) => op.name),
+          operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
+          status: record.status || STATUS_OPTIONS[0] || "Beklemede",
+          vehicleImage: record.vehicleImage || "",
+          noteText: record.noteText || ""
         };
 
         state.activeTab = "kayit";
@@ -328,6 +382,13 @@
         const record = state.records.find((r) => r.id === id);
         if (!record) return;
 
+        const operationsHtml = (record.operations || []).map((op) => `
+          <div class="line-row">
+            <span>${op.name}</span>
+            <strong>${op.fee ? formatMoney(op.fee) : "-"}</strong>
+          </div>
+        `).join("");
+
         const win = window.open("", "_blank", "width=900,height=1200");
         if (!win) return;
 
@@ -336,51 +397,68 @@
             <head>
               <title>Servis Fişi - ${record.recordNo}</title>
               <style>
-                body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
-                .box { border: 1px solid #ccc; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
-                h1,h2,h3,p { margin: 0 0 10px 0; }
-                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-                .label { color: #666; font-size: 12px; text-transform: uppercase; margin-bottom: 4px; }
-                .value { font-size: 14px; font-weight: 600; }
-                img { max-width: 100%; border: 1px solid #ddd; border-radius: 10px; }
+                @page { size: A4 portrait; margin: 8mm; }
+                body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 11px; }
+                .page { padding: 8mm; box-sizing: border-box; }
+                .box { border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+                h1,h2,h3,p { margin: 0 0 6px 0; }
+                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+                .label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
+                .value { font-size: 11px; font-weight: 600; word-break: break-word; }
+                .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
+                .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+                .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
               </style>
             </head>
             <body>
-              <div class="box">
-                <h1>${state.company.name}</h1>
-                <p>${state.company.phone} · ${state.company.email}</p>
-                <p>${state.company.address}</p>
-              </div>
-              <div class="box">
-                <h2>Servis Kabul Fişi</h2>
-                <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
-                <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
-                <p><strong>Durum:</strong> ${record.status}</p>
-              </div>
-              <div class="grid">
+              <div class="page">
                 <div class="box">
-                  <h3>Müşteri Bilgileri</h3>
-                  <div class="label">Ad Soyad</div><div class="value">${record.customerName || "-"}</div>
-                  <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
-                  <div class="label">E-posta</div><div class="value">${record.email || "-"}</div>
-                  <div class="label">Adres</div><div class="value">${record.address || "-"}</div>
+                  <h1>${state.company.name}</h1>
+                  <p>${state.company.phone} · ${state.company.email}</p>
+                  <p>${state.company.address}</p>
                 </div>
+
                 <div class="box">
-                  <h3>Cihaz Bilgileri</h3>
-                  <div class="label">Cihaz Türü</div><div class="value">${record.deviceType || "-"}</div>
-                  <div class="label">Marka / Model</div><div class="value">${record.brand || "-"} ${record.model || ""}</div>
-                  <div class="label">Aksesuarlar</div><div class="value">${record.accessories || "-"}</div>
+                  <h2>Araç Kabul Fişi</h2>
+                  <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
+                  <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
+                  <p><strong>Durum:</strong> ${record.status}</p>
                 </div>
-              </div>
-              <div class="box"><h3>Arıza / Şikayet</h3><p>${record.issue || "-"}</p></div>
-              <div class="box"><h3>Servis Notu</h3><p>${record.notes || "-"}</p></div>
-              <div class="box">
-                <h3>Müşteri İmzası</h3>
-                ${record.signature ? `<img src="${record.signature}" alt="İmza" />` : "<p>İmza alınmadı.</p>"}
+
+                <div class="grid">
+                  <div class="box">
+                    <h3>Müşteri Bilgileri</h3>
+                    <div class="label">Ad Soyad</div><div class="value">${record.customerName || "-"}</div>
+                    <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
+                    <div class="label">Fatura Adresi</div><div class="value">${record.invoiceAddress || "-"}</div>
+                  </div>
+                  <div class="box">
+                    <h3>Araç Bilgileri</h3>
+                    <div class="label">Araç Marka</div><div class="value">${record.brand || "-"}</div>
+                    <div class="label">Araç Modeli</div><div class="value">${record.model || "-"}</div>
+                  </div>
+                </div>
+
+                <div class="two-col">
+                  <div class="box">
+                    <h3>Yapılacak İşlemler</h3>
+                    ${operationsHtml || "<p>-</p>"}
+                  </div>
+                  <div class="box">
+                    <h3>Araç Görseli</h3>
+                    ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
+                  </div>
+                </div>
+
+                <div class="box">
+                  <h3>Ek Notlar</h3>
+                  <p>${record.noteText || "-"}</p>
+                </div>
               </div>
             </body>
           </html>
         `);
+
         win.document.close();
         setTimeout(() => win.print(), 300);
       }
@@ -403,10 +481,10 @@
                 <div class="rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-900 to-black p-6 shadow-2xl">
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex items-center gap-3">
-                      <div class="rounded-2xl border border-white/10 bg-white/5 p-3">📋</div>
+                      <div class="rounded-2xl border border-white/10 bg-white/5 p-3">🚗</div>
                       <div>
                         <h1 class="text-2xl font-bold tracking-tight">${state.company.name}</h1>
-                        <p class="text-sm text-zinc-400">Müşteri Kabul Sistemi · veritabanlı sürüm</p>
+                        <p class="text-sm text-zinc-400">Araç kabul sistemi · güncel sürüm</p>
                       </div>
                     </div>
                     <button id="toggleTablet" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">
@@ -414,19 +492,19 @@
                     </button>
                   </div>
                   <div class="mt-6 flex flex-wrap gap-2">
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Karanlık Tema</span>
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Tablet Uyumlu</span>
+                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Araç Görseli</span>
+                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Çoklu İşlem</span>
                     <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Bulut Kayıt</span>
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Servis Fişi Yazdırma</span>
+                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Tek Sayfa Fiş</span>
                   </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                   ${[
                     { label: "Toplam Kayıt", value: s.total, icon: "📄" },
-                    { label: "Yeni Kabul", value: s.pending, icon: "🙍" },
-                    { label: "Serviste", value: s.service, icon: "🔧" },
-                    { label: "Teslime Hazır", value: s.completed, icon: "✅" },
+                    { label: "Beklemede", value: s.pending, icon: "⏳" },
+                    { label: "Montajda", value: s.inProgress, icon: "🔧" },
+                    { label: "Montaj Bitti", value: s.completed, icon: "✅" },
                   ].map((item) => `
                     <div class="rounded-3xl border border-white/10 bg-zinc-900/80 text-white">
                       <div class="p-5">
@@ -467,42 +545,87 @@
               ${state.activeTab === "kayit" ? `
                 <div class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
                   <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Servis Kabul Formu</h2></div>
+                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Araç Kabul Formu</h2></div>
                     <div class="grid gap-4 p-6 pt-0 md:grid-cols-2">
-                      ${[
-                        ["customerName", "Müşteri Adı Soyadı"],
-                        ["phone", "Telefon"],
-                        ["email", "E-posta"],
-                        ["receiver", "Teslim Alan Personel"],
-                        ["deviceType", "Cihaz Türü"],
-                        ["status", "Durum"],
-                        ["brand", "Marka"],
-                        ["model", "Model"],
-                      ].map(([k, label]) => `
-                        <div class="space-y-2 ${k === "serialNo" ? "md:col-span-2" : ""}">
-                          <label class="text-sm text-zinc-300">${label}</label>
-                          <input data-form="${k}" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form[k] || ""}" />
+                      <div class="space-y-2">
+                        <label class="text-sm text-zinc-300">Müşteri Ad Soyadı *</label>
+                        <input data-form="customerName" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.customerName}" />
+                      </div>
+                      <div class="space-y-2">
+                        <label class="text-sm text-zinc-300">Telefon *</label>
+                        <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
+                      </div>
+                      <div class="space-y-2">
+                        <label class="text-sm text-zinc-300">Araç Marka *</label>
+                        <input data-form="brand" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.brand}" />
+                      </div>
+                      <div class="space-y-2">
+                        <label class="text-sm text-zinc-300">Araç Modeli *</label>
+                        <input data-form="model" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.model}" />
+                      </div>
+                      <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm text-zinc-300">Fatura Adresi</label>
+                        <textarea data-form="invoiceAddress" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.invoiceAddress || ""}</textarea>
+                      </div>
+
+                      <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm text-zinc-300">Yapılacak İşlemler *</label>
+                        <div class="grid gap-3 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-2">
+                          ${OPERATION_OPTIONS.map((op) => `
+                            <label class="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-zinc-200">
+                              <input type="checkbox" data-operation="${op}" ${state.form.operations.includes(op) ? "checked" : ""} />
+                              <span>${op}</span>
+                            </label>
+                          `).join("")}
                         </div>
-                      `).join("")}
-                      <div class="space-y-2 md:col-span-2"><label class="text-sm text-zinc-300">Adres</label><textarea data-form="address" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.address || ""}</textarea></div>
-                      <div class="space-y-2 md:col-span-2"><label class="text-sm text-zinc-300">Beraber Gelen Ekipmanlar</label><textarea data-form="accessories" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.accessories || ""}</textarea></div>
-                      <div class="space-y-2 md:col-span-2"><label class="text-sm text-zinc-300">Müşteri Şikayeti / Arıza Açıklaması</label><textarea data-form="issue" class="min-h-[110px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.issue || ""}</textarea></div>
-                      <div class="space-y-2 md:col-span-2"><label class="text-sm text-zinc-300">Servis Notu</label><textarea data-form="notes" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.notes || ""}</textarea></div>
+                      </div>
+
+                      ${state.form.operations.length ? `
+                        <div class="space-y-2 md:col-span-2">
+                          <label class="text-sm text-zinc-300">İşlem Ücretleri</label>
+                          <div class="grid gap-3 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-2">
+                            ${state.form.operations.map((op) => `
+                              <div class="rounded-xl border border-white/10 bg-black/20 p-3">
+                                <div class="mb-2 text-sm text-zinc-300">${op}</div>
+                                <div class="flex items-center rounded-xl border border-white/10 bg-zinc-900 px-3 py-2">
+                                  <span class="mr-2 text-sm text-zinc-400">₺</span>
+                                  <input data-operation-fee="${op}" class="w-full bg-transparent text-sm text-white outline-none" placeholder="0" value="${state.form.operationFees[op] || ""}" />
+                                </div>
+                              </div>
+                            `).join("")}
+                          </div>
+                        </div>
+                      ` : ""}
+
+                      <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm text-zinc-300">Ek Notlar</label>
+                        <textarea data-form="noteText" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.noteText || ""}</textarea>
+                      </div>
+
+                      <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm text-zinc-300">Durum</label>
+                        <select data-form="status" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+                          ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.form.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                        </select>
+                      </div>
                     </div>
                   </div>
 
                   <div class="space-y-4">
                     <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                      <div class="p-6 pb-3"><h2 class="text-lg font-semibold">✍️ Müşteri İmzası</h2></div>
-                      <div class="p-6 pt-0">
-                        <div class="space-y-3">
-                          <div class="rounded-2xl border border-white/10 bg-black/50 p-2">
-                            <canvas id="signaturePad" width="700" height="220" class="w-full rounded-xl bg-zinc-950"></canvas>
+                      <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Araç Görseli</h2></div>
+                      <div class="p-6 pt-0 space-y-4">
+                        <label class="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-zinc-300 hover:bg-white/5">
+                          <span class="text-lg">📷</span>
+                          <span>Fotoğraf Ekle / Kamerayı Aç</span>
+                          <input id="vehicleImageInput" type="file" accept="image/*" capture="environment" class="hidden" />
+                        </label>
+                        ${state.form.vehicleImage ? `
+                          <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-2">
+                            <img src="${state.form.vehicleImage}" class="h-56 w-full rounded-xl object-cover" />
                           </div>
-                          <div class="flex justify-end">
-                            <button id="clearSignature" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">İmzayı Temizle</button>
-                          </div>
-                        </div>
+                          <button id="removeVehicleImage" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">Görseli Sil</button>
+                        ` : `<div class="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-zinc-500">Henüz görsel eklenmedi.</div>`}
                       </div>
                     </div>
 
@@ -525,8 +648,11 @@
                     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <h2 class="text-lg font-semibold">Kayıt Listesi</h2>
                       <div class="flex w-full flex-col gap-3 md:max-w-2xl md:flex-row">
-                        <input id="search" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Kayıt no, müşteri, telefon, model..." value="${state.search}" />
-                        <input id="statusFilter" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Tümü / Kabul Edildi / Serviste / Teslime Hazır" value="${state.statusFilter}" />
+                        <input id="search" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Kayıt no, müşteri, telefon, araç, işlem..." value="${state.search}" />
+                        <select id="statusFilter" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+                          <option value="Tümü" ${state.statusFilter === "Tümü" ? "selected" : ""}>Tümü</option>
+                          ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.statusFilter === status ? "selected" : ""}>${status}</option>`).join("")}
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -542,13 +668,11 @@
                               <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.recordNo}</span>
                               <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.status}</span>
                             </div>
-                            <div class="text-sm text-zinc-400">${record.phone} · ${record.deviceType} · ${record.brand} ${record.model}</div>
+                            <div class="text-sm text-zinc-400">${record.phone} · ${record.brand} ${record.model}</div>
+                            <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
                             <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
                           </div>
                           <div class="flex flex-wrap gap-2">
-                            <button data-status="Kabul Edildi" data-id="${record.id}" class="rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm text-white hover:bg-white/5">Kabul</button>
-                            <button data-status="Serviste" data-id="${record.id}" class="rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm text-white hover:bg-white/5">Serviste</button>
-                            <button data-status="Teslime Hazır" data-id="${record.id}" class="rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm text-white hover:bg-white/5">Hazır</button>
                             <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Detay</button>
                             <button data-duplicate="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Forma Al</button>
                             <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
@@ -566,19 +690,20 @@
                   <div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                     <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Bu sürümde hazır olanlar</h2></div>
                     <div class="grid gap-3 p-6 pt-0 text-sm text-zinc-300">
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Tablet ve PC aynı kayıtları görür</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Bulut veritabanı</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Arama ve detay görüntüleme</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• CSV ve JSON dışa aktarma</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Araç görseli ekleme</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Çoklu yapılacak işlem seçimi</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• İşlem bazlı ücret girişi</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Detaydan anlık durum değiştirme</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Tek sayfa fiş yazdırma</div>
                     </div>
                   </div>
                   <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Sıradaki adımlar</h2></div>
+                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Sonraki adımlar</h2></div>
                     <div class="space-y-3 p-6 pt-0 text-sm text-zinc-300">
                       <div>🔐 Kullanıcı girişi</div>
                       <div>📩 Müşteri bilgilendirme</div>
-                      <div>📄 Gelişmiş PDF fişi</div>
-                      <div>👨‍🔧 Personel rolleri</div>
+                      <div>🧾 Toplam tutar / teklif alanı</div>
+                      <div>📦 İş emri raporları</div>
                     </div>
                   </div>
                 </div>
@@ -588,38 +713,55 @@
 
           ${showModal ? `
             <div id="modalOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-              <div class="w-full max-w-3xl rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
+              <div class="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
                 <div class="flex justify-end p-3"><button id="closeModal" class="rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm text-white hover:bg-white/5">✕</button></div>
                 <div class="px-6 pb-6 space-y-4">
-                  <h2 class="text-lg font-semibold">${selected.customerName || "-"} · ${selected.recordNo || "-"}</h2>
+                  <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h2 class="text-lg font-semibold">${selected.customerName || "-"} · ${selected.recordNo || "-"}</h2>
+                      <div class="mt-1 text-sm text-zinc-400">${selected.phone || "-"} · ${selected.brand || "-"} ${selected.model || ""}</div>
+                    </div>
+                    <div class="w-full md:w-72">
+                      <label class="mb-2 block text-sm text-zinc-300">Durum</label>
+                      <select id="detailStatusSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white">
+                        ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${selected.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                      </select>
+                    </div>
+                  </div>
+
                   <div class="grid gap-4 md:grid-cols-2">
                     <div>
                       <h3 class="mb-2 font-semibold">Müşteri Bilgileri</h3>
                       <div class="space-y-2 text-sm text-zinc-300">
                         <div><span class="text-zinc-500">Telefon:</span> ${selected.phone || "-"}</div>
-                        <div><span class="text-zinc-500">E-posta:</span> ${selected.email || "-"}</div>
-                        <div><span class="text-zinc-500">Adres:</span> ${selected.address || "-"}</div>
-                        <div><span class="text-zinc-500">Teslim Alan:</span> ${selected.receiver || "-"}</div>
+                        <div><span class="text-zinc-500">Fatura Adresi:</span> ${selected.invoiceAddress || "-"}</div>
                       </div>
                     </div>
                     <div>
-                      <h3 class="mb-2 font-semibold">Cihaz Bilgileri</h3>
+                      <h3 class="mb-2 font-semibold">Araç Bilgileri</h3>
                       <div class="space-y-2 text-sm text-zinc-300">
-                        <div><span class="text-zinc-500">Tür:</span> ${selected.deviceType || "-"}</div>
-                        <div><span class="text-zinc-500">Marka / Model:</span> ${selected.brand || "-"} ${selected.model || ""}</div>
-                        <div><span class="text-zinc-500">Seri No:</span> ${selected.serialNo || "-"}</div>
-                        <div><span class="text-zinc-500">Aksesuar:</span> ${selected.accessories || "-"}</div>
+                        <div><span class="text-zinc-500">Araç Marka:</span> ${selected.brand || "-"}</div>
+                        <div><span class="text-zinc-500">Araç Modeli:</span> ${selected.model || "-"}</div>
                       </div>
                     </div>
                   </div>
-                  <div class="h-px w-full bg-white/10"></div>
-                  <div class="space-y-3 text-sm text-zinc-300">
-                    <div><div class="mb-1 font-semibold">Müşteri Şikayeti</div><div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.issue || "-"}</div></div>
-                    <div><div class="mb-1 font-semibold">Servis Notu</div><div class="rounded-2xl border border-white/10 bg-black/30 p-3">${selected.notes || "-"}</div></div>
+
+                  <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                     <div>
-                      <div class="mb-1 font-semibold">İmza</div>
-                      ${selected.signature ? `<img src="${selected.signature}" class="rounded-2xl border border-white/10" />` : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-zinc-500">İmza yok</div>`}
+                      <h3 class="mb-2 font-semibold">Yapılacak İşlemler</h3>
+                      <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300 space-y-2">
+                        ${(selected.operations || []).length ? selected.operations.map((op) => `<div class="flex items-center justify-between gap-3 border-b border-white/5 pb-2 last:border-0 last:pb-0"><span>${op.name}</span><strong>${op.fee ? formatMoney(op.fee) : "-"}</strong></div>`).join("") : `<div>-</div>`}
+                      </div>
                     </div>
+                    <div>
+                      <h3 class="mb-2 font-semibold">Araç Görseli</h3>
+                      ${selected.vehicleImage ? `<img src="${selected.vehicleImage}" class="h-56 w-full rounded-2xl border border-white/10 object-cover" />` : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-sm text-zinc-500">Görsel yok</div>`}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 class="mb-2 font-semibold">Ek Notlar</h3>
+                    <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300">${selected.noteText || "-"}</div>
                   </div>
                 </div>
               </div>
@@ -630,85 +772,28 @@
         document.getElementById("toggleTablet")?.addEventListener("click", () => { state.tabletMode = !state.tabletMode; render(); });
         document.querySelectorAll("[data-tab]").forEach((btn) => btn.addEventListener("click", () => { state.activeTab = btn.dataset.tab; render(); }));
         document.querySelectorAll("[data-form]").forEach((el) => el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value)));
+        document.querySelectorAll("[data-form]").forEach((el) => el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value)));
         document.querySelectorAll("[data-company]").forEach((el) => el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value)));
+        document.querySelectorAll("[data-operation]").forEach((el) => el.addEventListener("change", (e) => toggleOperation(el.dataset.operation, e.target.checked)));
+        document.querySelectorAll("[data-operation-fee]").forEach((el) => el.addEventListener("input", (e) => updateOperationFee(el.dataset.operationFee, e.target.value)));
+        document.getElementById("vehicleImageInput")?.addEventListener("change", (e) => handleVehicleImage(e.target.files?.[0]));
+        document.getElementById("removeVehicleImage")?.addEventListener("click", () => { state.form.vehicleImage = ""; render(); });
+
         document.getElementById("saveRecord")?.addEventListener("click", saveRecord);
         document.getElementById("exportCsv")?.addEventListener("click", exportCsv);
         document.getElementById("exportJson")?.addEventListener("click", exportJson);
         document.getElementById("resetForm")?.addEventListener("click", () => { state.form = emptyForm(); render(); });
         document.getElementById("search")?.addEventListener("input", (e) => { state.search = e.target.value; });
-        document.getElementById("statusFilter")?.addEventListener("input", (e) => { state.statusFilter = e.target.value; });
-        document.querySelectorAll("[data-status]").forEach((btn) => btn.addEventListener("click", () => updateRecordStatus(btn.dataset.id, btn.dataset.status)));
+        document.getElementById("statusFilter")?.addEventListener("change", (e) => { state.statusFilter = e.target.value; render(); });
         document.querySelectorAll("[data-detail]").forEach((btn) => btn.addEventListener("click", () => { state.selectedId = btn.dataset.detail || null; render(); }));
         document.querySelectorAll("[data-duplicate]").forEach((btn) => btn.addEventListener("click", () => duplicateRecordToForm(btn.dataset.duplicate)));
         document.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteRecord(btn.dataset.delete)));
         document.querySelectorAll("[data-print]").forEach((btn) => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
+        document.getElementById("detailStatusSelect")?.addEventListener("change", async (e) => {
+          if (selected) await updateRecordStatus(selected.id, e.target.value);
+        });
         document.getElementById("closeModal")?.addEventListener("click", () => { state.selectedId = null; render(); });
         document.getElementById("modalOverlay")?.addEventListener("click", (e) => { if (e.target.id === "modalOverlay") { state.selectedId = null; render(); } });
-
-        setupSignaturePad();
-      }
-
-      function setupSignaturePad() {
-        const canvas = document.getElementById("signaturePad");
-        if (!canvas) return;
-
-        const ctx = canvas.getContext("2d");
-        let drawing = false;
-
-        function repaint() {
-          ctx.fillStyle = "#09090b";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          if (state.form.signature) {
-            const img = new Image();
-            img.onload = () => ctx.drawImage(img, 0, 0);
-            img.src = state.form.signature;
-          }
-        }
-
-        repaint();
-
-        const getPos = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          const point = e.touches ? e.touches[0] : e;
-          return { x: point.clientX - rect.left, y: point.clientY - rect.top };
-        };
-
-        const start = (e) => {
-          drawing = true;
-          const { x, y } = getPos(e);
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineWidth = 2;
-          ctx.lineCap = "round";
-          ctx.strokeStyle = "#ffffff";
-        };
-
-        const move = (e) => {
-          if (!drawing) return;
-          if (e.cancelable) e.preventDefault();
-          const { x, y } = getPos(e);
-          ctx.lineTo(x, y);
-          ctx.stroke();
-        };
-
-        const end = () => {
-          if (!drawing) return;
-          drawing = false;
-          state.form.signature = canvas.toDataURL("image/png");
-        };
-
-        canvas.onmousedown = start;
-        canvas.onmousemove = move;
-        canvas.onmouseup = end;
-        canvas.onmouseleave = end;
-        canvas.ontouchstart = start;
-        canvas.ontouchmove = move;
-        canvas.ontouchend = end;
-
-        document.getElementById("clearSignature")?.addEventListener("click", () => {
-          state.form.signature = "";
-          repaint();
-        });
       }
 
       (async function init() {
@@ -716,14 +801,5 @@
         await loadRecordsFromDb();
       })();
     </script>
-    <script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.error("Service worker kayıt hatası:", err);
-      });
-    });
-  }
-</script>
   </body>
 </html>
