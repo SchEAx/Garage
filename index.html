@@ -40,7 +40,7 @@
       function toCsv(rows) {
         const headers = [
           "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Cihaz Türü", "Marka",
-          "Model", "IMEI/Seri No", "Şikayet", "Teslim Alan", "Durum"
+          "Model", "Şikayet", "Teslim Alan", "Durum"
         ];
 
         const escapeCsv = (v) => {
@@ -369,7 +369,6 @@
                   <h3>Cihaz Bilgileri</h3>
                   <div class="label">Cihaz Türü</div><div class="value">${record.deviceType || "-"}</div>
                   <div class="label">Marka / Model</div><div class="value">${record.brand || "-"} ${record.model || ""}</div>
-                  <div class="label">IMEI / Seri No</div><div class="value">${record.serialNo || "-"}</div>
                   <div class="label">Aksesuarlar</div><div class="value">${record.accessories || "-"}</div>
                 </div>
               </div>
@@ -479,7 +478,6 @@
                         ["status", "Durum"],
                         ["brand", "Marka"],
                         ["model", "Model"],
-                        ["serialNo", "IMEI / Seri No"],
                       ].map(([k, label]) => `
                         <div class="space-y-2 ${k === "serialNo" ? "md:col-span-2" : ""}">
                           <label class="text-sm text-zinc-300">${label}</label>
