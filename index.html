@@ -8,6 +8,7 @@
     <style>
       body { margin: 0; font-family: Arial, sans-serif; background: #09090b; }
       input[type="checkbox"] { accent-color: #ffffff; }
+      canvas { touch-action: none; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
         html, body { background: #fff !important; }
@@ -22,7 +23,6 @@
       const SUPABASE_URL = "https://sltuupvattwfbidxlcej.supabase.co";
       const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
 
-      // GitHub üzerinden rahatça artırıp azaltabilirsin
       const OPERATION_OPTIONS = [
         "Cam Filmi",
         "Seramik Kaplama",
@@ -32,7 +32,6 @@
         "Kaput Koruma"
       ];
 
-      // GitHub üzerinden rahatça artırıp azaltabilirsin
       const STATUS_OPTIONS = [
         "Beklemede",
         "Montaj Sürecinde",
@@ -56,7 +55,6 @@
 
       function formatMoney(value) {
         const num = Number(value || 0);
-        if (!num) return "₺0";
         return new Intl.NumberFormat("tr-TR", {
           style: "currency",
           currency: "TRY",
@@ -109,7 +107,7 @@
           formatMoney(recordTotal(r)),
           r.invoiceAddress || "",
           r.technician || "",
-          r.status,
+          r.status || "",
         ].map(escapeCsv).join(","));
 
         return [headers.join(","), ...lines].join("\n");
@@ -124,7 +122,7 @@
           model: "",
           operations: [],
           operationFees: {},
-          status: STATUS_OPTIONS[0] || "Beklemede",
+          status: STATUS_OPTIONS[0],
           vehicleImage: "",
           noteText: "",
           technician: "",
@@ -140,7 +138,7 @@
         statusFilter: "Tümü",
         activeTab: "kayit",
         loading: false,
-        company: "Garage İstanbul Oto Aksesuar",
+          company: "Garage İstanbul Oto Aksesuar",
           phone: "0 (554) 537 36 36",
           email: "garageistanbul.satis@gmail.com",
           address: "CUMHURİYET MAH. 676 SOK. NO:85 MURATPAŞA / ANTALYA",
@@ -192,14 +190,13 @@
       }
 
       async function dbInsertRecord(form) {
-        const payload = formToPayload(form);
         const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
           method: "POST",
           headers: apiHeaders({
             "Content-Type": "application/json",
             Prefer: "return=representation",
           }),
-          body: JSON.stringify(payload),
+          body: JSON.stringify(formToPayload(form)),
         });
 
         if (!res.ok) throw new Error("Kayıt eklenemedi");
@@ -215,7 +212,7 @@
         if (!res.ok) throw new Error("Durum güncellenemedi");
       }
 
-      async function dbUpdateNotes(id, currentRecord, patchMeta) {
+      async function dbUpdateMeta(id, currentRecord, patchMeta) {
         const existingMeta = {
           invoiceAddress: currentRecord.invoiceAddress || "",
           operations: (currentRecord.operations || []).map((op) => op.name),
@@ -223,6 +220,7 @@
           vehicleImage: currentRecord.vehicleImage || "",
           noteText: currentRecord.noteText || "",
           technician: currentRecord.technician || "",
+          signature: currentRecord.signature || "",
         };
 
         const nextMeta = { ...existingMeta, ...patchMeta };
@@ -230,10 +228,12 @@
         const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
           method: "PATCH",
           headers: apiHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({ notes: JSON.stringify(nextMeta) }),
+          body: JSON.stringify({
+            notes: JSON.stringify(nextMeta),
+            signature: nextMeta.signature || ""
+          }),
         });
-
-        if (!res.ok) throw new Error("Kayıt bilgisi güncellenemedi");
+        if (!res.ok) throw new Error("Kayıt güncellenemedi");
       }
 
       async function dbDeleteRecord(id) {
@@ -269,7 +269,7 @@
               vehicleImage: meta.vehicleImage || "",
               technician: meta.technician || "",
               signature: meta.signature || r.signature || "",
-              status: r.status || STATUS_OPTIONS[0] || "Beklemede",
+              status: r.status || STATUS_OPTIONS[0],
             };
           });
         } finally {
@@ -281,7 +281,7 @@
       function filteredRecords() {
         const q = state.search.toLowerCase().trim();
         return state.records.filter((r) => {
-          const matchesSearch = !q || [
+          const haystack = [
             r.recordNo,
             r.customerName,
             r.phone,
@@ -290,8 +290,9 @@
             (r.operations || []).map((op) => op.name).join(" "),
             r.technician || "",
             r.status,
-          ].join(" ").toLowerCase().includes(q);
+          ].join(" ").toLowerCase();
 
+          const matchesSearch = !q || haystack.includes(q);
           const matchesStatus = state.statusFilter === "Tümü" || r.status === state.statusFilter;
           return matchesSearch && matchesStatus;
         });
@@ -321,9 +322,7 @@
 
       function toggleOperation(name, checked) {
         if (checked) {
-          if (!state.form.operations.includes(name)) {
-            state.form.operations.push(name);
-          }
+          if (!state.form.operations.includes(name)) state.form.operations.push(name);
         } else {
           state.form.operations = state.form.operations.filter((op) => op !== name);
           delete state.form.operationFees[name];
@@ -451,7 +450,7 @@
         const record = state.records.find((r) => r.id === id);
         if (!record) return;
         try {
-          await dbUpdateNotes(id, record, { technician });
+          await dbUpdateMeta(id, record, { technician });
           record.technician = technician;
         } catch (e) {
           alert("Usta bilgisi güncellenemedi");
@@ -471,7 +470,7 @@
           model: record.model || "",
           operations: (record.operations || []).map((op) => op.name),
           operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
-          status: record.status || STATUS_OPTIONS[0] || "Beklemede",
+          status: record.status || STATUS_OPTIONS[0],
           vehicleImage: record.vehicleImage || "",
           noteText: record.noteText || "",
           technician: record.technician || "",
@@ -520,6 +519,7 @@
                 .value { font-size: 11px; font-weight: 600; word-break: break-word; }
                 .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
                 .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+                .sign-image { width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
                 .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
                 .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
               </style>
@@ -565,7 +565,7 @@
                     ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
                     <div style="margin-top:8px;">
                       <h3 style="margin-bottom:6px;">İmza</h3>
-                      ${record.signature ? `<img src="${record.signature}" style="width:100%; max-height:110px; object-fit:contain; border-radius:8px; border:1px solid #ddd;" />` : `<p>İmza alınmadı.</p>`}
+                      ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p>İmza alınmadı.</p>`}
                     </div>
                   </div>
                 </div>
@@ -615,7 +615,7 @@
                   <div class="mt-6 flex flex-wrap gap-2">
                     <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Araç Görseli</span>
                     <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Çoklu İşlem</span>
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Bulut Kayıt</span>
+                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">İmza Alanı</span>
                     <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Tek Sayfa Fiş</span>
                   </div>
                 </div>
@@ -933,14 +933,15 @@
 
         document.getElementById("toggleTablet")?.addEventListener("click", () => { state.tabletMode = !state.tabletMode; render(); });
         document.querySelectorAll("[data-tab]").forEach((btn) => btn.addEventListener("click", () => { state.activeTab = btn.dataset.tab; render(); }));
-        document.querySelectorAll("[data-form]").forEach((el) => el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value)));
-        document.querySelectorAll("[data-form]").forEach((el) => el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value)));
+        document.querySelectorAll("[data-form]").forEach((el) => {
+          el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value));
+          el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value));
+        });
         document.querySelectorAll("[data-company]").forEach((el) => el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value)));
         document.querySelectorAll("[data-operation]").forEach((el) => el.addEventListener("change", (e) => toggleOperation(el.dataset.operation, e.target.checked)));
         document.querySelectorAll("[data-operation-fee]").forEach((el) => el.addEventListener("input", (e) => updateOperationFee(el.dataset.operationFee, e.target.value)));
         document.getElementById("vehicleImageInput")?.addEventListener("change", (e) => handleVehicleImage(e.target.files?.[0]));
         document.getElementById("removeVehicleImage")?.addEventListener("click", () => { state.form.vehicleImage = ""; render(); });
-        setupSignaturePad();
         document.getElementById("saveRecord")?.addEventListener("click", saveRecord);
         document.getElementById("exportCsv")?.addEventListener("click", exportCsv);
         document.getElementById("exportJson")?.addEventListener("click", exportJson);
@@ -953,10 +954,12 @@
         document.querySelectorAll("[data-print]").forEach((btn) => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
         document.querySelectorAll("[data-inline-status]").forEach((el) => el.addEventListener("change", async (e) => { await updateRecordStatus(el.dataset.inlineStatus, e.target.value); }));
         document.querySelectorAll("[data-inline-tech]").forEach((el) => {
-          const save = async () => {
-            await updateRecordTechnician(el.dataset.inlineTech, el.value.trim());
-          };
-          el.addEventListener("change", save);
+          let timer = null;
+          const save = async () => { await updateRecordTechnician(el.dataset.inlineTech, el.value.trim()); };
+          el.addEventListener("input", () => {
+            clearTimeout(timer);
+            timer = setTimeout(save, 600);
+          });
           el.addEventListener("blur", save);
         });
         document.getElementById("detailStatusSelect")?.addEventListener("change", async (e) => {
@@ -964,6 +967,8 @@
         });
         document.getElementById("closeModal")?.addEventListener("click", () => { state.selectedId = null; render(); });
         document.getElementById("modalOverlay")?.addEventListener("click", (e) => { if (e.target.id === "modalOverlay") { state.selectedId = null; render(); } });
+
+        setupSignaturePad();
       }
 
       (async function init() {
