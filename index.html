@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       body { margin: 0; font-family: Arial, sans-serif; background: #09090b; }
-      canvas { touch-action: none; }
       input[type="checkbox"] { accent-color: #ffffff; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
@@ -23,7 +22,7 @@
       const SUPABASE_URL = "https://sltuupvattwfbidxlcej.supabase.co";
       const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
 
-      // GitHub üzerinden kolayca artırıp azaltabileceğin yapılacak işlem listesi
+      // GitHub üzerinden rahatça artırıp azaltabilirsin
       const OPERATION_OPTIONS = [
         "Cam Filmi",
         "Seramik Kaplama",
@@ -33,7 +32,7 @@
         "Kaput Koruma"
       ];
 
-      // GitHub üzerinden kolayca değiştirebileceğin durum listesi
+      // GitHub üzerinden rahatça artırıp azaltabilirsin
       const STATUS_OPTIONS = [
         "Beklemede",
         "Montaj Sürecinde",
@@ -57,12 +56,20 @@
 
       function formatMoney(value) {
         const num = Number(value || 0);
-        if (!num) return "-";
+        if (!num) return "₺0";
         return new Intl.NumberFormat("tr-TR", {
           style: "currency",
           currency: "TRY",
           maximumFractionDigits: 2,
         }).format(num);
+      }
+
+      function recordTotal(record) {
+        return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
+      }
+
+      function grandTotal(records) {
+        return (records || []).reduce((sum, record) => sum + recordTotal(record), 0);
       }
 
       function downloadFile(filename, content, type = "application/json") {
@@ -80,7 +87,7 @@
       function toCsv(rows) {
         const headers = [
           "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Araç Marka", "Araç Modeli",
-          "Yapılacak İşlemler", "Fatura Adresi", "Durum"
+          "Yapılacak İşlemler", "Toplam", "Fatura Adresi", "Usta", "Durum"
         ];
 
         const escapeCsv = (v) => {
@@ -99,7 +106,9 @@
           r.brand,
           r.model,
           (r.operations || []).map((op) => `${op.name}${op.fee ? ` (${formatMoney(op.fee)})` : ""}`).join(" | "),
+          formatMoney(recordTotal(r)),
           r.invoiceAddress || "",
+          r.technician || "",
           r.status,
         ].map(escapeCsv).join(","));
 
@@ -117,7 +126,8 @@
           operationFees: {},
           status: STATUS_OPTIONS[0] || "Beklemede",
           vehicleImage: "",
-          noteText: ""
+          noteText: "",
+          technician: ""
         };
       }
 
@@ -161,6 +171,7 @@
           operationFees: form.operationFees,
           vehicleImage: form.vehicleImage,
           noteText: form.noteText,
+          technician: form.technician,
         };
 
         return {
@@ -203,6 +214,27 @@
         if (!res.ok) throw new Error("Durum güncellenemedi");
       }
 
+      async function dbUpdateNotes(id, currentRecord, patchMeta) {
+        const existingMeta = {
+          invoiceAddress: currentRecord.invoiceAddress || "",
+          operations: (currentRecord.operations || []).map((op) => op.name),
+          operationFees: Object.fromEntries((currentRecord.operations || []).map((op) => [op.name, op.fee || ""])),
+          vehicleImage: currentRecord.vehicleImage || "",
+          noteText: currentRecord.noteText || "",
+          technician: currentRecord.technician || "",
+        };
+
+        const nextMeta = { ...existingMeta, ...patchMeta };
+
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+          method: "PATCH",
+          headers: apiHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ notes: JSON.stringify(nextMeta) }),
+        });
+
+        if (!res.ok) throw new Error("Kayıt bilgisi güncellenemedi");
+      }
+
       async function dbDeleteRecord(id) {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
           method: "DELETE",
@@ -234,6 +266,7 @@
               operations,
               noteText: meta.noteText || "",
               vehicleImage: meta.vehicleImage || "",
+              technician: meta.technician || "",
               status: r.status || STATUS_OPTIONS[0] || "Beklemede",
             };
           });
@@ -253,6 +286,7 @@
             r.brand,
             r.model,
             (r.operations || []).map((op) => op.name).join(" "),
+            r.technician || "",
             r.status,
           ].join(" ").toLowerCase().includes(q);
 
@@ -348,6 +382,18 @@
         }
       }
 
+      async function updateRecordTechnician(id, technician) {
+        const record = state.records.find((r) => r.id === id);
+        if (!record) return;
+        try {
+          await dbUpdateNotes(id, record, { technician });
+          record.technician = technician;
+        } catch (e) {
+          alert("Usta bilgisi güncellenemedi");
+          console.error(e);
+        }
+      }
+
       function duplicateRecordToForm(id) {
         const record = state.records.find((r) => r.id === id);
         if (!record) return;
@@ -362,7 +408,8 @@
           operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
           status: record.status || STATUS_OPTIONS[0] || "Beklemede",
           vehicleImage: record.vehicleImage || "",
-          noteText: record.noteText || ""
+          noteText: record.noteText || "",
+          technician: record.technician || ""
         };
 
         state.activeTab = "kayit";
@@ -408,6 +455,7 @@
                 .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
                 .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
                 .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
+                .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
               </style>
             </head>
             <body>
@@ -423,6 +471,7 @@
                   <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
                   <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
                   <p><strong>Durum:</strong> ${record.status}</p>
+                  <p><strong>Usta:</strong> ${record.technician || "-"}</p>
                 </div>
 
                 <div class="grid">
@@ -443,6 +492,7 @@
                   <div class="box">
                     <h3>Yapılacak İşlemler</h3>
                     ${operationsHtml || "<p>-</p>"}
+                    <div class="summary"><span>Toplam</span><span>${formatMoney(recordTotal(record))}</span></div>
                   </div>
                   <div class="box">
                     <h3>Araç Görseli</h3>
@@ -469,6 +519,7 @@
         const rows = filteredRecords();
         const selected = selectedRecord();
         const showModal = !!state.selectedId && !!selected;
+        const grand = grandTotal(rows);
 
         const tabs = state.tabletMode
           ? [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }]
@@ -643,6 +694,14 @@
               ` : ""}
 
               ${state.activeTab === "liste" ? `
+                <div class="mb-4 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div class="text-sm text-emerald-200">Kayıtlar Toplam Tutarı</div>
+                    <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
+                  </div>
+                  <div class="text-sm text-emerald-100">Listede gördüğün tüm kayıtların toplamıdır.</div>
+                </div>
+
                 <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                   <div class="p-6 pb-3">
                     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -661,8 +720,8 @@
                       <div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Henüz kayıt yok.</div>
                     ` : rows.map((record) => `
                       <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
-                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div class="space-y-1">
+                        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div class="space-y-2 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
                               <span class="text-lg font-semibold">${record.customerName}</span>
                               <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.recordNo}</span>
@@ -670,13 +729,30 @@
                             </div>
                             <div class="text-sm text-zinc-400">${record.phone} · ${record.brand} ${record.model}</div>
                             <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
+                            <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
                             <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
                           </div>
-                          <div class="flex flex-wrap gap-2">
-                            <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Detay</button>
-                            <button data-duplicate="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Forma Al</button>
-                            <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
-                            <button data-delete="${record.id}" class="rounded-2xl bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500">🗑️ Sil</button>
+
+                          <div class="flex w-full flex-col gap-3 xl:w-[430px]">
+                            <div class="grid gap-3 md:grid-cols-2">
+                              <div>
+                                <label class="mb-1 block text-xs text-zinc-400">Durum</label>
+                                <select data-inline-status="${record.id}" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+                                  ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${record.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                                </select>
+                              </div>
+                              <div>
+                                <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
+                                <input data-inline-tech="${record.id}" maxlength="40" value="${record.technician || ""}" placeholder="Usta Ad Soyad" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
+                              </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2">
+                              <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Detay</button>
+                              <button data-duplicate="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Forma Al</button>
+                              <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
+                              <button data-delete="${record.id}" class="rounded-2xl bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500">🗑️ Sil</button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -693,8 +769,8 @@
                       <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Araç görseli ekleme</div>
                       <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Çoklu yapılacak işlem seçimi</div>
                       <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• İşlem bazlı ücret girişi</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Detaydan anlık durum değiştirme</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Tek sayfa fiş yazdırma</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Detaydan ve listeden anlık durum değiştirme</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kayıt bazlı toplam ve genel toplam</div>
                     </div>
                   </div>
                   <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
@@ -702,7 +778,7 @@
                     <div class="space-y-3 p-6 pt-0 text-sm text-zinc-300">
                       <div>🔐 Kullanıcı girişi</div>
                       <div>📩 Müşteri bilgilendirme</div>
-                      <div>🧾 Toplam tutar / teklif alanı</div>
+                      <div>🧾 Teklif / tahsilat alanı</div>
                       <div>📦 İş emri raporları</div>
                     </div>
                   </div>
@@ -735,6 +811,7 @@
                       <div class="space-y-2 text-sm text-zinc-300">
                         <div><span class="text-zinc-500">Telefon:</span> ${selected.phone || "-"}</div>
                         <div><span class="text-zinc-500">Fatura Adresi:</span> ${selected.invoiceAddress || "-"}</div>
+                        <div><span class="text-zinc-500">Usta:</span> ${selected.technician || "-"}</div>
                       </div>
                     </div>
                     <div>
@@ -751,6 +828,7 @@
                       <h3 class="mb-2 font-semibold">Yapılacak İşlemler</h3>
                       <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300 space-y-2">
                         ${(selected.operations || []).length ? selected.operations.map((op) => `<div class="flex items-center justify-between gap-3 border-b border-white/5 pb-2 last:border-0 last:pb-0"><span>${op.name}</span><strong>${op.fee ? formatMoney(op.fee) : "-"}</strong></div>`).join("") : `<div>-</div>`}
+                        <div class="mt-3 border-t border-white/10 pt-3 text-sm font-semibold text-emerald-300">Toplam: ${formatMoney(recordTotal(selected))}</div>
                       </div>
                     </div>
                     <div>
@@ -778,7 +856,6 @@
         document.querySelectorAll("[data-operation-fee]").forEach((el) => el.addEventListener("input", (e) => updateOperationFee(el.dataset.operationFee, e.target.value)));
         document.getElementById("vehicleImageInput")?.addEventListener("change", (e) => handleVehicleImage(e.target.files?.[0]));
         document.getElementById("removeVehicleImage")?.addEventListener("click", () => { state.form.vehicleImage = ""; render(); });
-
         document.getElementById("saveRecord")?.addEventListener("click", saveRecord);
         document.getElementById("exportCsv")?.addEventListener("click", exportCsv);
         document.getElementById("exportJson")?.addEventListener("click", exportJson);
@@ -789,6 +866,14 @@
         document.querySelectorAll("[data-duplicate]").forEach((btn) => btn.addEventListener("click", () => duplicateRecordToForm(btn.dataset.duplicate)));
         document.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteRecord(btn.dataset.delete)));
         document.querySelectorAll("[data-print]").forEach((btn) => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
+        document.querySelectorAll("[data-inline-status]").forEach((el) => el.addEventListener("change", async (e) => { await updateRecordStatus(el.dataset.inlineStatus, e.target.value); }));
+        document.querySelectorAll("[data-inline-tech]").forEach((el) => {
+          const save = async () => {
+            await updateRecordTechnician(el.dataset.inlineTech, el.value.trim());
+          };
+          el.addEventListener("change", save);
+          el.addEventListener("blur", save);
+        });
         document.getElementById("detailStatusSelect")?.addEventListener("change", async (e) => {
           if (selected) await updateRecordStatus(selected.id, e.target.value);
         });
