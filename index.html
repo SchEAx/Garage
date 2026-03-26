@@ -193,7 +193,8 @@
 
       function updateForm(key, value) {
         state.form[key] = value;
-        render();
+        state.selectedId = null;
+      render();
       }
 
       function updateCompany(key, value) {
@@ -344,6 +345,7 @@
           : [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }, { key: "kurulum", label: "Sonraki Adım" }];
         const rows = filteredRecords();
         const selected = state.selectedId ? selectedRecord() : null;
+        const showModal = !!state.selectedId && !!selected;
 
         app.innerHTML = `
           <div class="min-h-screen bg-zinc-950 text-white">
@@ -454,7 +456,7 @@
               <div class="grid gap-4 lg:grid-cols-3"><div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white"><div class="p-6 pb-3"><h2 class="text-lg font-semibold">Bu ilk sürümde hazır olanlar</h2></div><div class="grid gap-3 p-6 pt-0 text-sm text-zinc-300"><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Müşteri kabul formu</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Tablet ekranında imza alma alanı</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kayıtların cihazda tutulması</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Arama ve detay görüntüleme</div><div class="rounded-2xl border border-white/10 bg-black/20 p-4">• CSV ve JSON dışa aktarma</div></div></div><div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white"><div class="p-6 pb-3"><h2 class="text-lg font-semibold">Sıradaki gerçek sürüm</h2></div><div class="space-y-3 p-6 pt-0 text-sm text-zinc-300"><div>📱 Tablet için tam ekran müşteri kabul modu</div><div>🖥️ PC tarafında yönetim paneli ve raporlama</div><div>📄 PDF servis fişi oluşturma</div><div>💾 Bulut veritabanı ile merkezi kayıt</div></div></div></div>` : ""}
             </div>
           </div>
-${selected ? `
+${showModal ? `
   <div id="modalOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
     <div class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
       <div class="flex justify-end p-3">
@@ -519,12 +521,12 @@ ${selected ? `
         document.getElementById("search")?.addEventListener("input", (e) => { state.search = e.target.value; });
         document.getElementById("statusFilter")?.addEventListener("input", (e) => { state.statusFilter = e.target.value; });
         document.querySelectorAll("[data-status]").forEach(btn => btn.addEventListener("click", () => updateRecordStatus(btn.dataset.id, btn.dataset.status)));
-       document.querySelectorAll("[data-detail]").forEach(btn =>
+       document.querySelectorAll("[data-detail]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    state.selectedId = btn.dataset.detail;
+    state.selectedId = btn.dataset.detail || null;
     render();
-  })
-);
+  });
+});
     document.querySelectorAll("[data-duplicate]").forEach(btn => btn.addEventListener("click", () => duplicateRecordToForm(btn.dataset.duplicate)));
         document.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", () => deleteRecord(btn.dataset.delete)));
         document.querySelectorAll("[data-print]").forEach(btn => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
@@ -538,7 +540,7 @@ ${selected ? `
     render();
   }
 });    
-    if (selected) {
+     if (showModal) {
   const modalTitle = document.getElementById("modalTitle");
   const mPhone = document.getElementById("mPhone");
   const mEmail = document.getElementById("mEmail");
