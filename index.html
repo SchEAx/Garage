@@ -9,6 +9,9 @@
       body { margin: 0; font-family: Arial, sans-serif; background: #09090b; }
       canvas { touch-action: none; }
     </style>
+    <link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#09090b" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
   </head>
   <body>
     <div id="app"></div>
@@ -715,5 +718,14 @@
         await loadRecordsFromDb();
       })();
     </script>
+    <script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.error("Service worker kayıt hatası:", err);
+      });
+    });
+  }
+</script>
   </body>
 </html>
