@@ -144,7 +144,7 @@
       function toCsv(rows) {
         const headers = [
           "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Araç Marka", "Araç Modeli",
-          "Yapılacak İşlemler", "Toplam", "Fatura Adresi", "Usta", "Durum"
+          "Yapılacak İşlemler", "Toplam", "Fatura Adresi", "Araçta Görülen Kusurlar", "Usta", "Durum"
         ];
 
         const escapeCsv = (v) => {
@@ -165,6 +165,7 @@
           (r.operations || []).map((op) => `${op.name}${op.fee ? ` (${formatMoney(op.fee)})` : ""}`).join(" | "),
           formatMoney(recordTotal(r)),
           r.invoiceAddress || "",
+          r.vehicleDefects || "",
           r.technician || "",
           r.status || "",
         ].map(escapeCsv).join(","));
@@ -185,6 +186,7 @@
           vehicleImage: "",
           noteText: "",
           technician: "",
+          vehicleDefects: "",
           signature: ""
         };
       }
@@ -237,6 +239,7 @@
           noteText: meta.noteText || "",
           vehicleImage: meta.vehicleImage || "",
           technician: meta.technician || "",
+          vehicleDefects: meta.vehicleDefects || "",
           signature: meta.signature || r.signature || "",
           status: r.status || STATUS_OPTIONS[0],
         };
@@ -283,6 +286,7 @@
           vehicleImage: form.vehicleImage,
           noteText: form.noteText,
           technician: form.technician,
+          vehicleDefects: form.vehicleDefects,
           signature: form.signature,
         };
 
@@ -354,6 +358,7 @@
           vehicleImage: currentRecord.vehicleImage || "",
           noteText: currentRecord.noteText || "",
           technician: currentRecord.technician || "",
+          vehicleDefects: currentRecord.vehicleDefects || "",
           signature: currentRecord.signature || "",
         };
 
@@ -567,6 +572,7 @@
           vehicleImage: record.vehicleImage || "",
           noteText: record.noteText || "",
           technician: record.technician || "",
+          vehicleDefects: record.vehicleDefects || "",
           signature: record.signature || ""
         };
 
@@ -753,6 +759,10 @@
                   </div>
                 </div>
                 <div class="box">
+                  <h3>Araçta Görülen Kusurlar</h3>
+                  <p>${record.vehicleDefects || "-"}</p>
+                </div>
+                <div class="box">
                   <h3>Ek Notlar</h3>
                   <p>${record.noteText || "-"}</p>
                 </div>
@@ -902,9 +912,14 @@
                       ` : ""}
 
                       <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm text-zinc-300">Araçta Görülen Kusurlar</label>
+                        <textarea data-form="vehicleDefects" class="min-h-[110px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Örn: Sağ ön çamurlukta çizik, arka tamponda çatlak, sol far çevresinde açıklık...">${state.form.vehicleDefects || ""}</textarea>
+                      </div>
+
+                      <div class="space-y-2 md:col-span-2">
                         <div class="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-zinc-300">
-                          <p><strong class="text-white">Müşteri Onayı:</strong> Aracımı yukarıda belirtilen fiziksel durumda ve belirtilen aksesuarların montajı yapılmak üzere, anlaşılan ürün ve fiyatı da kabul ederek işletmenize teslim ettim. Montaj süresince doğabilecek (işletme kusuru dışındaki) teknik riskler hakkında bilgilendirildim, yapılacak işlemlerden doğan yasal yükümlülükleri kabul ediyorum. <strong class="text-white">İmza:</strong></p>
-                          <p class="mt-3"><strong class="text-white">İşletme Onayı:</strong> Araç, yukarıdaki kriterlere göre uygun olarak teslim alınmıştır. <strong class="text-white">İmza:</strong></p>
+                          <p><strong class="text-white">Müşteri Onayı:</strong> Aracımı yukarıda belirtilen fiziksel durumda ve belirtilen aksesuarların montajı yapılmak üzere, anlaşılan ürün ve fiyatı da kabul ederek işletmenize teslim ettim. Montaj süresince doğabilecek (işletme kusuru dışındaki) teknik riskler hakkında bilgilendirildim, yapılacak işlemlerden doğan yasal yükümlülükleri kabul ediyorum.</p>
+                          <p class="mt-3"><strong class="text-white">İşletme Onayı:</strong> Araç, yukarıdaki kriterlere göre uygun olarak teslim alınmıştır.</p>
                           <p class="mt-4 text-xs font-semibold tracking-wide text-zinc-200">KİŞİSEL VERİLERİN İŞLENMESİNE İLİŞKİN AÇIK RIZA BEYAN FORMU</p>
                           <p class="mt-2 text-xs leading-5 text-zinc-400">Tarafıma sunulan Aydınlatma Metni kapsamında; ad-soyad, telefon, araç plaka ve şasi numarası gibi kişisel verilerimin, işletmeniz tarafından hizmet sunumu, kampanya bildirimleri (SMS/E-posta) ve tanıtım amacıyla Instagram gibi sosyal medya mecralarında (plaka görseli dâhil) işlenmesine, paylaşılmasına ve bu verilerin WhatsApp, iCloud, Google Drive gibi sunucuları yurt dışında bulunan sistemler aracılığıyla aktarılmasına; ayrıca güvenliğim ve hizmet kalitesi amacıyla ses kaydı alınmasına hiçbir baskı altında kalmadan özgür irademle onay veriyorum.</p>
                         </div>
@@ -1005,6 +1020,7 @@
                             <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
                             <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
                             <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
+                            <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
                           </div>
 
                           <div class="flex w-full flex-col gap-3 xl:w-[430px]">
@@ -1115,6 +1131,10 @@
                         ${selected.signature ? `<img src="${selected.signature}" class="h-40 w-full rounded-2xl border border-white/10 object-contain bg-black/20" />` : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-sm text-zinc-500">İmza yok</div>`}
                       </div>
                     </div>
+                  </div>
+                  <div>
+                    <h3 class="mb-2 font-semibold">Araçta Görülen Kusurlar</h3>
+                    <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300">${selected.vehicleDefects || "-"}</div>
                   </div>
                   <div>
                     <h3 class="mb-2 font-semibold">Ek Notlar</h3>
