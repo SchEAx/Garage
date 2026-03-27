@@ -24,7 +24,7 @@
       const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
 
       const OPERATION_OPTIONS = [
-         "AKÜ",
+        "AKÜ",
         "AMBİYANS",
         "ARA ATKI",
         "ARKA EK",
@@ -94,7 +94,7 @@
         "Garantiye Gitti"
       ];
 
-      const PAGE_SIZE = 20;
+      const PAGE_SIZE = 25;
       let searchTimer = null;
       let signaturePadBound = false;
 
@@ -190,7 +190,6 @@
 
       const state = {
         records: [],
-        filteredRecordsCache: [],
         search: "",
         searchDraft: "",
         selectedId: null,
@@ -200,8 +199,9 @@
         loading: false,
         editId: null,
         visibleCount: PAGE_SIZE,
+        totalRemoteCount: 0,
         company: {
-          name: "Garage İstanbul Oto Aksesuar",
+           name: "Garage İstanbul Oto Aksesuar",
           phone: "0 (554) 537 36 36",
           email: "garageistanbul.satis@gmail.com",
           address: "CUMHURİYET MAH. 676 SOK. NO:85 MURATPAŞA / ANTALYA"
@@ -217,12 +217,61 @@
         };
       }
 
-      async function dbFetchRecords() {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?select=*&order=id.desc`, {
-          headers: apiHeaders(),
+      function mapDbRow(r) {
+        const meta = safeParseJson(r.notes, {});
+        const operations = Array.isArray(meta.operations)
+          ? meta.operations.map((name) => ({ name, fee: meta.operationFees?.[name] || "" }))
+          : [];
+
+        return {
+          id: String(r.id),
+          recordNo: r.record_no || "-",
+          createdAt: r.created_at,
+          customerName: r.customer_name || "",
+          phone: r.phone || "",
+          invoiceAddress: meta.invoiceAddress || r.address || "",
+          brand: r.brand || "",
+          model: r.model || "",
+          operations,
+          noteText: meta.noteText || "",
+          vehicleImage: meta.vehicleImage || "",
+          technician: meta.technician || "",
+          signature: meta.signature || r.signature || "",
+          status: r.status || STATUS_OPTIONS[0],
+        };
+      }
+
+      async function dbFetchRecords({ offset = 0, limit = PAGE_SIZE, search = "", status = "Tümü" } = {}) {
+        const params = new URLSearchParams();
+        params.set("select", "*");
+        params.set("order", "id.desc");
+
+        if (status && status !== "Tümü") {
+          params.set("status", `eq.${status}`);
+        }
+
+        const trimmed = (search || "").trim();
+        if (trimmed) {
+          const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
+          params.set(
+            "or",
+            `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`
+          );
+        }
+
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
+          headers: apiHeaders({
+            Range: `${offset}-${offset + limit - 1}`,
+            Prefer: "count=exact"
+          }),
         });
+
         if (!res.ok) throw new Error("Kayıtlar alınamadı");
-        return await res.json();
+        const data = await res.json();
+        const rangeHeader = res.headers.get("content-range") || "0-0/0";
+        const totalPart = rangeHeader.split("/")[1] || "0";
+        const total = Number(totalPart) || 0;
+        return { data, total };
       }
 
       function formToPayload(form, existingRecordNo) {
@@ -328,55 +377,18 @@
         if (!res.ok) throw new Error("Kayıt silinemedi");
       }
 
-      function recomputeFilteredRecords() {
-        const q = state.search.toLowerCase().trim();
-        state.filteredRecordsCache = state.records.filter((r) => {
-          const haystack = [
-            r.recordNo,
-            r.customerName,
-            r.phone,
-            r.brand,
-            r.model,
-            (r.operations || []).map((op) => op.name).join(" "),
-            r.technician || "",
-            r.status,
-          ].join(" ").toLowerCase();
-
-          const matchesSearch = !q || haystack.includes(q);
-          const matchesStatus = state.statusFilter === "Tümü" || r.status === state.statusFilter;
-          return matchesSearch && matchesStatus;
-        });
-      }
-
       async function loadRecordsFromDb() {
         state.loading = true;
         render();
         try {
-          const rows = await dbFetchRecords();
-          state.records = rows.map((r) => {
-            const meta = safeParseJson(r.notes, {});
-            const operations = Array.isArray(meta.operations)
-              ? meta.operations.map((name) => ({ name, fee: meta.operationFees?.[name] || "" }))
-              : [];
-
-            return {
-              id: String(r.id),
-              recordNo: r.record_no || "-",
-              createdAt: r.created_at,
-              customerName: r.customer_name || "",
-              phone: r.phone || "",
-              invoiceAddress: meta.invoiceAddress || r.address || "",
-              brand: r.brand || "",
-              model: r.model || "",
-              operations,
-              noteText: meta.noteText || "",
-              vehicleImage: meta.vehicleImage || "",
-              technician: meta.technician || "",
-              signature: meta.signature || r.signature || "",
-              status: r.status || STATUS_OPTIONS[0],
-            };
+          const { data, total } = await dbFetchRecords({
+            offset: 0,
+            limit: state.visibleCount,
+            search: state.search,
+            status: state.statusFilter,
           });
-          recomputeFilteredRecords();
+          state.records = data.map(mapDbRow);
+          state.totalRemoteCount = total;
         } finally {
           state.loading = false;
           render();
@@ -384,7 +396,7 @@
       }
 
       function visibleRows() {
-        return state.filteredRecordsCache.slice(0, state.visibleCount);
+        return state.records;
       }
 
       function selectedRecord() {
@@ -394,7 +406,7 @@
 
       function stats() {
         return {
-          total: state.records.length,
+          total: state.totalRemoteCount || state.records.length,
           pending: state.records.filter((r) => r.status === "Beklemede").length,
           inProgress: state.records.filter((r) => r.status === "Montaj Sürecinde").length,
           completed: state.records.filter((r) => r.status === "Montaj Bitti").length,
@@ -577,6 +589,7 @@
           state.editId = null;
           state.activeTab = "liste";
           signaturePadBound = false;
+          state.visibleCount = PAGE_SIZE;
           await loadRecordsFromDb();
         } catch (e) {
           alert("Kayıt veritabanına eklenemedi");
@@ -633,7 +646,9 @@
       async function updateRecordStatus(id, status) {
         try {
           await dbUpdateStatus(id, status);
-          await loadRecordsFromDb();
+          const local = state.records.find((r) => r.id === id);
+          if (local) local.status = status;
+          render();
         } catch (e) {
           alert("Durum güncellenemedi");
           console.error(e);
@@ -755,9 +770,9 @@
         const rows = visibleRows();
         const selected = selectedRecord();
         const showModal = !!state.selectedId && !!selected;
-        const grand = grandTotal(state.filteredRecordsCache);
-        const totalFilteredCount = state.filteredRecordsCache.length;
-        const canShowMore = totalFilteredCount > state.visibleCount;
+        const grand = grandTotal(rows);
+        const totalFilteredCount = state.totalRemoteCount;
+        const canShowMore = state.records.length < state.totalRemoteCount;
 
         const tabs = state.tabletMode
           ? [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }]
@@ -773,7 +788,7 @@
                       <div class="rounded-2xl border border-white/10 bg-white/5 p-3">🚗</div>
                       <div>
                         <h1 class="text-2xl font-bold tracking-tight">${state.company.name}</h1>
-                        <p class="text-sm text-zinc-400">Araç kabul sistemi · optimize sürüm</p>
+                        <p class="text-sm text-zinc-400">Araç kabul sistemi · pro arama sürümü</p>
                       </div>
                     </div>
                     <button id="toggleTablet" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">
@@ -781,9 +796,9 @@
                     </button>
                   </div>
                   <div class="mt-6 flex flex-wrap gap-2">
+                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Supabase Arama</span>
                     <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Optimize Görsel</span>
                     <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Kaydı Güncelle</span>
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">İmza Alanı</span>
                     <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Hızlı Liste</span>
                   </div>
                 </div>
@@ -951,7 +966,7 @@
                     <div class="text-sm text-emerald-200">Kayıtlar Toplam Tutarı</div>
                     <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
                   </div>
-                  <div class="text-sm text-emerald-100">${totalFilteredCount} kayıt filtreye uyuyor. Şu an ${rows.length} kayıt gösteriliyor.</div>
+                  <div class="text-sm text-emerald-100">${totalFilteredCount} kayıt bulundu. Şu an ${rows.length} kayıt gösteriliyor.</div>
                 </div>
 
                 <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
@@ -1022,11 +1037,11 @@
                   <div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                     <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Bu sürümde hazır olanlar</h2></div>
                     <div class="grid gap-3 p-6 pt-0 text-sm text-zinc-300">
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Optimize görsel yükleme</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Pro Supabase arama</div>
                       <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kaydı güncelle modu</div>
                       <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Scroll bozmayan işlem seçimi</div>
                       <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Liste kademeli yükleme</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kayıt bazlı toplam ve genel toplam</div>
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Optimize görsel yükleme</div>
                     </div>
                   </div>
                   <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
@@ -1124,22 +1139,20 @@
         document.getElementById("search")?.addEventListener("input", (e) => {
           state.searchDraft = e.target.value;
           clearTimeout(searchTimer);
-          searchTimer = setTimeout(() => {
+          searchTimer = setTimeout(async () => {
             state.search = state.searchDraft;
             state.visibleCount = PAGE_SIZE;
-            recomputeFilteredRecords();
-            render();
-          }, 250);
+            await loadRecordsFromDb();
+          }, 300);
         });
-        document.getElementById("statusFilter")?.addEventListener("change", (e) => {
+        document.getElementById("statusFilter")?.addEventListener("change", async (e) => {
           state.statusFilter = e.target.value;
           state.visibleCount = PAGE_SIZE;
-          recomputeFilteredRecords();
-          render();
+          await loadRecordsFromDb();
         });
-        document.getElementById("showMoreBtn")?.addEventListener("click", () => {
+        document.getElementById("showMoreBtn")?.addEventListener("click", async () => {
           state.visibleCount += PAGE_SIZE;
-          render();
+          await loadRecordsFromDb();
         });
         document.querySelectorAll("[data-detail]").forEach((btn) => btn.addEventListener("click", () => { state.selectedId = btn.dataset.detail || null; render(); }));
         document.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => loadRecordToForm(btn.dataset.edit)));
