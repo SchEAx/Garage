@@ -483,6 +483,28 @@
         alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
         return;
       }
+      <!-- ARAÇ BİLGİLERİ -->
+<div style="margin-top:20px;">
+  <h3>Araç Bilgileri</h3>
+
+  <label>Marka</label><br>
+  <select id="marka" onchange="markaDegisti()">
+    <option value="">Marka Seç</option>
+  </select><br><br>
+
+  <label>Model</label><br>
+  <select id="model" onchange="modelDegisti()">
+    <option value="">Model Seç</option>
+  </select><br><br>
+
+  <label>Model Tipi</label><br>
+  <select id="tip">
+    <option value="">Tip Seç</option>
+  </select><br><br>
+
+  <label>Model Yılı</label><br>
+  <input type="number" id="yil" min="1950" max="2035" placeholder="Örn: 2020" />
+</div>
       try {
         await dbInsertRecord(form);
         state.form = emptyForm();
@@ -1320,5 +1342,79 @@
       await loadRecordsFromDb();
     })();
   </script>
+  <script>
+const aracVerileri = {
+  BMW: {
+    "3 Serisi": ["Sedan", "Station Wagon"],
+    "5 Serisi": ["Sedan"],
+    "X1": ["SUV"],
+    "X3": ["SUV"]
+  },
+  Mercedes: {
+    "C Serisi": ["Sedan", "Station Wagon"],
+    "E Serisi": ["Sedan", "Station Wagon"],
+    "GLA": ["SUV"],
+    "Vito": ["Van"]
+  },
+  Renault: {
+    Clio: ["Hatchback"],
+    Megane: ["Sedan", "Hatchback"],
+    "Taliant": ["Sedan"],
+    Kangoo: ["Van"]
+  },
+  Fiat: {
+    Egea: ["Sedan", "Hatchback", "Station Wagon", "Cross"],
+    Doblo: ["Van"]
+  }
+};
+
+const markaSelect = document.getElementById("marka");
+const modelSelect = document.getElementById("model");
+const tipSelect = document.getElementById("tip");
+
+// Marka doldurma
+for (const marka in aracVerileri) {
+  const option = document.createElement("option");
+  option.value = marka;
+  option.textContent = marka;
+  markaSelect.appendChild(option);
+}
+
+// Marka değişince
+function markaDegisti() {
+  const secilenMarka = markaSelect.value;
+
+  modelSelect.innerHTML = '<option value="">Model Seç</option>';
+  tipSelect.innerHTML = '<option value="">Tip Seç</option>';
+
+  if (!secilenMarka) return;
+
+  const modeller = aracVerileri[secilenMarka];
+  for (const model in modeller) {
+    const option = document.createElement("option");
+    option.value = model;
+    option.textContent = model;
+    modelSelect.appendChild(option);
+  }
+}
+
+// Model değişince
+function modelDegisti() {
+  const secilenMarka = markaSelect.value;
+  const secilenModel = modelSelect.value;
+
+  tipSelect.innerHTML = '<option value="">Tip Seç</option>';
+
+  if (!secilenMarka || !secilenModel) return;
+
+  const tipler = aracVerileri[secilenMarka][secilenModel];
+  tipler.forEach(tip => {
+    const option = document.createElement("option");
+    option.value = tip;
+    option.textContent = tip;
+    tipSelect.appendChild(option);
+  });
+}
+</script>
 </body>
 </html>
