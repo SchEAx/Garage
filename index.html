@@ -839,14 +839,40 @@
                     </div>
                     <div class="space-y-2">
                       <label class="text-sm text-zinc-300">Araç Marka *</label>
-                      <div class="space-y-2">
-  <label class="text-sm text-zinc-300">Araç Marka *</label>
-  <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"></select>
-</div>
+                      <div class="md:col-span-2 grid gap-4 md:grid-cols-2">
+  <div class="space-y-2">
+    <label class="text-sm text-zinc-300">Araç Marka *</label>
+    <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+      <option value="">Marka Seç</option>
+    </select>
+  </div>
 
-<div class="space-y-2">
-  <label class="text-sm text-zinc-300">Araç Modeli *</label>
-  <select id="modelSelect" disabled class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white opacity-60"></select>
+  <div class="space-y-2">
+    <label class="text-sm text-zinc-300">Araç Modeli *</label>
+    <select id="modelSelect" disabled class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white opacity-60">
+      <option value="">Önce Marka Seç</option>
+    </select>
+  </div>
+
+  <div class="space-y-2">
+    <label class="text-sm text-zinc-300">Model Tipi</label>
+    <select id="typeSelect" disabled class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white opacity-60">
+      <option value="">Önce Model Seç</option>
+    </select>
+  </div>
+
+  <div class="space-y-2">
+    <label class="text-sm text-zinc-300">Model Yılı</label>
+    <input
+      id="yearInput"
+      type="text"
+      inputmode="numeric"
+      placeholder="2020"
+      maxlength="4"
+      oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4)"
+      class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+    />
+  </div>
 </div>
 
 <div class="space-y-2">
