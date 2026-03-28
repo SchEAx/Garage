@@ -31,65 +31,12 @@
     const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
 
     const OPERATION_OPTIONS = [
-       "AKÜ",
-        "AMBİYANS",
-        "ARA ATKI",
-        "ARKA EK",
-        "ARKA KORUMA",
-        "ARKA SİS",
-        "ARKA TAMPON",
-        "BAGAJ HAVUZU",
-        "BRANDA",
-        "CAM FİLMİ",
-        "CAM SUYU",
-        "ÇADIR",
-        "ÇAMURLUK DODİK",
-        "ÇEKİ HALATI",
-        "DİFÜZÖR",
-        "DİĞER AKSESUARLAR",
-        "DİREKSİYON",
-        "DİREKSİYON KILIFI",
-        "EKRAN ÇERÇEVESİ",
-        "LED FAR",
-        "HAVA KOMPRASÖRÜ",
-        "HAYALET EKRAN",
-        "İŞÇİLİK",
-        "KAPI DODİK",
-        "KAPUT RÜZGARLIĞI",
-        "KAR ÇORABI",
-        "KAR ZİNCİRİ",
-        "KAYIT KAMERASI",
-        "KOLÇAK",
-        "KOLTUK KILIFI",
-        "KROM AKSESUAR",
-        "LED AMPÜL",
-        "MULTİMEDYA",
-        "OFFROAD LED",
-        "ÖN EK",
-        "ÖN KORUMA",
-        "ÖN LİP",
-        "ÖN SİS",
-        "ÖN TAMPON",
-        "PANJUR",
-        "PASPAS",
-        "PORTBAGAJ",
-        "ROLLBAR",
-        "ROLLBAR (LEDLİ)",
-        "ROLLBAR (CAMP)",
-        "SES SİSTEMİ",
-        "SPOİLER",
-        "STOP",
-        "SÜRGÜ KAPAK",
-        "TAKVİYE KABLOSU",
-        "TAVAN ÇITASI",
-        "TAVAN DÖŞEME",
-        "TENTE",
-        "TORPİDO ŞEMSİYESİ",
-        "TRAFİK SETİ",
-        "AYAK ALTI LED",
-        "YAN BASAMAK",
-        "YAN MARŞPİYEL",
-        "YARASA AYNA KAPAĞI",
+      "Cam Filmi",
+      "Seramik Kaplama",
+      "PPF Kaplama",
+      "Boya Koruma",
+      "Detaylı Temizlik",
+      "Kaput Koruma"
     ];
 
     const STATUS_OPTIONS = [
@@ -483,7 +430,6 @@
         alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
         return;
       }
-      
       try {
         await dbInsertRecord(form);
         state.form = emptyForm();
@@ -741,7 +687,7 @@
 
       app.innerHTML = `
         <div class="min-h-screen bg-zinc-950 text-white">
-          <div class="border-b border-white/10 bg-black/60 backdrop-blur-xl">
+           <div class="border-b border-white/10 bg-black/60 backdrop-blur-xl">
             <div class="pointer-events-none absolute inset-0 overflow-hidden">
               <div class="absolute -left-20 top-0 h-40 w-40 rounded-full bg-red-500/20 blur-3xl animate-pulse"></div>
               <div class="absolute right-0 top-4 h-32 w-32 rounded-full bg-white/10 blur-3xl animate-pulse"></div>
@@ -827,18 +773,7 @@
                   <div class="flex items-center justify-between p-6 pb-3">
                     <h2 class="text-lg font-semibold">${state.editId ? "Kayıt Düzenleme" : "Araç Kabul Formu"}</h2>
                     ${state.editId ? `<span class="rounded-xl bg-amber-500/15 px-3 py-1 text-xs text-amber-300">Düzenleme Modu</span>` : ""}
-                  </div>
-                  <div class="grid gap-4 p-6 pt-0 md:grid-cols-2">
-                    <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Müşteri Ad Soyadı *</label>
-                      <input data-form="customerName" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.customerName}" />
-                    </div>
-                    <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Telefon *</label>
-                      <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
-                    </div>
-                    <div class="space-y-2">
-                      <!-- ARAÇ BİLGİLERİ BAŞLANGIÇ -->
+                    <!-- ARAÇ BİLGİLERİ BAŞLANGIÇ -->
 <div style="margin-top:20px; padding:16px; border:1px solid rgba(255,255,255,0.12); border-radius:14px; background:rgba(255,255,255,0.03);">
   <h3 style="margin:0 0 16px 0; font-size:18px;">Araç Bilgileri</h3>
 
@@ -1038,6 +973,23 @@
   })();
 </script>
 <!-- ARAÇ BİLGİLERİ BİTİŞ -->
+                  </div>
+                  <div class="grid gap-4 p-6 pt-0 md:grid-cols-2">
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Müşteri Ad Soyadı *</label>
+                      <input data-form="customerName" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.customerName}" />
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Telefon *</label>
+                      <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Araç Marka *</label>
+                      <input data-form="brand" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.brand}" />
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Araç Modeli *</label>
+                      <input data-form="model" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.model}" />
                     </div>
                     <div class="space-y-2 md:col-span-2">
                       <label class="text-sm text-zinc-300">Fatura Adresi</label>
@@ -1515,7 +1467,5 @@
       await loadRecordsFromDb();
     })();
   </script>
-  <script>
-</script>
 </body>
 </html>
