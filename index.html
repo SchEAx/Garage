@@ -1,30 +1,37 @@
 <!DOCTYPE html>
 <html lang="tr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Garage App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      body { margin: 0; font-family: Arial, sans-serif; background: #09090b; }
-      canvas { touch-action: none; }
-      input[type="checkbox"] { accent-color: #ffffff; }
-      @media print {
-        @page { size: A4 portrait; margin: 8mm; }
-        html, body { background: #fff !important; }
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="app"></div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Garage İstanbul</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#09090b" />
+  <link rel="apple-touch-icon" href="/logo.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Garage İstanbul" />
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #09090b; }
+    canvas { touch-action: none; }
+    input[type="checkbox"] { accent-color: #ffffff; }
+    textarea, input, select { outline: none; }
+    @media print {
+      @page { size: A4 portrait; margin: 8mm; }
+      html, body { background: #fff !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
 
-    <script>
-      const SUPABASE_URL = "https://sltuupvattwfbidxlcej.supabase.co";
-      const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
+  <script>
+    const SUPABASE_URL = "https://sltuupvattwfbidxlcej.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
 
-      const OPERATION_OPTIONS = [
-        "AKÜ",
+    const OPERATION_OPTIONS = [
+       "AKÜ",
         "AMBİYANS",
         "ARA ATKI",
         "ARKA EK",
@@ -83,1017 +90,959 @@
         "YAN BASAMAK",
         "YAN MARŞPİYEL",
         "YARASA AYNA KAPAĞI",
+    ];
 
+    const STATUS_OPTIONS = [
+      "Beklemede",
+      "Montaj Sürecinde",
+      "Montaj Bitti",
+      "Montaj İptal Oldu",
+      "Garantiye Gitti"
+    ];
 
-      ];
+    const PAGE_SIZE = 25;
+    let searchTimer = null;
+    let signatureHandlersBound = false;
 
-      const STATUS_OPTIONS = [
-        "Beklemede",
-        "Montaj Sürecinde",
-        "Montaj Bitti",
-        "Montaj İptal Oldu",
-        "Garantiye Gitti"
-      ];
+    function formatDateTime(value) {
+      if (!value) return "-";
+      return new Date(value).toLocaleString("tr-TR");
+    }
 
-      const PAGE_SIZE = 25;
-      let searchTimer = null;
-      let signaturePadBound = false;
+    function formatMoney(value) {
+      const num = Number(value || 0);
+      return new Intl.NumberFormat("tr-TR", {
+        style: "currency",
+        currency: "TRY",
+        maximumFractionDigits: 2,
+      }).format(num);
+    }
 
-      function formatDateTime(value) {
-        if (!value) return "-";
-        return new Date(value).toLocaleString("tr-TR");
+    function safeParseJson(value, fallback = {}) {
+      try {
+        return value ? JSON.parse(value) : fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    function recordTotal(record) {
+      return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
+    }
+
+    function grandTotal(records) {
+      return (records || []).reduce((sum, record) => sum + recordTotal(record), 0);
+    }
+
+    function emptyForm() {
+      return {
+        customerName: "",
+        phone: "",
+        invoiceAddress: "",
+        brand: "",
+        model: "",
+        operations: [],
+        operationFees: {},
+        status: STATUS_OPTIONS[0],
+        vehicleImage: "",
+        noteText: "",
+        technician: "",
+        vehicleDefects: "",
+        signature: ""
+      };
+    }
+
+    const state = {
+      records: [],
+      totalRemoteCount: 0,
+      search: "",
+      searchDraft: "",
+      selectedId: null,
+      tabletMode: false,
+      statusFilter: "Tümü",
+      activeTab: "kayit",
+      loading: false,
+      editId: null,
+      visibleCount: PAGE_SIZE,
+      company: {
+        name: "Garage İstanbul Oto Aksesuar",
+        phone: "0 (554) 537 36 36",
+        email: "garageistanbul.satis@gmail.com",
+        address: "CUMHURİYET MAH. 676 SOK. NO:85 MURATPAŞA / ANTALYA"
+      },
+      form: emptyForm(),
+    };
+
+    function apiHeaders(extra = {}) {
+      return {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        ...extra,
+      };
+    }
+
+    function mapDbRow(r) {
+      const meta = safeParseJson(r.notes, {});
+      const operations = Array.isArray(meta.operations)
+        ? meta.operations.map((name) => ({ name, fee: meta.operationFees?.[name] || "" }))
+        : [];
+
+      return {
+        id: String(r.id),
+        recordNo: r.record_no || "-",
+        createdAt: r.created_at,
+        customerName: r.customer_name || "",
+        phone: r.phone || "",
+        invoiceAddress: meta.invoiceAddress || r.address || "",
+        brand: r.brand || "",
+        model: r.model || "",
+        operations,
+        noteText: meta.noteText || "",
+        technician: meta.technician || "",
+        vehicleDefects: meta.vehicleDefects || "",
+        vehicleImage: meta.vehicleImage || "",
+        signature: meta.signature || r.signature || "",
+        status: r.status || STATUS_OPTIONS[0],
+      };
+    }
+
+    async function dbFetchRecords({ offset = 0, limit = PAGE_SIZE, search = "", status = "Tümü" } = {}) {
+      const params = new URLSearchParams();
+      params.set("select", "*");
+      params.set("order", "id.desc");
+
+      if (status && status !== "Tümü") {
+        params.set("status", `eq.${status}`);
       }
 
-      function safeParseJson(value, fallback) {
-        try {
-          return value ? JSON.parse(value) : fallback;
-        } catch {
-          return fallback;
-        }
+      const trimmed = (search || "").trim();
+      if (trimmed) {
+        const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
+        params.set(
+          "or",
+          `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`
+        );
       }
 
-      function formatMoney(value) {
-        const num = Number(value || 0);
-        return new Intl.NumberFormat("tr-TR", {
-          style: "currency",
-          currency: "TRY",
-          maximumFractionDigits: 2,
-        }).format(num);
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
+        headers: apiHeaders({
+          Range: `${offset}-${offset + limit - 1}`,
+          Prefer: "count=exact"
+        }),
+      });
+
+      if (!res.ok) throw new Error("Kayıtlar alınamadı");
+      const data = await res.json();
+      const rangeHeader = res.headers.get("content-range") || "0-0/0";
+      const totalPart = rangeHeader.split("/")[1] || "0";
+      const total = Number(totalPart) || 0;
+      return { data, total };
+    }
+
+    function formToPayload(form, existingRecordNo = null) {
+      const meta = {
+        invoiceAddress: form.invoiceAddress,
+        operations: form.operations,
+        operationFees: form.operationFees,
+        vehicleImage: form.vehicleImage,
+        noteText: form.noteText,
+        technician: form.technician,
+        vehicleDefects: form.vehicleDefects,
+        signature: form.signature,
+      };
+
+      return {
+        record_no: existingRecordNo || `SRV-${Date.now().toString().slice(-6)}`,
+        customer_name: form.customerName,
+        phone: form.phone,
+        address: form.invoiceAddress || "",
+        device_type: (form.operations || []).join(", "),
+        brand: form.brand,
+        model: form.model,
+        issue: (form.operations || []).join(", "),
+        notes: JSON.stringify(meta),
+        receiver: "",
+        status: form.status,
+        signature: form.signature || "",
+      };
+    }
+
+    async function dbInsertRecord(form) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
+        method: "POST",
+        headers: apiHeaders({
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        }),
+        body: JSON.stringify(formToPayload(form)),
+      });
+      if (!res.ok) throw new Error("Kayıt eklenemedi");
+      return await res.json();
+    }
+
+    async function dbUpdateRecord(id, form, existingRecordNo) {
+      const payload = formToPayload(form, existingRecordNo);
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+        method: "PATCH",
+        headers: apiHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          record_no: payload.record_no,
+          customer_name: payload.customer_name,
+          phone: payload.phone,
+          address: payload.address,
+          device_type: payload.device_type,
+          brand: payload.brand,
+          model: payload.model,
+          issue: payload.issue,
+          notes: payload.notes,
+          status: payload.status,
+          signature: payload.signature
+        }),
+      });
+      if (!res.ok) throw new Error("Kayıt güncellenemedi");
+    }
+
+    async function dbUpdateStatus(id, status) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+        method: "PATCH",
+        headers: apiHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Durum güncellenemedi");
+    }
+
+    async function dbUpdateMeta(id, currentRecord, patchMeta) {
+      const existingMeta = {
+        invoiceAddress: currentRecord.invoiceAddress || "",
+        operations: (currentRecord.operations || []).map((op) => op.name),
+        operationFees: Object.fromEntries((currentRecord.operations || []).map((op) => [op.name, op.fee || ""])),
+        vehicleImage: currentRecord.vehicleImage || "",
+        noteText: currentRecord.noteText || "",
+        technician: currentRecord.technician || "",
+        vehicleDefects: currentRecord.vehicleDefects || "",
+        signature: currentRecord.signature || "",
+      };
+
+      const nextMeta = { ...existingMeta, ...patchMeta };
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+        method: "PATCH",
+        headers: apiHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          notes: JSON.stringify(nextMeta),
+          signature: nextMeta.signature || ""
+        }),
+      });
+      if (!res.ok) throw new Error("Kayıt güncellenemedi");
+    }
+
+    async function dbDeleteRecord(id) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+        method: "DELETE",
+        headers: apiHeaders(),
+      });
+      if (!res.ok) throw new Error("Kayıt silinemedi");
+    }
+
+    async function loadRecordsFromDb() {
+      state.loading = true;
+      render();
+      try {
+        const { data, total } = await dbFetchRecords({
+          offset: 0,
+          limit: state.visibleCount,
+          search: state.search,
+          status: state.statusFilter,
+        });
+        state.records = data.map(mapDbRow);
+        state.totalRemoteCount = total;
+      } finally {
+        state.loading = false;
+        render();
       }
+    }
 
-      function recordTotal(record) {
-        return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
-      }
-
-      function grandTotal(records) {
-        return (records || []).reduce((sum, record) => sum + recordTotal(record), 0);
-      }
-
-      function downloadFile(filename, content, type = "application/json") {
-        const blob = new Blob([content], { type });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      }
-
-      function toCsv(rows) {
-        const headers = [
-          "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Araç Marka", "Araç Modeli",
-          "Yapılacak İşlemler", "Toplam", "Fatura Adresi", "Araçta Görülen Kusurlar", "Usta", "Durum"
-        ];
-
-        const escapeCsv = (v) => {
-          const value = String(v ?? "");
-          if (value.includes(",") || value.includes("\n") || value.includes('"')) {
-            return '"' + value.replace(/"/g, '""') + '"';
-          }
-          return value;
+    function resizeImage(file, maxWidth = 1280, quality = 0.72) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+          };
+          img.onerror = reject;
+          img.src = reader.result;
         };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
 
-        const lines = rows.map((r) => [
+    async function handleVehicleImage(file) {
+      if (!file) return;
+      try {
+        state.form.vehicleImage = await resizeImage(file);
+        render();
+      } catch (e) {
+        console.error(e);
+        alert("Görsel işlenemedi");
+      }
+    }
+
+    function updateForm(key, value) {
+      state.form[key] = value;
+    }
+
+    function updateCompany(key, value) {
+      state.company[key] = value;
+    }
+
+    function preserveOperationScrollRender() {
+      const el = document.getElementById("operationListBox");
+      const top = el ? el.scrollTop : 0;
+      render();
+      requestAnimationFrame(() => {
+        const next = document.getElementById("operationListBox");
+        if (next) next.scrollTop = top;
+      });
+    }
+
+    function toggleOperation(name, checked) {
+      if (checked) {
+        if (!state.form.operations.includes(name)) state.form.operations.push(name);
+      } else {
+        state.form.operations = state.form.operations.filter((op) => op !== name);
+        delete state.form.operationFees[name];
+      }
+      preserveOperationScrollRender();
+    }
+
+    function updateOperationFee(name, value) {
+      state.form.operationFees[name] = value;
+    }
+
+    function selectedRecord() {
+      if (!state.selectedId) return null;
+      return state.records.find((r) => r.id === state.selectedId) || null;
+    }
+
+    function visibleRows() {
+      return state.records;
+    }
+
+    function stats() {
+      return {
+        total: state.totalRemoteCount || state.records.length,
+        pending: state.records.filter((r) => r.status === "Beklemede").length,
+        inProgress: state.records.filter((r) => r.status === "Montaj Sürecinde").length,
+        completed: state.records.filter((r) => r.status === "Montaj Bitti").length,
+      };
+    }
+
+    function loadRecordToForm(id) {
+      const record = state.records.find((r) => r.id === id);
+      if (!record) return;
+
+      state.form = {
+        customerName: record.customerName || "",
+        phone: record.phone || "",
+        invoiceAddress: record.invoiceAddress || "",
+        brand: record.brand || "",
+        model: record.model || "",
+        operations: (record.operations || []).map((op) => op.name),
+        operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
+        status: record.status || STATUS_OPTIONS[0],
+        vehicleImage: record.vehicleImage || "",
+        noteText: record.noteText || "",
+        technician: record.technician || "",
+        vehicleDefects: record.vehicleDefects || "",
+        signature: record.signature || ""
+      };
+
+      state.editId = id;
+      state.activeTab = "kayit";
+      signatureHandlersBound = false;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function saveRecord() {
+      const form = state.form;
+      if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
+        alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
+        return;
+      }
+      try {
+        await dbInsertRecord(form);
+        state.form = emptyForm();
+        state.editId = null;
+        state.activeTab = "liste";
+        signatureHandlersBound = false;
+        state.visibleCount = PAGE_SIZE;
+        await loadRecordsFromDb();
+      } catch (e) {
+        alert("Kayıt veritabanına eklenemedi");
+        console.error(e);
+      }
+    }
+
+    async function updateCurrentRecord() {
+      if (!state.editId) return;
+      const form = state.form;
+      if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
+        alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
+        return;
+      }
+
+      const currentRecord = state.records.find((r) => r.id === state.editId);
+      if (!currentRecord) return;
+
+      try {
+        await dbUpdateRecord(state.editId, form, currentRecord.recordNo);
+        state.form = emptyForm();
+        state.editId = null;
+        state.activeTab = "liste";
+        signatureHandlersBound = false;
+        await loadRecordsFromDb();
+      } catch (e) {
+        alert("Kayıt güncellenemedi");
+        console.error(e);
+      }
+    }
+
+    function cancelEdit() {
+      state.form = emptyForm();
+      state.editId = null;
+      signatureHandlersBound = false;
+      render();
+    }
+
+    async function deleteRecord(id) {
+      try {
+        await dbDeleteRecord(id);
+        if (state.selectedId === id) state.selectedId = null;
+        if (state.editId === id) {
+          state.editId = null;
+          state.form = emptyForm();
+        }
+        await loadRecordsFromDb();
+      } catch (e) {
+        alert("Kayıt silinemedi");
+        console.error(e);
+      }
+    }
+
+    async function updateRecordStatus(id, status) {
+      try {
+        await dbUpdateStatus(id, status);
+        const local = state.records.find((r) => r.id === id);
+        if (local) local.status = status;
+        render();
+      } catch (e) {
+        alert("Durum güncellenemedi");
+        console.error(e);
+      }
+    }
+
+    async function updateRecordTechnician(id, technician) {
+      const record = state.records.find((r) => r.id === id);
+      if (!record) return;
+      try {
+        await dbUpdateMeta(id, record, { technician });
+        record.technician = technician;
+      } catch (e) {
+        alert("Usta bilgisi güncellenemedi");
+        console.error(e);
+      }
+    }
+
+    function downloadFile(filename, content, type = "application/json") {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportJson() {
+      downloadFile("musteri-kayitlari.json", JSON.stringify(state.records, null, 2));
+    }
+
+    function toCsv(rows) {
+      const headers = [
+        "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Fatura Adresi", "Araç Marka", "Araç Modeli",
+        "Yapılacak İşlemler", "İşlem Ücretleri", "Toplam Tutar", "Araçta Görülen Kusurlar", "Usta", "Durum", "Ek Notlar"
+      ];
+
+      const escapeCsv = (v) => {
+        const value = String(v ?? "");
+        if (value.includes(",") || value.includes("\n") || value.includes('"')) {
+          return '"' + value.replace(/"/g, '""') + '"';
+        }
+        return value;
+      };
+
+      const lines = rows.map((r) => {
+        const feeText = (r.operations || []).map((op) => `${op.name}: ${op.fee || 0}`).join(" | ");
+        return [
           r.recordNo,
           formatDateTime(r.createdAt),
           r.customerName,
           r.phone,
+          r.invoiceAddress || "",
           r.brand,
           r.model,
-          (r.operations || []).map((op) => `${op.name}${op.fee ? ` (${formatMoney(op.fee)})` : ""}`).join(" | "),
-          formatMoney(recordTotal(r)),
-          r.invoiceAddress || "",
+          (r.operations || []).map((op) => op.name).join(", "),
+          feeText,
+          recordTotal(r),
           r.vehicleDefects || "",
           r.technician || "",
           r.status || "",
-        ].map(escapeCsv).join(","));
-
-        return [headers.join(","), ...lines].join("\n");
-      }
-
-      function emptyForm() {
-        return {
-          customerName: "",
-          phone: "",
-          invoiceAddress: "",
-          brand: "",
-          model: "",
-          operations: [],
-          operationFees: {},
-          status: STATUS_OPTIONS[0],
-          vehicleImage: "",
-          noteText: "",
-          technician: "",
-          vehicleDefects: "",
-          signature: ""
-        };
-      }
-
-      const state = {
-        records: [],
-        search: "",
-        searchDraft: "",
-        selectedId: null,
-        tabletMode: false,
-        statusFilter: "Tümü",
-        activeTab: "kayit",
-        loading: false,
-        editId: null,
-        visibleCount: PAGE_SIZE,
-        totalRemoteCount: 0,
-        company: {
-           name: "Garage İstanbul Oto Aksesuar",
-          phone: "0 (554) 537 36 36",
-          email: "garageistanbul.satis@gmail.com",
-          address: "CUMHURİYET MAH. 676 SOK. NO:85 MURATPAŞA / ANTALYA"
-        },
-        form: emptyForm(),
-      };
-
-      function apiHeaders(extra = {}) {
-        return {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          ...extra,
-        };
-      }
-
-      function mapDbRow(r) {
-        const meta = safeParseJson(r.notes, {});
-        const operations = Array.isArray(meta.operations)
-          ? meta.operations.map((name) => ({ name, fee: meta.operationFees?.[name] || "" }))
-          : [];
-
-        return {
-          id: String(r.id),
-          recordNo: r.record_no || "-",
-          createdAt: r.created_at,
-          customerName: r.customer_name || "",
-          phone: r.phone || "",
-          invoiceAddress: meta.invoiceAddress || r.address || "",
-          brand: r.brand || "",
-          model: r.model || "",
-          operations,
-          noteText: meta.noteText || "",
-          vehicleImage: meta.vehicleImage || "",
-          technician: meta.technician || "",
-          vehicleDefects: meta.vehicleDefects || "",
-          signature: meta.signature || r.signature || "",
-          status: r.status || STATUS_OPTIONS[0],
-        };
-      }
-
-      async function dbFetchRecords({ offset = 0, limit = PAGE_SIZE, search = "", status = "Tümü" } = {}) {
-        const params = new URLSearchParams();
-        params.set("select", "*");
-        params.set("order", "id.desc");
-
-        if (status && status !== "Tümü") {
-          params.set("status", `eq.${status}`);
-        }
-
-        const trimmed = (search || "").trim();
-        if (trimmed) {
-          const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
-          params.set(
-            "or",
-            `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`
-          );
-        }
-
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
-          headers: apiHeaders({
-            Range: `${offset}-${offset + limit - 1}`,
-            Prefer: "count=exact"
-          }),
-        });
-
-        if (!res.ok) throw new Error("Kayıtlar alınamadı");
-        const data = await res.json();
-        const rangeHeader = res.headers.get("content-range") || "0-0/0";
-        const totalPart = rangeHeader.split("/")[1] || "0";
-        const total = Number(totalPart) || 0;
-        return { data, total };
-      }
-
-      function formToPayload(form, existingRecordNo) {
-        const meta = {
-          invoiceAddress: form.invoiceAddress,
-          operations: form.operations,
-          operationFees: form.operationFees,
-          vehicleImage: form.vehicleImage,
-          noteText: form.noteText,
-          technician: form.technician,
-          vehicleDefects: form.vehicleDefects,
-          signature: form.signature,
-        };
-
-        return {
-          record_no: existingRecordNo || `SRV-${Date.now().toString().slice(-6)}`,
-          customer_name: form.customerName,
-          phone: form.phone,
-          address: form.invoiceAddress || "",
-          device_type: (form.operations || []).join(", "),
-          brand: form.brand,
-          model: form.model,
-          issue: (form.operations || []).join(", "),
-          notes: JSON.stringify(meta),
-          receiver: "",
-          status: form.status,
-          signature: form.signature || "",
-        };
-      }
-
-      async function dbInsertRecord(form) {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
-          method: "POST",
-          headers: apiHeaders({
-            "Content-Type": "application/json",
-            Prefer: "return=representation",
-          }),
-          body: JSON.stringify(formToPayload(form)),
-        });
-        if (!res.ok) throw new Error("Kayıt eklenemedi");
-        return await res.json();
-      }
-
-      async function dbUpdateRecord(id, form, existingRecordNo) {
-        const payload = formToPayload(form, existingRecordNo);
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
-          method: "PATCH",
-          headers: apiHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({
-            record_no: payload.record_no,
-            customer_name: payload.customer_name,
-            phone: payload.phone,
-            address: payload.address,
-            device_type: payload.device_type,
-            brand: payload.brand,
-            model: payload.model,
-            issue: payload.issue,
-            notes: payload.notes,
-            status: payload.status,
-            signature: payload.signature
-          }),
-        });
-        if (!res.ok) throw new Error("Kayıt güncellenemedi");
-      }
-
-      async function dbUpdateStatus(id, status) {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
-          method: "PATCH",
-          headers: apiHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({ status }),
-        });
-        if (!res.ok) throw new Error("Durum güncellenemedi");
-      }
-
-      async function dbUpdateMeta(id, currentRecord, patchMeta) {
-        const existingMeta = {
-          invoiceAddress: currentRecord.invoiceAddress || "",
-          operations: (currentRecord.operations || []).map((op) => op.name),
-          operationFees: Object.fromEntries((currentRecord.operations || []).map((op) => [op.name, op.fee || ""])),
-          vehicleImage: currentRecord.vehicleImage || "",
-          noteText: currentRecord.noteText || "",
-          technician: currentRecord.technician || "",
-          vehicleDefects: currentRecord.vehicleDefects || "",
-          signature: currentRecord.signature || "",
-        };
-
-        const nextMeta = { ...existingMeta, ...patchMeta };
-
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
-          method: "PATCH",
-          headers: apiHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({
-            notes: JSON.stringify(nextMeta),
-            signature: nextMeta.signature || ""
-          }),
-        });
-        if (!res.ok) throw new Error("Kayıt güncellenemedi");
-      }
-
-      async function dbDeleteRecord(id) {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
-          method: "DELETE",
-          headers: apiHeaders(),
-        });
-        if (!res.ok) throw new Error("Kayıt silinemedi");
-      }
-
-      async function loadRecordsFromDb() {
-        state.loading = true;
-        render();
-        try {
-          const { data, total } = await dbFetchRecords({
-            offset: 0,
-            limit: state.visibleCount,
-            search: state.search,
-            status: state.statusFilter,
-          });
-          state.records = data.map(mapDbRow);
-          state.totalRemoteCount = total;
-        } finally {
-          state.loading = false;
-          render();
-        }
-      }
-
-      function visibleRows() {
-        return state.records;
-      }
-
-      function selectedRecord() {
-        if (!state.selectedId) return null;
-        return state.records.find((r) => r.id === state.selectedId) || null;
-      }
-
-      function stats() {
-        return {
-          total: state.totalRemoteCount || state.records.length,
-          pending: state.records.filter((r) => r.status === "Beklemede").length,
-          inProgress: state.records.filter((r) => r.status === "Montaj Sürecinde").length,
-          completed: state.records.filter((r) => r.status === "Montaj Bitti").length,
-        };
-      }
-
-      function updateForm(key, value) {
-        state.form[key] = value;
-      }
-
-      function updateCompany(key, value) {
-        state.company[key] = value;
-      }
-
-      function renderOperationSectionPreserveScroll() {
-        const listEl = document.getElementById("operationListBox");
-        const scrollTop = listEl ? listEl.scrollTop : 0;
-        render();
-        requestAnimationFrame(() => {
-          const nextListEl = document.getElementById("operationListBox");
-          if (nextListEl) nextListEl.scrollTop = scrollTop;
-        });
-      }
-
-      function toggleOperation(name, checked) {
-        if (checked) {
-          if (!state.form.operations.includes(name)) state.form.operations.push(name);
-        } else {
-          state.form.operations = state.form.operations.filter((op) => op !== name);
-          delete state.form.operationFees[name];
-        }
-        renderOperationSectionPreserveScroll();
-      }
-
-      function updateOperationFee(name, value) {
-        state.form.operationFees[name] = value;
-      }
-
-      function resizeImage(file, maxWidth = 1280, quality = 0.72) {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const img = new Image();
-            img.onload = () => {
-              let width = img.width;
-              let height = img.height;
-              if (width > maxWidth) {
-                height = Math.round((height * maxWidth) / width);
-                width = maxWidth;
-              }
-              const canvas = document.createElement("canvas");
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext("2d");
-              ctx.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL("image/jpeg", quality));
-            };
-            img.onerror = reject;
-            img.src = reader.result;
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      }
-
-      async function handleVehicleImage(file) {
-        if (!file) return;
-        try {
-          state.form.vehicleImage = await resizeImage(file);
-          render();
-        } catch (e) {
-          console.error(e);
-          alert("Görsel işlenemedi");
-        }
-      }
-
-      function setupSignaturePad() {
-        if (state.activeTab !== "kayit") return;
-        const canvas = document.getElementById("signaturePad");
-        if (!canvas) return;
-        if (signaturePadBound && canvas.dataset.bound === "1") return;
-
-        const ctx = canvas.getContext("2d");
-        let drawing = false;
-
-        function repaint() {
-          ctx.fillStyle = "#09090b";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          if (state.form.signature) {
-            const img = new Image();
-            img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            img.src = state.form.signature;
-          }
-        }
-
-        repaint();
-
-        const getPos = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          const point = e.touches ? e.touches[0] : e;
-          return { x: point.clientX - rect.left, y: point.clientY - rect.top };
-        };
-
-        const start = (e) => {
-          drawing = true;
-          const { x, y } = getPos(e);
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineWidth = 2;
-          ctx.lineCap = "round";
-          ctx.strokeStyle = "#ffffff";
-        };
-
-        const move = (e) => {
-          if (!drawing) return;
-          if (e.cancelable) e.preventDefault();
-          const { x, y } = getPos(e);
-          ctx.lineTo(x, y);
-          ctx.stroke();
-        };
-
-        const end = () => {
-          if (!drawing) return;
-          drawing = false;
-          state.form.signature = canvas.toDataURL("image/png");
-        };
-
-        canvas.onmousedown = start;
-        canvas.onmousemove = move;
-        canvas.onmouseup = end;
-        canvas.onmouseleave = end;
-        canvas.ontouchstart = start;
-        canvas.ontouchmove = move;
-        canvas.ontouchend = end;
-        canvas.dataset.bound = "1";
-        signaturePadBound = true;
-
-        document.getElementById("clearSignature")?.addEventListener("click", () => {
-          state.form.signature = "";
-          repaint();
-        });
-      }
-
-      function loadRecordToForm(id) {
-        const record = state.records.find((r) => r.id === id);
-        if (!record) return;
-
-        state.form = {
-          customerName: record.customerName || "",
-          phone: record.phone || "",
-          invoiceAddress: record.invoiceAddress || "",
-          brand: record.brand || "",
-          model: record.model || "",
-          operations: (record.operations || []).map((op) => op.name),
-          operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
-          status: record.status || STATUS_OPTIONS[0],
-          vehicleImage: record.vehicleImage || "",
-          noteText: record.noteText || "",
-          technician: record.technician || "",
-          vehicleDefects: record.vehicleDefects || "",
-          signature: record.signature || ""
-        };
-
-        state.editId = id;
-        state.activeTab = "kayit";
-        signaturePadBound = false;
-        render();
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
-
-      async function saveRecord() {
-        const form = state.form;
-        if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
-          alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
-          return;
-        }
-
-        try {
-          await dbInsertRecord(form);
-          state.form = emptyForm();
-          state.editId = null;
-          state.activeTab = "liste";
-          signaturePadBound = false;
-          state.visibleCount = PAGE_SIZE;
-          await loadRecordsFromDb();
-        } catch (e) {
-          alert("Kayıt veritabanına eklenemedi");
-          console.error(e);
-        }
-      }
-
-      async function updateCurrentRecord() {
-        if (!state.editId) return;
-        const form = state.form;
-        if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
-          alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
-          return;
-        }
-
-        const currentRecord = state.records.find((r) => r.id === state.editId);
-        if (!currentRecord) return;
-
-        try {
-          await dbUpdateRecord(state.editId, form, currentRecord.recordNo);
-          state.form = emptyForm();
-          state.editId = null;
-          state.activeTab = "liste";
-          signaturePadBound = false;
-          await loadRecordsFromDb();
-        } catch (e) {
-          alert("Kayıt güncellenemedi");
-          console.error(e);
-        }
-      }
-
-      function cancelEdit() {
-        state.form = emptyForm();
-        state.editId = null;
-        signaturePadBound = false;
-        render();
-      }
-
-      async function deleteRecord(id) {
-        try {
-          await dbDeleteRecord(id);
-          if (state.selectedId === id) state.selectedId = null;
-          if (state.editId === id) {
-            state.editId = null;
-            state.form = emptyForm();
-          }
-          await loadRecordsFromDb();
-        } catch (e) {
-          alert("Kayıt silinemedi");
-          console.error(e);
-        }
-      }
-
-      async function updateRecordStatus(id, status) {
-        try {
-          await dbUpdateStatus(id, status);
-          const local = state.records.find((r) => r.id === id);
-          if (local) local.status = status;
-          render();
-        } catch (e) {
-          alert("Durum güncellenemedi");
-          console.error(e);
-        }
-      }
-
-      async function updateRecordTechnician(id, technician) {
-        const record = state.records.find((r) => r.id === id);
-        if (!record) return;
-        try {
-          await dbUpdateMeta(id, record, { technician });
-          record.technician = technician;
-        } catch (e) {
-          alert("Usta bilgisi güncellenemedi");
-          console.error(e);
-        }
-      }
-
-      function exportJson() {
-        downloadFile("musteri-kayitlari.json", JSON.stringify(state.records, null, 2));
-      }
-
-      function exportCsv() {
-        downloadFile("musteri-kayitlari.csv", toCsv(state.records), "text/csv;charset=utf-8;");
-      }
-
-      function printReceipt(id) {
-        const record = state.records.find((r) => r.id === id);
-        if (!record) return;
-
-        const operationsHtml = (record.operations || []).map((op) => `
-          <div class="line-row">
-            <span>${op.name}</span>
-            <strong>${op.fee ? formatMoney(op.fee) : "-"}</strong>
-          </div>
-        `).join("");
-
-        const win = window.open("", "_blank", "width=900,height=1200");
-        if (!win) return;
-
-        win.document.write(`
-          <html>
-            <head>
-              <title>Servis Fişi - ${record.recordNo}</title>
-              <style>
-                @page { size: A4 portrait; margin: 8mm; }
-                body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 11px; }
-                .page { padding: 8mm; box-sizing: border-box; }
-                .box { border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
-                h1,h2,h3,p { margin: 0 0 6px 0; }
-                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-                .label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
-                .value { font-size: 11px; font-weight: 600; word-break: break-word; }
-                .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
-                .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
-                .sign-image { width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
-                .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
-                .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
-              </style>
-              <link rel="manifest" href="/manifest.json" />
-<meta name="theme-color" content="#09090b" />
-<link rel="apple-touch-icon" href="/logo.png" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Garage İstanbul" />
-            </head>
-            <body>
-              <div class="page">
-                <div class="box">
-                  <h1>${state.company.name}</h1>
-                  <p>${state.company.phone} · ${state.company.email}</p>
-                  <p>${state.company.address}</p>
-                </div>
-                <div class="box">
-                  <h2>Araç Kabul Fişi</h2>
-                  <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
-                  <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
-                  <p><strong>Durum:</strong> ${record.status}</p>
-                  <p><strong>Usta:</strong> ${record.technician || "-"}</p>
-                </div>
-                <div class="grid">
-                  <div class="box">
-                    <h3>Müşteri Bilgileri</h3>
-                    <div class="label">Ad Soyad</div><div class="value">${record.customerName || "-"}</div>
-                    <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
-                    <div class="label">Fatura Adresi</div><div class="value">${record.invoiceAddress || "-"}</div>
-                  </div>
-                  <div class="box">
-                    <h3>Araç Bilgileri</h3>
-                    <div class="label">Araç Marka</div><div class="value">${record.brand || "-"}</div>
-                    <div class="label">Araç Modeli</div><div class="value">${record.model || "-"}</div>
-                  </div>
-                </div>
-                <div class="two-col">
-                  <div class="box">
-                    <h3>Yapılacak İşlemler</h3>
-                    ${operationsHtml || "<p>-</p>"}
-                    <div class="summary"><span>Toplam</span><span>${formatMoney(recordTotal(record))}</span></div>
-                  </div>
-                  <div class="box">
-                    <h3>Araç Görseli</h3>
-                    ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
-                    <div style="margin-top:8px;">
-                      <h3 style="margin-bottom:6px;">İmza</h3>
-                      ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p>İmza alınmadı.</p>`}
-                    </div>
-                  </div>
-                </div>
-                <div class="box">
-                  <h3>Araçta Görülen Kusurlar</h3>
-                  <p>${record.vehicleDefects || "-"}</p>
-                </div>
-                <div class="box">
-                  <h3>Ek Notlar</h3>
-                  <p>${record.noteText || "-"}</p>
-                </div>
-              </div>
-              <script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.error("Service worker kayıt hatası:", err);
+          r.noteText || ""
+        ].map(escapeCsv).join(",");
       });
-    });
-  }
-</script>
-            </body>
-          </html>
-        `);
 
-        win.document.close();
-        setTimeout(() => win.print(), 300);
-      }
+      return [headers.join(","), ...lines].join("\n");
+    }
 
-      function render() {
-        const app = document.getElementById("app");
-        const s = stats();
-        const rows = visibleRows();
-        const selected = selectedRecord();
-        const showModal = !!state.selectedId && !!selected;
-        const grand = grandTotal(rows);
-        const totalFilteredCount = state.totalRemoteCount;
-        const canShowMore = state.records.length < state.totalRemoteCount;
+    function exportCsv() {
+      downloadFile("musteri-kayitlari.csv", toCsv(state.records), "text/csv;charset=utf-8;");
+    }
 
-        const tabs = state.tabletMode
-          ? [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }]
-          : [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }, { key: "kurulum", label: "Sonraki Adım" }];
+    function printReceipt(id) {
+      const record = state.records.find((r) => r.id === id);
+      if (!record) return;
 
-        app.innerHTML = `
-          <div class="min-h-screen bg-zinc-950 text-white">
-            <div class="${state.tabletMode ? "max-w-3xl" : "max-w-7xl"} mx-auto p-4 md:p-8">
-              <div class="mb-8 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-                <div class="rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-900 to-black p-6 shadow-2xl">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                      <div class="rounded-2xl border border-white/10 bg-white/5 p-3">🚗</div>
-                      <div>
-                        <h1 class="text-2xl font-bold tracking-tight">${state.company.name}</h1>
-                        <p class="text-sm text-zinc-400">Araç kabul sistemi · pro arama sürümü</p>
-                      </div>
-                    </div>
-                    <button id="toggleTablet" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">
-                      ${state.tabletMode ? "🖥️ Panel Modu" : "📱 Tablet Modu"}
-                    </button>
-                  </div>
-                  <div class="mt-6 flex flex-wrap gap-2">
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Supabase Arama</span>
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Optimize Görsel</span>
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Kaydı Güncelle</span>
-                    <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Hızlı Liste</span>
+      const operationsHtml = (record.operations || []).map((op) => `
+        <div class="line-row">
+          <span>${op.name}</span>
+          <strong>${op.fee ? formatMoney(op.fee) : "-"}</strong>
+        </div>
+      `).join("");
+
+      const win = window.open("", "_blank", "width=900,height=1200");
+      if (!win) return;
+
+      win.document.write(`
+        <html>
+          <head>
+            <title>Servis Fişi - ${record.recordNo}</title>
+            <style>
+              @page { size: A4 portrait; margin: 8mm; }
+              body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 11px; }
+              .page { padding: 8mm; box-sizing: border-box; }
+              .box { border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+              h1,h2,h3,p { margin: 0 0 6px 0; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+              .label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
+              .value { font-size: 11px; font-weight: 600; word-break: break-word; }
+              .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
+              .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+              .sign-image { width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
+              .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
+              .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
+            </style>
+          </head>
+          <body>
+            <div class="page">
+              <div class="box">
+                <h1>${state.company.name}</h1>
+                <p>${state.company.phone} · ${state.company.email}</p>
+                <p>${state.company.address}</p>
+              </div>
+              <div class="box">
+                <h2>Araç Kabul Fişi</h2>
+                <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
+                <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
+                <p><strong>Durum:</strong> ${record.status}</p>
+                <p><strong>Usta:</strong> ${record.technician || "-"}</p>
+              </div>
+              <div class="grid">
+                <div class="box">
+                  <h3>Müşteri Bilgileri</h3>
+                  <div class="label">Ad Soyad</div><div class="value">${record.customerName || "-"}</div>
+                  <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
+                  <div class="label">Fatura Adresi</div><div class="value">${record.invoiceAddress || "-"}</div>
+                </div>
+                <div class="box">
+                  <h3>Araç Bilgileri</h3>
+                  <div class="label">Araç Marka</div><div class="value">${record.brand || "-"}</div>
+                  <div class="label">Araç Modeli</div><div class="value">${record.model || "-"}</div>
+                </div>
+              </div>
+              <div class="box">
+                <h3>Araçta Görülen Kusurlar</h3>
+                <p>${record.vehicleDefects || "-"}</p>
+              </div>
+              <div class="two-col">
+                <div class="box">
+                  <h3>Yapılacak İşlemler</h3>
+                  ${operationsHtml || "<p>-</p>"}
+                  <div class="summary"><span>Toplam</span><span>${formatMoney(recordTotal(record))}</span></div>
+                </div>
+                <div class="box">
+                  <h3>Araç Görseli</h3>
+                  ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
+                  <div style="margin-top:8px;">
+                    <h3 style="margin-bottom:6px;">İmza</h3>
+                    ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p>İmza alınmadı.</p>`}
                   </div>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                  ${[
-                    { label: "Toplam Kayıt", value: s.total, icon: "📄" },
-                    { label: "Beklemede", value: s.pending, icon: "⏳" },
-                    { label: "Montajda", value: s.inProgress, icon: "🔧" },
-                    { label: "Montaj Bitti", value: s.completed, icon: "✅" },
-                  ].map((item) => `
-                    <div class="rounded-3xl border border-white/10 bg-zinc-900/80 text-white">
-                      <div class="p-5">
-                        <div class="mb-3 flex items-center justify-between">
-                          <span>${item.icon}</span>
-                          <span class="text-xs text-zinc-500">Canlı</span>
-                        </div>
-                        <div class="text-2xl font-bold">${item.value}</div>
-                        <div class="text-sm text-zinc-400">${item.label}</div>
-                      </div>
+              </div>
+              <div class="box">
+                <h3>Ek Notlar</h3>
+                <p>${record.noteText || "-"}</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+
+      win.document.close();
+      setTimeout(() => win.print(), 300);
+    }
+
+    function render() {
+      const app = document.getElementById("app");
+      const s = stats();
+      const rows = visibleRows();
+      const selected = selectedRecord();
+      const showModal = !!state.selectedId && !!selected;
+      const grand = grandTotal(rows);
+      const totalCount = state.totalRemoteCount;
+      const canShowMore = state.records.length < state.totalRemoteCount;
+
+      const tabs = state.tabletMode
+        ? [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }]
+        : [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }, { key: "kurulum", label: "Sonraki Adım" }];
+
+      const statCards = [
+        { label: "Toplam Kayıt", value: s.total, icon: "📄" },
+        { label: "Beklemede", value: s.pending, icon: "⏳" },
+        { label: "Montajda", value: s.inProgress, icon: "🔧" },
+        { label: "Montaj Bitti", value: s.completed, icon: "✅" },
+      ];
+
+      app.innerHTML = `
+        <div class="min-h-screen bg-zinc-950 text-white">
+          <div class="sticky top-0 z-50 overflow-hidden border-b border-white/10 bg-black/60 backdrop-blur-xl">
+            <div class="pointer-events-none absolute inset-0 overflow-hidden">
+              <div class="absolute -left-20 top-0 h-40 w-40 rounded-full bg-red-500/20 blur-3xl animate-pulse"></div>
+              <div class="absolute right-0 top-4 h-32 w-32 rounded-full bg-white/10 blur-3xl animate-pulse"></div>
+              <div class="absolute left-1/2 top-0 h-24 w-[60%] -translate-x-1/2 bg-gradient-to-r from-transparent via-red-500/20 to-transparent blur-2xl"></div>
+              <div class="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+            </div>
+            <div class="relative max-w-7xl mx-auto px-4 py-4 md:px-6 md:py-5">
+              <div class="flex flex-col items-center justify-center text-center">
+                <div class="relative">
+                  <div class="absolute inset-0 rounded-full bg-red-500/20 blur-2xl scale-110"></div>
+                  <img src="/logo.png" class="relative w-full max-w-[360px] md:max-w-[430px] object-contain drop-shadow-[0_12px_30px_rgba(255,0,0,0.35)] transition duration-500 hover:scale-[1.03]" alt="Garage İstanbul Logo" />
+                </div>
+                <div class="mt-2 space-y-1">
+                  <p class="text-xs md:text-sm tracking-[0.25em] text-zinc-300 uppercase">Araç Kabul & Servis Yönetim Sistemi</p>
+                  <div class="mx-auto h-px w-40 bg-gradient-to-r from-transparent via-red-400/70 to-transparent"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="${state.tabletMode ? "max-w-3xl" : "max-w-7xl"} mx-auto p-4 md:p-8">
+            <div class="mb-8 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+              <div class="rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-900 via-black to-zinc-950 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-3">🚗</div>
+                    <div>
+                      <h1 class="text-2xl font-bold tracking-tight">${state.company.name}</h1>
+                      <p class="text-sm text-zinc-400">Araç kabul sistemi · pro arama sürümü</p>
                     </div>
-                  `).join("")}
+                  </div>
+                  <button id="toggleTablet" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">
+                    ${state.tabletMode ? "🖥️ Panel Modu" : "📱 Tablet Modu"}
+                  </button>
+                </div>
+                <div class="mt-6 flex flex-wrap gap-2">
+                  <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Supabase Arama</span>
+                  <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Optimize Görsel</span>
+                  <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Kaydı Güncelle</span>
+                  <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Hızlı Liste</span>
                 </div>
               </div>
 
-              ${state.loading ? `<div class="mb-4 rounded-2xl border border-white/10 bg-zinc-900/90 p-4 text-sm text-zinc-300">Veriler yükleniyor...</div>` : ""}
-
-              ${!state.tabletMode ? `
-                <div class="mb-4 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                  <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Firma Bilgileri</h2></div>
-                  <div class="grid gap-4 p-6 pt-0 md:grid-cols-2 xl:grid-cols-4">
-                    <input data-company="name" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.name}" />
-                    <input data-company="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.phone}" />
-                    <input data-company="email" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.email}" />
-                    <input data-company="address" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.address}" />
+              <div class="grid grid-cols-2 gap-4">
+                ${statCards.map((item) => `
+                  <div class="rounded-3xl border border-white/10 bg-zinc-900/80 text-white">
+                    <div class="p-5">
+                      <div class="mb-3 flex items-center justify-between">
+                        <span>${item.icon}</span>
+                        <span class="text-xs text-zinc-500">Canlı</span>
+                      </div>
+                      <div class="text-2xl font-bold">${item.value}</div>
+                      <div class="text-sm text-zinc-400">${item.label}</div>
+                    </div>
                   </div>
-                </div>
-              ` : ""}
-
-              <div class="mb-4 grid w-full gap-2 rounded-2xl bg-zinc-900 p-1" style="grid-template-columns: repeat(${tabs.length}, minmax(0, 1fr));">
-                ${tabs.map((tab) => `
-                  <button data-tab="${tab.key}" class="rounded-2xl px-4 py-2 text-sm font-medium transition ${state.activeTab === tab.key ? "bg-white text-black" : "text-white hover:bg-white/5"}">${tab.label}</button>
                 `).join("")}
               </div>
+            </div>
 
-              ${state.activeTab === "kayit" ? `
-                <div class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                  <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                    <div class="flex items-center justify-between p-6 pb-3">
-                      <h2 class="text-lg font-semibold">${state.editId ? "Kayıt Düzenleme" : "Araç Kabul Formu"}</h2>
-                      ${state.editId ? `<span class="rounded-xl bg-amber-500/15 px-3 py-1 text-xs text-amber-300">Düzenleme Modu</span>` : ""}
+            ${state.loading ? `<div class="mb-4 rounded-2xl border border-white/10 bg-zinc-900/90 p-4 text-sm text-zinc-300">Veriler yükleniyor...</div>` : ""}
+
+            ${!state.tabletMode ? `
+              <div class="mb-4 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Firma Bilgileri</h2></div>
+                <div class="grid gap-4 p-6 pt-0 md:grid-cols-2 xl:grid-cols-4">
+                  <input data-company="name" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.name}" />
+                  <input data-company="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.phone}" />
+                  <input data-company="email" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.email}" />
+                  <input data-company="address" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.company.address}" />
+                </div>
+              </div>
+            ` : ""}
+
+            <div class="mb-4 grid w-full gap-2 rounded-2xl bg-zinc-900 p-1" style="grid-template-columns: repeat(${tabs.length}, minmax(0, 1fr));">
+              ${tabs.map((tab) => `
+                <button data-tab="${tab.key}" class="rounded-2xl px-4 py-2 text-sm font-medium transition ${state.activeTab === tab.key ? "bg-white text-black" : "text-white hover:bg-white/5"}">${tab.label}</button>
+              `).join("")}
+            </div>
+
+            ${state.activeTab === "kayit" ? `
+              <div class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                  <div class="flex items-center justify-between p-6 pb-3">
+                    <h2 class="text-lg font-semibold">${state.editId ? "Kayıt Düzenleme" : "Araç Kabul Formu"}</h2>
+                    ${state.editId ? `<span class="rounded-xl bg-amber-500/15 px-3 py-1 text-xs text-amber-300">Düzenleme Modu</span>` : ""}
+                  </div>
+                  <div class="grid gap-4 p-6 pt-0 md:grid-cols-2">
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Müşteri Ad Soyadı *</label>
+                      <input data-form="customerName" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.customerName}" />
                     </div>
-                    <div class="grid gap-4 p-6 pt-0 md:grid-cols-2">
-                      <div class="space-y-2">
-                        <label class="text-sm text-zinc-300">Müşteri Ad Soyadı *</label>
-                        <input data-form="customerName" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.customerName}" />
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Telefon *</label>
+                      <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Araç Marka *</label>
+                      <input data-form="brand" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.brand}" />
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Araç Modeli *</label>
+                      <input data-form="model" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.model}" />
+                    </div>
+                    <div class="space-y-2 md:col-span-2">
+                      <label class="text-sm text-zinc-300">Fatura Adresi</label>
+                      <textarea data-form="invoiceAddress" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.invoiceAddress || ""}</textarea>
+                    </div>
+                    <div class="space-y-2 md:col-span-2">
+                      <label class="text-sm text-zinc-300">Yapılacak İşlemler *</label>
+                      <div id="operationListBox" class="grid max-h-80 gap-3 overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-1">
+                        ${OPERATION_OPTIONS.map((op) => `
+                          <label class="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-zinc-200">
+                            <input type="checkbox" data-operation="${op}" ${state.form.operations.includes(op) ? "checked" : ""} />
+                            <span>${op}</span>
+                          </label>
+                        `).join("")}
                       </div>
-                      <div class="space-y-2">
-                        <label class="text-sm text-zinc-300">Telefon *</label>
-                        <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
-                      </div>
-                      <div class="space-y-2">
-                        <label class="text-sm text-zinc-300">Araç Marka *</label>
-                        <input data-form="brand" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.brand}" />
-                      </div>
-                      <div class="space-y-2">
-                        <label class="text-sm text-zinc-300">Araç Modeli *</label>
-                        <input data-form="model" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.model}" />
-                      </div>
+                    </div>
+
+                    ${state.form.operations.length ? `
                       <div class="space-y-2 md:col-span-2">
-                        <label class="text-sm text-zinc-300">Fatura Adresi</label>
-                        <textarea data-form="invoiceAddress" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.invoiceAddress || ""}</textarea>
-                      </div>
-                      <div class="space-y-2 md:col-span-2">
-                        <label class="text-sm text-zinc-300">Yapılacak İşlemler *</label>
-                        <div id="operationListBox" class="grid max-h-80 gap-3 overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-1">
-                          ${OPERATION_OPTIONS.map((op) => `
-                            <label class="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-zinc-200">
-                              <input type="checkbox" data-operation="${op}" ${state.form.operations.includes(op) ? "checked" : ""} />
-                              <span>${op}</span>
-                            </label>
+                        <label class="text-sm text-zinc-300">İşlem Ücretleri</label>
+                        <div class="grid gap-3 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-2">
+                          ${state.form.operations.map((op) => `
+                            <div class="rounded-xl border border-white/10 bg-black/20 p-3">
+                              <div class="mb-2 text-sm text-zinc-300">${op}</div>
+                              <div class="flex items-center rounded-xl border border-white/10 bg-zinc-900 px-3 py-2">
+                                <span class="mr-2 text-sm text-zinc-400">₺</span>
+                                <input data-operation-fee="${op}" class="w-full bg-transparent text-sm text-white outline-none" placeholder="0" value="${state.form.operationFees[op] || ""}" />
+                              </div>
+                            </div>
                           `).join("")}
                         </div>
                       </div>
-
-                      ${state.form.operations.length ? `
-                        <div class="space-y-2 md:col-span-2">
-                          <label class="text-sm text-zinc-300">İşlem Ücretleri</label>
-                          <div class="grid gap-3 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-2">
-                            ${state.form.operations.map((op) => `
-                              <div class="rounded-xl border border-white/10 bg-black/20 p-3">
-                                <div class="mb-2 text-sm text-zinc-300">${op}</div>
-                                <div class="flex items-center rounded-xl border border-white/10 bg-zinc-900 px-3 py-2">
-                                  <span class="mr-2 text-sm text-zinc-400">₺</span>
-                                  <input data-operation-fee="${op}" class="w-full bg-transparent text-sm text-white outline-none" placeholder="0" value="${state.form.operationFees[op] || ""}" />
-                                </div>
-                              </div>
-                            `).join("")}
-                          </div>
-                        </div>
-                      ` : ""}
-
-                      <div class="space-y-2 md:col-span-2">
-                        <label class="text-sm text-zinc-300">Araçta Görülen Kusurlar</label>
-                        <textarea data-form="vehicleDefects" class="min-h-[110px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Örn: Sağ ön çamurlukta çizik, arka tamponda çatlak, sol far çevresinde açıklık...">${state.form.vehicleDefects || ""}</textarea>
-                      </div>
-
-                      <div class="space-y-2 md:col-span-2">
-                        <div class="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-zinc-300">
-                          <p><strong class="text-white">Müşteri Onayı:</strong> Aracımı yukarıda belirtilen fiziksel durumda ve belirtilen aksesuarların montajı yapılmak üzere, anlaşılan ürün ve fiyatı da kabul ederek işletmenize teslim ettim. Montaj süresince doğabilecek (işletme kusuru dışındaki) teknik riskler hakkında bilgilendirildim, yapılacak işlemlerden doğan yasal yükümlülükleri kabul ediyorum.</p>
-                          <p class="mt-3"><strong class="text-white">İşletme Onayı:</strong> Araç, yukarıdaki kriterlere göre uygun olarak teslim alınmıştır.</p>
-                          <p class="mt-4 text-xs font-semibold tracking-wide text-zinc-200">KİŞİSEL VERİLERİN İŞLENMESİNE İLİŞKİN AÇIK RIZA BEYAN FORMU</p>
-                          <p class="mt-2 text-xs leading-5 text-zinc-400">Tarafıma sunulan Aydınlatma Metni kapsamında; ad-soyad, telefon, araç plaka ve şasi numarası gibi kişisel verilerimin, işletmeniz tarafından hizmet sunumu, kampanya bildirimleri (SMS/E-posta) ve tanıtım amacıyla Instagram gibi sosyal medya mecralarında (plaka görseli dâhil) işlenmesine, paylaşılmasına ve bu verilerin WhatsApp, iCloud, Google Drive gibi sunucuları yurt dışında bulunan sistemler aracılığıyla aktarılmasına; ayrıca güvenliğim ve hizmet kalitesi amacıyla ses kaydı alınmasına hiçbir baskı altında kalmadan özgür irademle onay veriyorum.</p>
-                        </div>
-                        <label class="text-sm text-zinc-300">Müşteri İmzası</label>
-                        <div class="rounded-2xl border border-white/10 bg-zinc-950 p-3">
-                          <canvas id="signaturePad" width="700" height="180" class="w-full rounded-xl bg-black/30"></canvas>
-                          <div class="mt-3 flex justify-end">
-                            <button id="clearSignature" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">İmzayı Temizle</button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="space-y-2 md:col-span-2">
-                        <label class="text-sm text-zinc-300">Ek Notlar</label>
-                        <textarea data-form="noteText" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.noteText || ""}</textarea>
-                      </div>
-
-                      <div class="space-y-2 md:col-span-2">
-                        <label class="text-sm text-zinc-300">Durum</label>
-                        <select data-form="status" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
-                          ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.form.status === status ? "selected" : ""}>${status}</option>`).join("")}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="space-y-4">
-                    <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                      <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Araç Görseli</h2></div>
-                      <div class="p-6 pt-0 space-y-4">
-                        <label class="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-zinc-300 hover:bg-white/5">
-                          <span class="text-lg">📷</span>
-                          <span>Fotoğraf Ekle / Kamerayı Aç</span>
-                          <input id="vehicleImageInput" type="file" accept="image/*" capture="environment" class="hidden" />
-                        </label>
-                        ${state.form.vehicleImage ? `
-                          <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-2">
-                            <img src="${state.form.vehicleImage}" class="h-56 w-full rounded-xl object-cover" />
-                          </div>
-                          <button id="removeVehicleImage" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">Görseli Sil</button>
-                        ` : `<div class="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-zinc-500">Henüz görsel eklenmedi.</div>`}
-                      </div>
-                    </div>
-
-                    <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                      <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Hızlı İşlemler</h2></div>
-                      <div class="grid gap-3 p-6 pt-0 sm:grid-cols-2">
-                        ${state.editId ? `
-                          <button id="updateRecord" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-amber-400 text-black hover:bg-amber-300">✏️ Kaydı Güncelle</button>
-                          <button id="cancelEdit" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition border border-white/10 bg-transparent text-white hover:bg-white/5">İptal</button>
-                        ` : `
-                          <button id="saveRecord" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-white text-black hover:bg-zinc-200">💾 Kaydı Oluştur</button>
-                          <button id="exportCsv" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">⬇️ CSV İndir</button>
-                        `}
-                        <button id="exportJson" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">⬇️ JSON İndir</button>
-                        <button id="resetForm" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition border border-white/10 bg-transparent text-white hover:bg-white/5">Formu Sıfırla</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ` : ""}
-
-              ${state.activeTab === "liste" ? `
-                <div class="mb-4 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div class="text-sm text-emerald-200">Kayıtlar Toplam Tutarı</div>
-                    <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
-                  </div>
-                  <div class="text-sm text-emerald-100">${totalFilteredCount} kayıt bulundu. Şu an ${rows.length} kayıt gösteriliyor.</div>
-                </div>
-
-                <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                  <div class="p-6 pb-3">
-                    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <h2 class="text-lg font-semibold">Kayıt Listesi</h2>
-                      <div class="flex w-full flex-col gap-3 md:max-w-2xl md:flex-row">
-                        <input id="search" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Kayıt no, müşteri, telefon, araç, işlem..." value="${state.searchDraft}" />
-                        <select id="statusFilter" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
-                          <option value="Tümü" ${state.statusFilter === "Tümü" ? "selected" : ""}>Tümü</option>
-                          ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.statusFilter === status ? "selected" : ""}>${status}</option>`).join("")}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="grid gap-3 p-6 pt-0">
-                    ${rows.length === 0 ? `
-                      <div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Henüz kayıt yok.</div>
-                    ` : rows.map((record) => `
-                      <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
-                        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                          <div class="space-y-2 flex-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                              <span class="text-lg font-semibold">${record.customerName}</span>
-                              <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.recordNo}</span>
-                              <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.status}</span>
-                            </div>
-                            <div class="text-sm text-zinc-400">${record.phone} · ${record.brand} ${record.model}</div>
-                            <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
-                            <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
-                            <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
-                            <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
-                          </div>
-
-                          <div class="flex w-full flex-col gap-3 xl:w-[430px]">
-                            <div class="grid gap-3 md:grid-cols-2">
-                              <div>
-                                <label class="mb-1 block text-xs text-zinc-400">Durum</label>
-                                <select data-inline-status="${record.id}" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
-                                  ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${record.status === status ? "selected" : ""}>${status}</option>`).join("")}
-                                </select>
-                              </div>
-                              <div>
-                                <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
-                                <input data-inline-tech="${record.id}" maxlength="40" value="${record.technician || ""}" placeholder="Usta Ad Soyad" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
-                              </div>
-                            </div>
-
-                            <div class="flex flex-wrap gap-2">
-                              <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Detay</button>
-                              <button data-edit="${record.id}" class="rounded-2xl bg-amber-400 px-4 py-2 text-sm font-medium text-black hover:bg-amber-300">Forma Al</button>
-                              <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
-                              <button data-delete="${record.id}" class="rounded-2xl bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500">🗑️ Sil</button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    `).join("")}
-
-                    ${canShowMore ? `
-                      <button id="showMoreBtn" class="mt-2 rounded-2xl border border-white/10 bg-zinc-800 px-4 py-3 text-sm text-white hover:bg-zinc-700">Daha Fazla Göster</button>
                     ` : ""}
-                  </div>
-                </div>
-              ` : ""}
 
-              ${state.activeTab === "kurulum" && !state.tabletMode ? `
-                <div class="grid gap-4 lg:grid-cols-3">
-                  <div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Bu sürümde hazır olanlar</h2></div>
-                    <div class="grid gap-3 p-6 pt-0 text-sm text-zinc-300">
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Pro Supabase arama</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kaydı güncelle modu</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Scroll bozmayan işlem seçimi</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Liste kademeli yükleme</div>
-                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Optimize görsel yükleme</div>
+                    <div class="space-y-2 md:col-span-2">
+                      <label class="text-sm text-zinc-300">Araçta Görülen Kusurlar</label>
+                      <textarea data-form="vehicleDefects" class="min-h-[110px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Örn: Sağ ön çamurlukta çizik, arka tamponda çatlak, sol far çevresinde açıklık...">${state.form.vehicleDefects || ""}</textarea>
                     </div>
-                  </div>
-                  <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Sonraki adımlar</h2></div>
-                    <div class="space-y-3 p-6 pt-0 text-sm text-zinc-300">
-                      <div>🔐 Kullanıcı girişi</div>
-                      <div>📩 Müşteri bilgilendirme</div>
-                      <div>🧾 Teklif / tahsilat alanı</div>
-                      <div>📦 İş emri raporları</div>
+
+                    <div class="space-y-2 md:col-span-2">
+                      <div class="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-zinc-300">
+                        <p><strong class="text-white">Müşteri Onayı:</strong> Aracımı yukarıda belirtilen fiziksel durumda ve belirtilen aksesuarların montajı yapılmak üzere, anlaşılan ürün ve fiyatı da kabul ederek işletmenize teslim ettim. Montaj süresince doğabilecek (işletme kusuru dışındaki) teknik riskler hakkında bilgilendirildim, yapılacak işlemlerden doğan yasal yükümlülükleri kabul ediyorum. <strong class="text-white">İmza:</strong></p>
+                        <p class="mt-3"><strong class="text-white">İşletme Onayı:</strong> Araç, yukarıdaki kriterlere göre uygun olarak teslim alınmıştır. <strong class="text-white">İmza:</strong></p>
+                        <p class="mt-4 text-xs font-semibold tracking-wide text-zinc-200">KİŞİSEL VERİLERİN İŞLENMESİNE İLİŞKİN AÇIK RIZA BEYAN FORMU</p>
+                        <p class="mt-2 text-xs leading-5 text-zinc-400">Tarafıma sunulan Aydınlatma Metni kapsamında; ad-soyad, telefon, araç plaka ve şasi numarası gibi kişisel verilerimin, işletmeniz tarafından hizmet sunumu, kampanya bildirimleri (SMS/E-posta) ve tanıtım amacıyla Instagram gibi sosyal medya mecralarında (plaka görseli dâhil) işlenmesine, paylaşılmasına ve bu verilerin WhatsApp, iCloud, Google Drive gibi sunucuları yurt dışında bulunan sistemler aracılığıyla aktarılmasına; ayrıca güvenliğim ve hizmet kalitesi amacıyla ses kaydı alınmasına hiçbir baskı altında kalmadan özgür irademle onay veriyorum.</p>
+                      </div>
+                      <label class="text-sm text-zinc-300">Müşteri İmzası</label>
+                      <div class="rounded-2xl border border-white/10 bg-zinc-950 p-3">
+                        <canvas id="signaturePad" width="700" height="180" class="w-full rounded-xl bg-black/30"></canvas>
+                        <div class="mt-3 flex justify-end">
+                          <button id="clearSignature" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">İmzayı Temizle</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="space-y-2 md:col-span-2">
+                      <label class="text-sm text-zinc-300">Ek Notlar</label>
+                      <textarea data-form="noteText" class="min-h-[90px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">${state.form.noteText || ""}</textarea>
+                    </div>
+
+                    <div class="space-y-2 md:col-span-2">
+                      <label class="text-sm text-zinc-300">Durum</label>
+                      <select data-form="status" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+                        ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.form.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                      </select>
                     </div>
                   </div>
                 </div>
-              ` : ""}
-            </div>
+
+                <div class="space-y-4">
+                  <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Araç Görseli</h2></div>
+                    <div class="p-6 pt-0 space-y-4">
+                      <label class="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-zinc-300 hover:bg-white/5">
+                        <span class="text-lg">📷</span>
+                        <span>Fotoğraf Ekle / Kamerayı Aç</span>
+                        <input id="vehicleImageInput" type="file" accept="image/*" capture="environment" class="hidden" />
+                      </label>
+                      ${state.form.vehicleImage ? `
+                        <div class="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-2">
+                          <img src="${state.form.vehicleImage}" class="h-56 w-full rounded-xl object-cover" />
+                        </div>
+                        <button id="removeVehicleImage" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">Görseli Sil</button>
+                      ` : `<div class="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-zinc-500">Henüz görsel eklenmedi.</div>`}
+                    </div>
+                  </div>
+
+                  <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                    <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Hızlı İşlemler</h2></div>
+                    <div class="grid gap-3 p-6 pt-0 sm:grid-cols-2">
+                      ${state.editId ? `
+                        <button id="updateRecord" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-amber-400 text-black hover:bg-amber-300">✏️ Kaydı Güncelle</button>
+                        <button id="cancelEdit" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition border border-white/10 bg-transparent text-white hover:bg-white/5">İptal</button>
+                      ` : `
+                        <button id="saveRecord" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-white text-black hover:bg-zinc-200">💾 Kaydı Oluştur</button>
+                        <button id="exportCsv" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">⬇️ CSV İndir</button>
+                      `}
+                      <button id="exportJson" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">⬇️ JSON İndir</button>
+                      <button id="resetForm" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition border border-white/10 bg-transparent text-white hover:bg-white/5">Formu Sıfırla</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ` : ""}
+
+            ${state.activeTab === "liste" ? `
+              <div class="mb-4 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div class="text-sm text-emerald-200">Kayıtlar Toplam Tutarı</div>
+                  <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
+                </div>
+                <div class="text-sm text-emerald-100">${totalCount} kayıt bulundu. Şu an ${rows.length} kayıt gösteriliyor.</div>
+              </div>
+
+              <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                <div class="p-6 pb-3">
+                  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <h2 class="text-lg font-semibold">Kayıt Listesi</h2>
+                    <div class="flex w-full flex-col gap-3 md:max-w-2xl md:flex-row">
+                      <input id="search" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Kayıt no, müşteri, telefon, araç, işlem..." value="${state.searchDraft}" />
+                      <select id="statusFilter" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+                        <option value="Tümü" ${state.statusFilter === "Tümü" ? "selected" : ""}>Tümü</option>
+                        ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.statusFilter === status ? "selected" : ""}>${status}</option>`).join("")}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid gap-3 p-6 pt-0">
+                  ${rows.length === 0 ? `
+                    <div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Henüz kayıt yok.</div>
+                  ` : rows.map((record) => `
+                    <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
+                      <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div class="space-y-2 flex-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-lg font-semibold">${record.customerName}</span>
+                            <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.recordNo}</span>
+                            <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.status}</span>
+                          </div>
+                          <div class="text-sm text-zinc-400">${record.phone} · ${record.brand} ${record.model}</div>
+                          <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
+                          <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
+                          <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
+                          <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
+                        </div>
+
+                        <div class="flex w-full flex-col gap-3 xl:w-[430px]">
+                          <div class="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <label class="mb-1 block text-xs text-zinc-400">Durum</label>
+                              <select data-inline-status="${record.id}" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+                                ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${record.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                              </select>
+                            </div>
+                            <div>
+                              <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
+                              <input data-inline-tech="${record.id}" maxlength="40" value="${record.technician || ""}" placeholder="Usta Ad Soyad" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
+                            </div>
+                          </div>
+
+                          <div class="flex flex-wrap gap-2">
+                            <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Detay</button>
+                            <button data-edit="${record.id}" class="rounded-2xl bg-amber-400 px-4 py-2 text-sm font-medium text-black hover:bg-amber-300">Forma Al</button>
+                            <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
+                            <button data-delete="${record.id}" class="rounded-2xl bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500">🗑️ Sil</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  `).join("")}
+
+                  ${canShowMore ? `<button id="showMoreBtn" class="mt-2 rounded-2xl border border-white/10 bg-zinc-800 px-4 py-3 text-sm text-white hover:bg-zinc-700">Daha Fazla Göster</button>` : ""}
+                </div>
+              </div>
+            ` : ""}
+
+            ${state.activeTab === "kurulum" && !state.tabletMode ? `
+              <div class="grid gap-4 lg:grid-cols-3">
+                <div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                  <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Bu sürümde hazır olanlar</h2></div>
+                  <div class="grid gap-3 p-6 pt-0 text-sm text-zinc-300">
+                    <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Pro Supabase arama</div>
+                    <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kaydı güncelle modu</div>
+                    <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Scroll bozmayan işlem seçimi</div>
+                    <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Liste kademeli yükleme</div>
+                    <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• PWA hazırlığı</div>
+                  </div>
+                </div>
+                <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                  <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Sonraki adımlar</h2></div>
+                  <div class="space-y-3 p-6 pt-0 text-sm text-zinc-300">
+                    <div>🔐 Kullanıcı girişi</div>
+                    <div>📩 Müşteri bilgilendirme</div>
+                    <div>🧾 Teklif / tahsilat alanı</div>
+                    <div>📦 İş emri raporları</div>
+                  </div>
+                </div>
+              </div>
+            ` : ""}
           </div>
 
           ${showModal ? `
@@ -1113,6 +1062,7 @@
                       </select>
                     </div>
                   </div>
+
                   <div class="grid gap-4 md:grid-cols-2">
                     <div>
                       <h3 class="mb-2 font-semibold">Müşteri Bilgileri</h3>
@@ -1130,6 +1080,12 @@
                       </div>
                     </div>
                   </div>
+
+                  <div>
+                    <h3 class="mb-2 font-semibold">Araçta Görülen Kusurlar</h3>
+                    <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300">${selected.vehicleDefects || "-"}</div>
+                  </div>
+
                   <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                     <div>
                       <h3 class="mb-2 font-semibold">Yapılacak İşlemler</h3>
@@ -1147,10 +1103,7 @@
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <h3 class="mb-2 font-semibold">Araçta Görülen Kusurlar</h3>
-                    <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300">${selected.vehicleDefects || "-"}</div>
-                  </div>
+
                   <div>
                     <h3 class="mb-2 font-semibold">Ek Notlar</h3>
                     <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300">${selected.noteText || "-"}</div>
@@ -1159,71 +1112,213 @@
               </div>
             </div>
           ` : ""}
-        `;
+        </div>
+      `;
 
-        document.getElementById("toggleTablet")?.addEventListener("click", () => { state.tabletMode = !state.tabletMode; render(); });
-        document.querySelectorAll("[data-tab]").forEach((btn) => btn.addEventListener("click", () => { state.activeTab = btn.dataset.tab; render(); }));
-        document.querySelectorAll("[data-form]").forEach((el) => {
-          el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value));
-          el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value));
+      document.getElementById("toggleTablet")?.addEventListener("click", () => {
+        state.tabletMode = !state.tabletMode;
+        render();
+      });
+
+      document.querySelectorAll("[data-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.activeTab = btn.dataset.tab;
+          render();
         });
-        document.querySelectorAll("[data-company]").forEach((el) => el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value)));
-        document.querySelectorAll("[data-operation]").forEach((el) => el.addEventListener("change", (e) => toggleOperation(el.dataset.operation, e.target.checked)));
-        document.querySelectorAll("[data-operation-fee]").forEach((el) => el.addEventListener("input", (e) => updateOperationFee(el.dataset.operationFee, e.target.value)));
-        document.getElementById("vehicleImageInput")?.addEventListener("change", (e) => handleVehicleImage(e.target.files?.[0]));
-        document.getElementById("removeVehicleImage")?.addEventListener("click", () => { state.form.vehicleImage = ""; render(); });
-        document.getElementById("saveRecord")?.addEventListener("click", saveRecord);
-        document.getElementById("updateRecord")?.addEventListener("click", updateCurrentRecord);
-        document.getElementById("cancelEdit")?.addEventListener("click", cancelEdit);
-        document.getElementById("exportCsv")?.addEventListener("click", exportCsv);
-        document.getElementById("exportJson")?.addEventListener("click", exportJson);
-        document.getElementById("resetForm")?.addEventListener("click", () => { state.form = emptyForm(); state.editId = null; signaturePadBound = false; render(); });
-        document.getElementById("search")?.addEventListener("input", (e) => {
-          state.searchDraft = e.target.value;
-          clearTimeout(searchTimer);
-          searchTimer = setTimeout(async () => {
-            state.search = state.searchDraft;
-            state.visibleCount = PAGE_SIZE;
-            await loadRecordsFromDb();
-          }, 300);
-        });
-        document.getElementById("statusFilter")?.addEventListener("change", async (e) => {
-          state.statusFilter = e.target.value;
+      });
+
+      document.querySelectorAll("[data-form]").forEach((el) => {
+        el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value));
+        el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value));
+      });
+
+      document.querySelectorAll("[data-company]").forEach((el) => {
+        el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value));
+      });
+
+      document.querySelectorAll("[data-operation]").forEach((el) => {
+        el.addEventListener("change", (e) => toggleOperation(el.dataset.operation, e.target.checked));
+      });
+
+      document.querySelectorAll("[data-operation-fee]").forEach((el) => {
+        el.addEventListener("input", (e) => updateOperationFee(el.dataset.operationFee, e.target.value));
+      });
+
+      document.getElementById("vehicleImageInput")?.addEventListener("change", (e) => handleVehicleImage(e.target.files?.[0]));
+      document.getElementById("removeVehicleImage")?.addEventListener("click", () => {
+        state.form.vehicleImage = "";
+        render();
+      });
+
+      document.getElementById("saveRecord")?.addEventListener("click", saveRecord);
+      document.getElementById("updateRecord")?.addEventListener("click", updateCurrentRecord);
+      document.getElementById("cancelEdit")?.addEventListener("click", cancelEdit);
+      document.getElementById("exportCsv")?.addEventListener("click", exportCsv);
+      document.getElementById("exportJson")?.addEventListener("click", exportJson);
+      document.getElementById("resetForm")?.addEventListener("click", () => {
+        state.form = emptyForm();
+        state.editId = null;
+        signatureHandlersBound = false;
+        render();
+      });
+
+      document.getElementById("search")?.addEventListener("input", (e) => {
+        state.searchDraft = e.target.value;
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(async () => {
+          state.search = state.searchDraft;
           state.visibleCount = PAGE_SIZE;
           await loadRecordsFromDb();
-        });
-        document.getElementById("showMoreBtn")?.addEventListener("click", async () => {
-          state.visibleCount += PAGE_SIZE;
-          await loadRecordsFromDb();
-        });
-        document.querySelectorAll("[data-detail]").forEach((btn) => btn.addEventListener("click", () => { state.selectedId = btn.dataset.detail || null; render(); }));
-        document.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => loadRecordToForm(btn.dataset.edit)));
-        document.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteRecord(btn.dataset.delete)));
-        document.querySelectorAll("[data-print]").forEach((btn) => btn.addEventListener("click", () => printReceipt(btn.dataset.print)));
-        document.querySelectorAll("[data-inline-status]").forEach((el) => el.addEventListener("change", async (e) => { await updateRecordStatus(el.dataset.inlineStatus, e.target.value); }));
-        document.querySelectorAll("[data-inline-tech]").forEach((el) => {
-          let timer = null;
-          const save = async () => { await updateRecordTechnician(el.dataset.inlineTech, el.value.trim()); };
-          el.addEventListener("input", () => {
-            clearTimeout(timer);
-            timer = setTimeout(save, 700);
-          });
-          el.addEventListener("blur", save);
-        });
-        document.getElementById("detailStatusSelect")?.addEventListener("change", async (e) => {
-          if (selected) await updateRecordStatus(selected.id, e.target.value);
-        });
-        document.getElementById("closeModal")?.addEventListener("click", () => { state.selectedId = null; render(); });
-        document.getElementById("modalOverlay")?.addEventListener("click", (e) => { if (e.target.id === "modalOverlay") { state.selectedId = null; render(); } });
+        }, 300);
+      });
 
-        setupSignaturePad();
+      document.getElementById("statusFilter")?.addEventListener("change", async (e) => {
+        state.statusFilter = e.target.value;
+        state.visibleCount = PAGE_SIZE;
+        await loadRecordsFromDb();
+      });
+
+      document.getElementById("showMoreBtn")?.addEventListener("click", async () => {
+        state.visibleCount += PAGE_SIZE;
+        await loadRecordsFromDb();
+      });
+
+      document.querySelectorAll("[data-detail]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.selectedId = btn.dataset.detail || null;
+          render();
+        });
+      });
+
+      document.querySelectorAll("[data-edit]").forEach((btn) => {
+        btn.addEventListener("click", () => loadRecordToForm(btn.dataset.edit));
+      });
+
+      document.querySelectorAll("[data-delete]").forEach((btn) => {
+        btn.addEventListener("click", () => deleteRecord(btn.dataset.delete));
+      });
+
+      document.querySelectorAll("[data-print]").forEach((btn) => {
+        btn.addEventListener("click", () => printReceipt(btn.dataset.print));
+      });
+
+      document.querySelectorAll("[data-inline-status]").forEach((el) => {
+        el.addEventListener("change", async (e) => {
+          await updateRecordStatus(el.dataset.inlineStatus, e.target.value);
+        });
+      });
+
+      document.querySelectorAll("[data-inline-tech]").forEach((el) => {
+        let timer = null;
+        const save = async () => {
+          await updateRecordTechnician(el.dataset.inlineTech, el.value.trim());
+        };
+        el.addEventListener("input", () => {
+          clearTimeout(timer);
+          timer = setTimeout(save, 700);
+        });
+        el.addEventListener("blur", save);
+      });
+
+      document.getElementById("detailStatusSelect")?.addEventListener("change", async (e) => {
+        const selectedCurrent = selectedRecord();
+        if (selectedCurrent) await updateRecordStatus(selectedCurrent.id, e.target.value);
+      });
+
+      document.getElementById("closeModal")?.addEventListener("click", () => {
+        state.selectedId = null;
+        render();
+      });
+
+      document.getElementById("modalOverlay")?.addEventListener("click", (e) => {
+        if (e.target.id === "modalOverlay") {
+          state.selectedId = null;
+          render();
+        }
+      });
+
+      setupSignaturePad();
+    }
+
+    function setupSignaturePad() {
+      if (state.activeTab !== "kayit") return;
+      const canvas = document.getElementById("signaturePad");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      let drawing = false;
+
+      function repaint() {
+        ctx.fillStyle = "#09090b";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (state.form.signature) {
+          const img = new Image();
+          img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          img.src = state.form.signature;
+        }
       }
 
-      (async function init() {
-        state.selectedId = null;
-        state.searchDraft = state.search;
-        await loadRecordsFromDb();
-      })();
-    </script>
-  </body>
+      repaint();
+
+      if (signatureHandlersBound && canvas.dataset.bound === "1") return;
+
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const point = e.touches ? e.touches[0] : e;
+        return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+      };
+
+      const start = (e) => {
+        drawing = true;
+        const { x, y } = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#ffffff";
+      };
+
+      const move = (e) => {
+        if (!drawing) return;
+        if (e.cancelable) e.preventDefault();
+        const { x, y } = getPos(e);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      };
+
+      const end = () => {
+        if (!drawing) return;
+        drawing = false;
+        state.form.signature = canvas.toDataURL("image/png");
+      };
+
+      canvas.onmousedown = start;
+      canvas.onmousemove = move;
+      canvas.onmouseup = end;
+      canvas.onmouseleave = end;
+      canvas.ontouchstart = start;
+      canvas.ontouchmove = move;
+      canvas.ontouchend = end;
+      canvas.dataset.bound = "1";
+      signatureHandlersBound = true;
+
+      document.getElementById("clearSignature")?.addEventListener("click", () => {
+        state.form.signature = "";
+        repaint();
+      });
+    }
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch((err) => {
+          console.error("Service worker kayıt hatası:", err);
+        });
+      });
+    }
+
+    (async function init() {
+      state.searchDraft = state.search;
+      await loadRecordsFromDb();
+    })();
+  </script>
+</body>
 </html>
