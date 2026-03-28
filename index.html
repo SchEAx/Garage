@@ -715,6 +715,12 @@
                 .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
                 .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
               </style>
+              <link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#09090b" />
+<link rel="apple-touch-icon" href="/logo.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Garage İstanbul" />
             </head>
             <body>
               <div class="page">
@@ -767,6 +773,15 @@
                   <p>${record.noteText || "-"}</p>
                 </div>
               </div>
+              <script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.error("Service worker kayıt hatası:", err);
+      });
+    });
+  }
+</script>
             </body>
           </html>
         `);
