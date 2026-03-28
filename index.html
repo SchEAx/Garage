@@ -1373,56 +1373,84 @@
   }
 }; }
 function initAracSecim() {
-  const brand = document.getElementById("brandSelect");
-  const model = document.getElementById("modelSelect");
-  const type = document.getElementById("typeSelect");
-  const year = document.getElementById("yearInput");
+  const markaSelect = document.getElementById("aracMarka");
+const modelSelect = document.getElementById("aracModel");
+const tipSelect = document.getElementById("aracTip");
 
-  if (!brand) return;
+function selectSifirla(selectElement, placeholder) {
+  selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+  selectElement.disabled = true;
+}
 
-  brand.innerHTML = '<option value="">Marka Seç</option>';
-  Object.keys(ARAC_DATA).forEach(m => {
-    brand.innerHTML += `<option value="${m}">${m}</option>`;
+function markalariYukle() {
+  if (!markaSelect || !modelSelect || !tipSelect) {
+    console.error("Select elemanları bulunamadı.");
+    return;
+  }
+
+  selectSifirla(markaSelect, "Araç markası seçin");
+  selectSifirla(modelSelect, "Önce marka seçin");
+  selectSifirla(tipSelect, "Önce model seçin");
+
+  Object.keys(aracVerileri)
+    .sort((a, b) => a.localeCompare(b, "tr"))
+    .forEach((marka) => {
+      const option = document.createElement("option");
+      option.value = marka;
+      option.textContent = marka;
+      markaSelect.appendChild(option);
+    });
+
+  markaSelect.disabled = false;
+}
+
+markaSelect.addEventListener("change", function () {
+  const seciliMarka = this.value;
+
+  selectSifirla(modelSelect, "Model seçin");
+  selectSifirla(tipSelect, "Önce model seçin");
+
+  if (!seciliMarka || !aracVerileri[seciliMarka]) return;
+
+  Object.keys(aracVerileri[seciliMarka])
+    .sort((a, b) => a.localeCompare(b, "tr"))
+    .forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model;
+      option.textContent = model;
+      modelSelect.appendChild(option);
+    });
+
+  modelSelect.disabled = false;
+});
+
+modelSelect.addEventListener("change", function () {
+  const seciliMarka = markaSelect.value;
+  const seciliModel = this.value;
+
+  selectSifirla(tipSelect, "Tip seçin");
+
+  if (
+    !seciliMarka ||
+    !seciliModel ||
+    !aracVerileri[seciliMarka] ||
+    !aracVerileri[seciliMarka][seciliModel]
+  ) return;
+
+  aracVerileri[seciliMarka][seciliModel].forEach((tip) => {
+    const option = document.createElement("option");
+    option.value = tip;
+    option.textContent = tip;
+    tipSelect.appendChild(option);
   });
 
-  brand.onchange = () => {
-    state.form.brand = brand.value;
+  tipSelect.disabled = false;
+});
 
-    model.disabled = false;
-    model.classList.remove("opacity-60");
-
-    model.innerHTML = '<option value="">Model Seç</option>';
-    type.innerHTML = '<option>Önce Model</option>';
-    type.disabled = true;
-
-    if (!brand.value) return;
-
-    Object.keys(ARAC_DATA[brand.value]).forEach(m => {
-      model.innerHTML += `<option value="${m}">${m}</option>`;
-    });
-  };
-
-  model.onchange = () => {
-    state.form.model = model.value;
-
-    type.disabled = false;
-    type.classList.remove("opacity-60");
-
-    type.innerHTML = '<option value="">Tip Seç</option>';
-
-    ARAC_DATA[brand.value][model.value].forEach(t => {
-      type.innerHTML += `<option value="${t}">${t}</option>`;
-    });
-  };
-
-  type.onchange = () => {
-    state.form.type = type.value;
-  };
-
-  year.oninput = () => {
-    state.form.year = year.value;
-  };
-}
+document.addEventListener("DOMContentLoaded", function () {
+  markalariYukle();
+});
+  }
   </script>
 </body>
 </html>
