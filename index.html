@@ -1345,35 +1345,50 @@
       await loadRecordsFromDb();
     })();
     const ARAC_DATA = {
-      const aracVerileri = {
+     const aracVerileri = {
   "Renault": {
     "Clio": ["Hatchback"],
     "Megane Sedan": ["Sedan"],
-    "Duster": ["SUV"]
+    "Duster": ["SUV"],
+    "Symbol": ["Sedan"],
+    "Megane 2": ["Sedan", "Hatchback"]
   },
   "BMW": {
+    "1 Serisi": ["Hatchback"],
     "3 Serisi": ["Sedan"],
     "X1": ["SUV"],
+    "X3": ["SUV"],
     "iX1": ["Elektrikli SUV"]
   },
-  "Ford": {
-    "Focus": ["Hatchback", "Sedan"],
-    "Puma": ["SUV"],
-    "Transit": ["Panelvan"]
+  "Mercedes-Benz": {
+    "A Serisi": ["Hatchback"],
+    "C Serisi": ["Sedan"],
+    "GLA": ["SUV"],
+    "GLC": ["SUV"],
+    "EQA": ["Elektrikli SUV"]
   },
   "Toyota": {
     "Corolla": ["Sedan"],
+    "Corolla Cross": ["SUV"],
     "C-HR": ["SUV"],
+    "Yaris": ["Hatchback"],
     "Hilux": ["Pickup"]
+  },
+  "Ford": {
+    "Focus": ["Hatchback", "Sedan"],
+    "Fiesta": ["Hatchback"],
+    "Puma": ["SUV"],
+    "Kuga": ["SUV"],
+    "Transit": ["Panelvan"]
   },
   "Fiat": {
     "Egea": ["Sedan"],
     "Egea Cross": ["Crossover"],
-    "Doblo": ["Hafif Ticari"]
+    "Linea": ["Sedan"],
+    "Doblo": ["Hafif Ticari"],
+    "Ducato": ["Panelvan"]
   }
-};
-      
-    }
+};  }
 function initAracSecim() {
   const brand = document.getElementById("brandSelect");
   const model = document.getElementById("modelSelect");
