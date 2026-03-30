@@ -136,22 +136,23 @@
     }
 
     function emptyForm() {
-      return {
-        customerName: "",
-        phone: "",
-        invoiceAddress: "",
-        brand: "",
-        model: "",
-        operations: [],
-        operationFees: {},
-        status: STATUS_OPTIONS[0],
-        vehicleImage: "",
-        noteText: "",
-        technician: "",
-        vehicleDefects: "",
-        signature: ""
-      };
-    }
+  return {
+    customerName: "",
+    phone: "",
+    invoiceAddress: "",
+    brand: "",
+    model: "",
+    type: "",
+    operations: [],
+    operationFees: {},
+    status: STATUS_OPTIONS[0],
+    vehicleImage: "",
+    noteText: "",
+    technician: "",
+    vehicleDefects: "",
+    signature: ""
+  };
+}
 
     const state = {
       records: [],
@@ -456,20 +457,21 @@
       if (!record) return;
 
       state.form = {
-        customerName: record.customerName || "",
-        phone: record.phone || "",
-        invoiceAddress: record.invoiceAddress || "",
-        brand: record.brand || "",
-        model: record.model || "",
-        operations: (record.operations || []).map((op) => op.name),
-        operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
-        status: record.status || STATUS_OPTIONS[0],
-        vehicleImage: record.vehicleImage || "",
-        noteText: record.noteText || "",
-        technician: record.technician || "",
-        vehicleDefects: record.vehicleDefects || "",
-        signature: record.signature || ""
-      };
+  customerName: record.customerName || "",
+  phone: record.phone || "",
+  invoiceAddress: record.invoiceAddress || "",
+  brand: record.brand || "",
+  model: record.model || "",
+  type: record.type || "",
+  operations: (record.operations || []).map((op) => op.name),
+  operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
+  status: record.status || STATUS_OPTIONS[0],
+  vehicleImage: record.vehicleImage || "",
+  noteText: record.noteText || "",
+  technician: record.technician || "",
+  vehicleDefects: record.vehicleDefects || "",
+  signature: record.signature || ""
+};
 
       state.editId = id;
       state.activeTab = "kayit";
@@ -1292,8 +1294,7 @@ document.getElementById("typeSelect")?.addEventListener("change", (e) => {
           render();
         }
       });
-      setTimeout(initAracSecim, 0);
-
+     
       setupSignaturePad();
     }
 
