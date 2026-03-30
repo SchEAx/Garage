@@ -1345,31 +1345,203 @@
       await loadRecordsFromDb();
     })();
 const aracVerileri = {
+
   "Renault": {
     "Clio": ["Hatchback"],
+    "Clio 2": ["Hatchback"],
+    "Clio 3": ["Hatchback"],
+    "Clio 4": ["Hatchback"],
     "Megane Sedan": ["Sedan"],
-    "Duster": ["SUV"]
+    "Megane 2": ["Sedan", "Hatchback"],
+    "Megane 3": ["Sedan", "Hatchback"],
+    "Megane 4": ["Sedan"],
+    "Megane E-Tech": ["Elektrikli Hatchback"],
+    "Fluence": ["Sedan"],
+    "Symbol": ["Sedan"],
+    "Captur": ["SUV"],
+    "Austral": ["SUV"],
+    "Rafale": ["SUV"],
+    "Duster": ["SUV"],
+    "Kangoo": ["Hafif Ticari"]
   },
-  "BMW": {
-    "3 Serisi": ["Sedan"],
-    "X1": ["SUV"],
-    "iX1": ["Elektrikli SUV"]
-  },
-  "Ford": {
-    "Focus": ["Hatchback", "Sedan"],
-    "Puma": ["SUV"],
-    "Transit": ["Panelvan"]
-  },
+
   "Toyota": {
     "Corolla": ["Sedan"],
+    "Corolla Cross": ["SUV"],
     "C-HR": ["SUV"],
-    "Hilux": ["Pickup"]
+    "Yaris": ["Hatchback"],
+    "Yaris Cross": ["SUV"],
+    "Avensis": ["Sedan"],
+    "Hilux": ["Pickup"],
+    "Proace City": ["Hafif Ticari"]
   },
+
+  "Ford": {
+    "Focus": ["Hatchback", "Sedan"],
+    "Focus 1": ["Hatchback", "Sedan"],
+    "Focus 2": ["Hatchback", "Sedan"],
+    "Focus 3": ["Hatchback", "Sedan"],
+    "Focus 4": ["Hatchback", "Sedan"],
+    "Fiesta": ["Hatchback"],
+    "Fusion": ["Hatchback"],
+    "Puma": ["SUV"],
+    "Kuga": ["SUV"],
+    "Transit": ["Panelvan"],
+    "Courier": ["Hafif Ticari"]
+  },
+
   "Fiat": {
     "Egea": ["Sedan"],
     "Egea Cross": ["Crossover"],
-    "Doblo": ["Hafif Ticari"]
+    "Linea": ["Sedan"],
+    "Albea": ["Sedan"],
+    "Bravo": ["Hatchback"],
+    "Punto": ["Hatchback"],
+    "Grande Punto": ["Hatchback"],
+    "Palio": ["Hatchback"],
+    "Doblo": ["Hafif Ticari"],
+    "Ducato": ["Panelvan"],
+    "Scudo": ["Panelvan"]
+  },
+
+  "Volkswagen": {
+    "Polo": ["Hatchback"],
+    "Golf": ["Hatchback"],
+    "Golf 4": ["Hatchback"],
+    "Golf 5": ["Hatchback"],
+    "Golf 6": ["Hatchback"],
+    "Golf 7": ["Hatchback"],
+    "Passat": ["Sedan"],
+    "Passat B5": ["Sedan"],
+    "Passat B6": ["Sedan"],
+    "Passat B7": ["Sedan"],
+    "Passat B8": ["Sedan"],
+    "Jetta": ["Sedan"],
+    "Bora": ["Sedan"],
+    "Tiguan": ["SUV"],
+    "T-Roc": ["SUV"],
+    "Caddy": ["Hafif Ticari"]
+  },
+
+  "Opel": {
+    "Corsa": ["Hatchback"],
+    "Corsa B": ["Hatchback"],
+    "Corsa C": ["Hatchback"],
+    "Corsa D": ["Hatchback"],
+    "Corsa E": ["Hatchback"],
+    "Astra": ["Hatchback", "Sedan"],
+    "Astra G": ["Hatchback", "Sedan"],
+    "Astra H": ["Hatchback", "Sedan"],
+    "Astra J": ["Hatchback", "Sedan"],
+    "Vectra": ["Sedan"],
+    "Insignia": ["Sedan"]
+  },
+
+  "Honda": {
+    "Civic": ["Sedan"],
+    "Civic FD6": ["Sedan"],
+    "Civic FB7": ["Sedan"],
+    "Civic FC5": ["Sedan"],
+    "Accord": ["Sedan"],
+    "HR-V": ["SUV"],
+    "CR-V": ["SUV"],
+    "Jazz": ["Hatchback"]
+  },
+
+  "Hyundai": {
+    "i10": ["Hatchback"],
+    "i20": ["Hatchback"],
+    "i30": ["Hatchback"],
+    "Accent": ["Sedan"],
+    "Accent Era": ["Sedan"],
+    "Elantra": ["Sedan"],
+    "Getz": ["Hatchback"],
+    "Tucson": ["SUV"],
+    "Santa Fe": ["SUV"]
+  },
+
+  "Peugeot": {
+    "206": ["Hatchback"],
+    "207": ["Hatchback"],
+    "208": ["Hatchback"],
+    "301": ["Sedan"],
+    "306": ["Hatchback"],
+    "307": ["Hatchback"],
+    "308": ["Hatchback"],
+    "407": ["Sedan"],
+    "508": ["Sedan"],
+    "2008": ["SUV"],
+    "3008": ["SUV"]
+  },
+
+  "Citroen": {
+    "C-Elysee": ["Sedan"],
+    "C3": ["Hatchback"],
+    "C4": ["Hatchback"],
+    "C4 X": ["Sedan"],
+    "C5 Aircross": ["SUV"]
+  },
+
+  "BMW": {
+    "1 Serisi": ["Hatchback"],
+    "3 Serisi": ["Sedan"],
+    "5 Serisi": ["Sedan"],
+    "X1": ["SUV"],
+    "X3": ["SUV"],
+    "X5": ["SUV"],
+    "iX1": ["Elektrikli SUV"],
+    "i4": ["Elektrikli Sedan"]
+  },
+
+  "Mercedes-Benz": {
+    "A Serisi": ["Hatchback"],
+    "C Serisi": ["Sedan"],
+    "E Serisi": ["Sedan"],
+    "GLA": ["SUV"],
+    "GLC": ["SUV"],
+    "GLE": ["SUV"],
+    "EQA": ["Elektrikli SUV"],
+    "EQE": ["Elektrikli Sedan"]
+  },
+
+  "Audi": {
+    "A3": ["Sedan"],
+    "A4": ["Sedan"],
+    "A6": ["Sedan"],
+    "Q3": ["SUV"],
+    "Q5": ["SUV"],
+    "Q7": ["SUV"],
+    "e-tron": ["Elektrikli SUV"]
+  },
+
+  "Tesla": {
+    "Model 3": ["Elektrikli Sedan"],
+    "Model Y": ["Elektrikli SUV"]
+  },
+
+  "Togg": {
+    "T10X": ["Elektrikli SUV"]
+  },
+
+  "BYD": {
+    "Atto 3": ["Elektrikli SUV"],
+    "Seal": ["Elektrikli Sedan"],
+    "Dolphin": ["Elektrikli Hatchback"]
+  },
+
+  "MG": {
+    "MG4": ["Elektrikli Hatchback"],
+    "MG ZS": ["SUV"],
+    "MG HS": ["SUV"]
+  },
+
+  "Dacia": {
+    "Sandero": ["Hatchback"],
+    "Sandero Stepway": ["Hatchback"],
+    "Logan": ["Sedan"],
+    "Duster": ["SUV"]
   }
+
 };
   </script>
 </body>
