@@ -1372,12 +1372,7 @@ document.getElementById("typeSelect")?.addEventListener("change", (e) => {
         });
       });
     }
-
-    (async function init() {
-      state.searchDraft = state.search;
-      await loadRecordsFromDb();
-    })();
-const aracVerileri = {
+    const aracVerileri = {
 
   "Renault": {
     "Clio": ["Hatchback"],
@@ -1576,6 +1571,12 @@ const aracVerileri = {
   }
 
 };
+
+    (async function init() {
+      state.searchDraft = state.search;
+      await loadRecordsFromDb();
+    })();
+
   </script>
 </body>
 </html>
