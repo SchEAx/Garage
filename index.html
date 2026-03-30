@@ -1344,8 +1344,7 @@
       state.searchDraft = state.search;
       await loadRecordsFromDb();
     })();
-    const ARAC_DATA = {
-  const aracVerileri = {
+const aracVerileri = {
   "Renault": {
     "Clio": ["Hatchback"],
     "Megane Sedan": ["Sedan"],
@@ -1372,85 +1371,6 @@
     "Doblo": ["Hafif Ticari"]
   }
 };
-function initAracSecim() {
- const markaSelect = document.getElementById("aracMarka");
-const modelSelect = document.getElementById("aracModel");
-const tipSelect = document.getElementById("aracTip");
-
-function selectSifirla(selectElement, placeholder) {
-  selectElement.innerHTML = `<option value="">${placeholder}</option>`;
-  selectElement.disabled = true;
-}
-
-function markalariYukle() {
-  if (!markaSelect || !modelSelect || !tipSelect) {
-    console.error("Select elemanları bulunamadı.");
-    return;
-  }
-
-  selectSifirla(markaSelect, "Araç markası seçin");
-  selectSifirla(modelSelect, "Önce marka seçin");
-  selectSifirla(tipSelect, "Önce model seçin");
-
-  Object.keys(aracVerileri)
-    .sort((a, b) => a.localeCompare(b, "tr"))
-    .forEach((marka) => {
-      const option = document.createElement("option");
-      option.value = marka;
-      option.textContent = marka;
-      markaSelect.appendChild(option);
-    });
-
-  markaSelect.disabled = false;
-}
-
-markaSelect.addEventListener("change", function () {
-  const seciliMarka = this.value;
-
-  selectSifirla(modelSelect, "Model seçin");
-  selectSifirla(tipSelect, "Önce model seçin");
-
-  if (!seciliMarka || !aracVerileri[seciliMarka]) return;
-
-  Object.keys(aracVerileri[seciliMarka])
-    .sort((a, b) => a.localeCompare(b, "tr"))
-    .forEach((model) => {
-      const option = document.createElement("option");
-      option.value = model;
-      option.textContent = model;
-      modelSelect.appendChild(option);
-    });
-
-  modelSelect.disabled = false;
-});
-
-modelSelect.addEventListener("change", function () {
-  const seciliMarka = markaSelect.value;
-  const seciliModel = this.value;
-
-  selectSifirla(tipSelect, "Tip seçin");
-
-  if (
-    !seciliMarka ||
-    !seciliModel ||
-    !aracVerileri[seciliMarka] ||
-    !aracVerileri[seciliMarka][seciliModel]
-  ) return;
-
-  aracVerileri[seciliMarka][seciliModel].forEach((tip) => {
-    const option = document.createElement("option");
-    option.value = tip;
-    option.textContent = tip;
-    tipSelect.appendChild(option);
-  });
-
-  tipSelect.disabled = false;
-});
-
-document.addEventListener("DOMContentLoaded", function () {
-  markalariYukle();
-});
-  }
   </script>
 </body>
 </html>
