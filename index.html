@@ -837,26 +837,43 @@
                       <label class="text-sm text-zinc-300">Telefon *</label>
                       <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
                     </div>
-  <div class="space-y-2">
-    <label class="text-sm text-zinc-300">Araç Marka *</label>
-    <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
-      <option value="">Marka Seç</option>
-    </select>
-  </div>
+ <div class="space-y-2">
+  <label class="text-sm text-zinc-300">Araç Marka *</label>
+  <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+    <option value="">Marka Seç</option>
+    ${Object.keys(aracVerileri)
+      .sort((a, b) => a.localeCompare(b, "tr"))
+      .map((marka) => `
+        <option value="${marka}" ${state.form.brand === marka ? "selected" : ""}>${marka}</option>
+      `).join("")}
+  </select>
+</div>
 
-  <div class="space-y-2">
-    <label class="text-sm text-zinc-300">Araç Modeli *</label>
-    <select id="modelSelect" disabled class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white opacity-60">
-      <option value="">Önce Marka Seç</option>
-    </select>
-  </div>
+<div class="space-y-2">
+  <label class="text-sm text-zinc-300">Araç Modeli *</label>
+  <select id="modelSelect" ${!state.form.brand ? "disabled" : ""} class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white ${!state.form.brand ? "opacity-60" : ""}">
+    <option value="">${state.form.brand ? "Model Seç" : "Önce Marka Seç"}</option>
+    ${state.form.brand
+      ? Object.keys(aracVerileri[state.form.brand] || {})
+          .sort((a, b) => a.localeCompare(b, "tr"))
+          .map((model) => `
+            <option value="${model}" ${state.form.model === model ? "selected" : ""}>${model}</option>
+          `).join("")
+      : ""}
+  </select>
+</div>
 
-  <div class="space-y-2">
-    <label class="text-sm text-zinc-300">Model Tipi</label>
-    <select id="typeSelect" disabled class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white opacity-60">
-      <option value="">Önce Model Seç</option>
-    </select>
-  </div>
+<div class="space-y-2">
+  <label class="text-sm text-zinc-300">Model Tipi</label>
+  <select id="typeSelect" ${!state.form.brand || !state.form.model ? "disabled" : ""} class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white ${!state.form.brand || !state.form.model ? "opacity-60" : ""}">
+    <option value="">${state.form.model ? "Tip Seç" : "Önce Model Seç"}</option>
+    ${(state.form.brand && state.form.model)
+      ? (aracVerileri[state.form.brand]?.[state.form.model] || []).map((tip) => `
+          <option value="${tip}" ${state.form.type === tip ? "selected" : ""}>${tip}</option>
+        `).join("")
+      : ""}
+  </select>
+</div>
 
   <div class="space-y-2">
     <label class="text-sm text-zinc-300">Model Yılı</label>
@@ -1155,7 +1172,22 @@
         el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value));
         el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value));
       });
+document.getElementById("brandSelect")?.addEventListener("change", (e) => {
+  state.form.brand = e.target.value;
+  state.form.model = "";
+  state.form.type = "";
+  render();
+});
 
+document.getElementById("modelSelect")?.addEventListener("change", (e) => {
+  state.form.model = e.target.value;
+  state.form.type = "";
+  render();
+});
+
+document.getElementById("typeSelect")?.addEventListener("change", (e) => {
+  state.form.type = e.target.value;
+});
       document.querySelectorAll("[data-company]").forEach((el) => {
         el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value));
       });
