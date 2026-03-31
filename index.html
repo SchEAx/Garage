@@ -749,8 +749,6 @@
       const rows = visibleRows();
       const selected = selectedRecord();
       const showModal = !!state.selectedId && !!selected;
-      const plaka = document.getElementById("plaka").value;
-const sasiNo = document.getElementById("sasiNo").value;
       const grand = grandTotal(rows);
       const totalCount = state.totalRemoteCount;
       const canShowMore = state.records.length < state.totalRemoteCount;
