@@ -682,6 +682,29 @@
                   <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
                   <div class="label">Fatura Adresi</div><div class="value">${record.invoiceAddress || "-"}</div>
                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+  <!-- Araç Plakası -->
+  <div>
+    <label class="text-sm text-gray-400">Araç Plakası</label>
+    <input 
+      type="text" 
+      id="plaka"
+      placeholder="34 ABC 123"
+      class="w-full mt-1 p-2 rounded-lg bg-black/40 border border-white/10 text-white"
+    />
+  </div>
+
+  <!-- Şasi No -->
+  <div>
+    <label class="text-sm text-gray-400">Şasi Numarası</label>
+    <input 
+      type="text" 
+      id="sasiNo"
+      placeholder="VF1XXXXXXXXXXXXXX"
+      class="w-full mt-1 p-2 rounded-lg bg-black/40 border border-white/10 text-white"
+    />
+  </div>
+</div>
                 <div class="box">
                   <h3>Araç Bilgileri</h3>
                   <div class="label">Araç Marka</div><div class="value">${record.brand || "-"}</div>
