@@ -143,6 +143,8 @@
     brand: "",
     model: "",
     type: "",
+    plaka: "",
+    sasiNo: "",
     operations: [],
     operationFees: {},
     status: STATUS_OPTIONS[0],
@@ -195,6 +197,8 @@
         createdAt: r.created_at,
         customerName: r.customer_name || "",
         phone: r.phone || "",
+        plaka: meta.plaka || "",
+        sasiNo: meta.sasiNo || "",
         invoiceAddress: meta.invoiceAddress || r.address || "",
         brand: r.brand || "",
         model: r.model || "",
@@ -251,6 +255,8 @@
         technician: form.technician,
         vehicleDefects: form.vehicleDefects,
         signature: form.signature,
+        plaka: form.plaka,
+        sasiNo: form.sasiNo,
       };
 
       return {
@@ -459,6 +465,8 @@
       state.form = {
   customerName: record.customerName || "",
   phone: record.phone || "",
+  plaka: record.plaka || "",
+  sasiNo: record.sasiNo || "",
   invoiceAddress: record.invoiceAddress || "",
   brand: record.brand || "",
   model: record.model || "",
