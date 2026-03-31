@@ -870,6 +870,26 @@
                       <label class="text-sm text-zinc-300">Telefon *</label>
                       <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
                     </div>
+                    <div class="space-y-2">
+  <label class="text-sm text-zinc-300">Araç Plakası</label>
+  <input
+    data-form="plaka"
+    class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+    placeholder="34 ABC 123"
+    value="${state.form.plaka || ""}"
+  />
+</div>
+
+<div class="space-y-2">
+  <label class="text-sm text-zinc-300">Şasi Numarası</label>
+  <input
+    data-form="sasiNo"
+    maxlength="17"
+    class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+    placeholder="VF1XXXXXXXXXXXXXX"
+    value="${state.form.sasiNo || ""}"
+  />
+</div>
  <div class="space-y-2">
   <label class="text-sm text-zinc-300">Araç Marka *</label>
   <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
