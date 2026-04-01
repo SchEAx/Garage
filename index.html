@@ -152,7 +152,7 @@
     noteText: "",
     technician: "",
     vehicleDefects: "",
-    signature: ""
+    signature: "",
     kvkkOnay: false,
     musteriOnay: false,
     isletmeOnay: false,
@@ -212,6 +212,9 @@
         vehicleImage: meta.vehicleImage || "",
         signature: meta.signature || r.signature || "",
         status: r.status || STATUS_OPTIONS[0],
+        kvkkOnay: meta.kvkkOnay || false,
+        musteriOnay: meta.musteriOnay || false,
+        isletmeOnay: meta.isletmeOnay || false,
       };
     }
 
@@ -260,6 +263,9 @@
         signature: form.signature,
         plaka: form.plaka,
         sasiNo: form.sasiNo,
+        kvkkOnay: form.kvkkOnay,
+        musteriOnay: form.musteriOnay,
+        isletmeOnay: form.isletmeOnay,
       };
 
       return {
@@ -481,7 +487,10 @@
   noteText: record.noteText || "",
   technician: record.technician || "",
   vehicleDefects: record.vehicleDefects || "",
-  signature: record.signature || ""
+  signature: record.signature || "",
+  kvkkOnay: record.kvkkOnay || false,
+  musteriOnay: record.musteriOnay || false,
+  isletmeOnay: record.isletmeOnay || false,
 };
 
       state.editId = id;
@@ -492,28 +501,31 @@
     }
 
     async function saveRecord() {
-      const form = state.form;
-      if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
-        alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
-        if (!form.kvkkOnay || !form.musteriOnay || !form.isletmeOnay) {
-  alert("Lütfen tüm onay kutularını işaretleyin!");
-  return;
+  const form = state.form;
+
+  if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
+    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
+    return;
+  }
+
+  if (!form.kvkkOnay || !form.musteriOnay || !form.isletmeOnay) {
+    alert("Lütfen tüm onay kutularını işaretleyin!");
+    return;
+  }
+
+  try {
+    await dbInsertRecord(form);
+    state.form = emptyForm();
+    state.editId = null;
+    state.activeTab = "liste";
+    signatureHandlersBound = false;
+    state.visibleCount = PAGE_SIZE;
+    await loadRecordsFromDb();
+  } catch (e) {
+    alert("Kayıt veritabanına eklenemedi");
+    console.error(e);
+  }
 }
-        return;
-      }
-      try {
-        await dbInsertRecord(form);
-        state.form = emptyForm();
-        state.editId = null;
-        state.activeTab = "liste";
-        signatureHandlersBound = false;
-        state.visibleCount = PAGE_SIZE;
-        await loadRecordsFromDb();
-      } catch (e) {
-        alert("Kayıt veritabanına eklenemedi");
-        console.error(e);
-      }
-    }
 
     async function updateCurrentRecord() {
       if (!state.editId) return;
@@ -1013,6 +1025,22 @@
                         <p class="mt-4 text-xs font-semibold tracking-wide text-zinc-200">KİŞİSEL VERİLERİN İŞLENMESİNE İLİŞKİN AÇIK RIZA BEYAN FORMU</p>
                         <p class="mt-2 text-xs leading-5 text-zinc-400">Tarafıma sunulan Aydınlatma Metni kapsamında; ad-soyad, telefon, araç plaka ve şasi numarası gibi kişisel verilerimin, işletmeniz tarafından hizmet sunumu, kampanya bildirimleri (SMS/E-posta) ve tanıtım amacıyla Instagram gibi sosyal medya mecralarında (plaka görseli dâhil) işlenmesine, paylaşılmasına ve bu verilerin WhatsApp, iCloud, Google Drive gibi sunucuları yurt dışında bulunan sistemler aracılığıyla aktarılmasına; ayrıca güvenliğim ve hizmet kalitesi amacıyla ses kaydı alınmasına hiçbir baskı altında kalmadan özgür irademle onay veriyorum.</p>
                       </div>
+                      <div class="mt-4 space-y-3 rounded-2xl border border-white/10 bg-zinc-950/60 p-4">
+  <label class="flex items-start gap-3 text-sm text-zinc-300">
+    <input type="checkbox" data-form="musteriOnay" class="mt-1 h-4 w-4" ${state.form.musteriOnay ? "checked" : ""} />
+    <span>Müşteri onay metnini okudum ve kabul ediyorum.</span>
+  </label>
+
+  <label class="flex items-start gap-3 text-sm text-zinc-300">
+    <input type="checkbox" data-form="isletmeOnay" class="mt-1 h-4 w-4" ${state.form.isletmeOnay ? "checked" : ""} />
+    <span>İşletme onay metnini okudum ve kabul ediyorum.</span>
+  </label>
+
+  <label class="flex items-start gap-3 text-sm text-zinc-300">
+    <input type="checkbox" data-form="kvkkOnay" class="mt-1 h-4 w-4" ${state.form.kvkkOnay ? "checked" : ""} />
+    <span>Kişisel verilerin işlenmesine ilişkin açık rıza metnini okudum ve kabul ediyorum.</span>
+  </label>
+</div>
                       <label class="text-sm text-zinc-300">Müşteri İmzası</label>
                       <div class="rounded-2xl border border-white/10 bg-zinc-950 p-3">
                         <canvas id="signaturePad" width="700" height="180" class="w-full rounded-xl bg-black/30"></canvas>
@@ -1238,13 +1266,11 @@
           ` : ""}
         </div>
       `;
-
-      document.querySelectorAll('input[type="checkbox"][data-form]').forEach(el => {
-  el.checked = state.form[el.getAttribute("data-form")] || false;
+document.querySelectorAll('input[type="checkbox"][data-form]').forEach((el) => {
   el.onchange = (e) => {
     updateForm(el.getAttribute("data-form"), e.target.checked);
   };
-});
+});      
       document.getElementById("toggleTablet")?.addEventListener("click", () => {
         state.tabletMode = !state.tabletMode;
         render();
