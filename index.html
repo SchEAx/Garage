@@ -608,159 +608,107 @@ async function updateCurrentRecord() {
       downloadFile("musteri-kayitlari.csv", toCsv(state.records), "text/csv;charset=utf-8;");
     }
 
-    function printReceipt(id) {
-      const record = state.records.find((r) => r.id === id);
-      if (!record) return;
+   function printReceipt(id) {
+  const record = state.records.find((r) => r.id === id);
+  if (!record) return;
 
-      const operationsHtml = (record.operations || []).map((op) => `
-        <div class="line-row">
-          <span>${op.name}</span>
-          <strong>${op.fee ? formatMoney(op.fee) : "-"}</strong>
-        </div>
-      `).join("");
-
-      const win = window.open("", "_blank", "width=900,height=1200");
-      if (!win) return;
-
-      win.document.write(`
-        <html>
-          <head>
-            <title>Servis Fişi - ${record.recordNo}</title>
-            <style>
-              @page { size: A4 portrait; margin: 8mm; }
-              body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 11px; }
-              .page { padding: 8mm; box-sizing: border-box; }
-              .box { border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
-              h1,h2,h3,p { margin: 0 0 6px 0; }
-              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-              .label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
-              .value { font-size: 11px; font-weight: 600; word-break: break-word; }
-              .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
-              .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
-              .sign-image { width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
-              .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
-              .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
-            </style>
-          </head>
-          <body>
-            <div class="page">
-              <div class="box">
-                <h1>${state.company.name}</h1>
-                <p>${state.company.phone} · ${state.company.email}</p>
-                <p>${state.company.address}</p>
-              </div>
-              <div class="box">
-                <h2>Araç Kabul Fişi</h2>
-                <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
-                <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
-                <p><strong>Durum:</strong> ${record.status}</p>
-                <p><strong>Usta:</strong> ${record.technician || "-"}</p>
-              </div>
-              <div class="grid">
-                <div class="box">
-                  <h3>Müşteri Bilgileri</h3>
-                  <div class="label">Ad Soyad</div><div class="value">${record.customerName || "-"}</div>
-                  <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
-                  <div class="label">Fatura Adresi</div><div class="value">${record.invoiceAddress || "-"}</div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-  <!-- Araç Plakası -->
-  <div>
-    <label class="text-sm text-gray-400">Araç Plakası</label>
-    <input 
-      type="text" 
-      id="plaka"
-      placeholder="34 ABC 123"
-      class="w-full mt-1 p-2 rounded-lg bg-black/40 border border-white/10 text-white"
-    />
-  </div>
-
-  <!-- Şasi No -->
-  <div>
-    <label class="text-sm text-gray-400">Şasi Numarası</label>
-    <input 
-      type="text" 
-      id="sasiNo"
-      placeholder="VF1XXXXXXXXXXXXXX"
-      class="w-full mt-1 p-2 rounded-lg bg-black/40 border border-white/10 text-white"
-    />
-  </div>
-</div>
-                <div class="box">
-                  <h3>Araç Bilgileri</h3>
-                  <div class="label">Araç Marka</div><div class="value">${record.brand || "-"}</div>
-                  <div class="label">Araç Modeli</div><div class="value">${record.model || "-"}</div>
-                </div>
-              </div>
-              <div class="box">
-                <h3>Araçta Görülen Kusurlar</h3>
-                <p>${record.vehicleDefects || "-"}</p>
-              </div>
-              <div class="two-col">
-                <div class="box">
-                  <h3>Yapılacak İşlemler</h3>
-                  ${operationsHtml || "<p>-</p>"}
-                  <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
-  <div class="p-6 pb-3">
-    <h2 class="text-lg font-semibold">Yapılacak İşlemler</h2>
-    <p class="text-sm text-zinc-400">İşlem adı ve ücret ekleyin</p>
-  </div>
-
-  <div class="space-y-3 p-6 pt-0">
-    ${(state.form.operations || []).map((op, index) => `
-      <div class="grid gap-3 md:grid-cols-[1fr_180px_70px]">
-        <input
-          type="text"
-          placeholder="İşlem adı"
-          value="${op.name || ""}"
-          data-op-name="${index}"
-          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-        />
-
-        <input
-          type="number"
-          placeholder="Ücret"
-          value="${op.fee || ""}"
-          data-op-fee="${index}"
-          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-        />
-
-        <button
-          type="button"
-          data-op-remove="${index}"
-          class="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20"
-        >
-          Sil
-        </button>
-      </div>
-    `).join("")}
-
-    <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
-      <button
-        type="button"
-        id="addOperationRow"
-        class="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white hover:bg-white/10"
-      >
-        + Satır Ekle
-      </button>
-
-      <div class="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
-        Toplam: ${formatMoney(recordTotal(state.form))}
-      </div>
+  const operationsHtml = (record.operations || []).map((op) => `
+    <div class="line-row">
+      <span>${op.name || "-"}</span>
+      <strong>${op.fee ? formatMoney(op.fee) : "-"}</strong>
     </div>
-  </div>
-</div>
-                <h3>Ek Notlar</h3>
-                <p>${record.noteText || "-"}</p>
+  `).join("");
+
+  const win = window.open("", "_blank", "width=900,height=1200");
+  if (!win) return;
+
+  win.document.write(`
+    <html>
+      <head>
+        <title>Servis Fişi - ${record.recordNo}</title>
+        <style>
+          @page { size: A4 portrait; margin: 8mm; }
+          body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 11px; }
+          .page { padding: 8mm; box-sizing: border-box; }
+          .box { border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+          h1,h2,h3,p { margin: 0 0 6px 0; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+          .label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
+          .value { font-size: 11px; font-weight: 600; word-break: break-word; }
+          .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
+          .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+          .sign-image { width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
+          .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
+          .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="box">
+            <h1>${state.company.name}</h1>
+            <p>${state.company.phone} · ${state.company.email}</p>
+            <p>${state.company.address}</p>
+          </div>
+
+          <div class="box">
+            <h2>Araç Kabul Fişi</h2>
+            <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
+            <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
+            <p><strong>Durum:</strong> ${record.status}</p>
+            <p><strong>Usta:</strong> ${record.technician || "-"}</p>
+          </div>
+
+          <div class="grid">
+            <div class="box">
+              <h3>Müşteri Bilgileri</h3>
+              <div class="label">Ad Soyad</div><div class="value">${record.customerName || "-"}</div>
+              <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
+              <div class="label">Fatura Adresi</div><div class="value">${record.invoiceAddress || "-"}</div>
+            </div>
+
+            <div class="box">
+              <h3>Araç Bilgileri</h3>
+              <div class="label">Araç Plakası</div><div class="value">${record.plaka || "-"}</div>
+              <div class="label">Şasi Numarası</div><div class="value">${record.sasiNo || "-"}</div>
+              <div class="label">Araç Marka</div><div class="value">${record.brand || "-"}</div>
+              <div class="label">Araç Modeli</div><div class="value">${record.model || "-"}</div>
+            </div>
+          </div>
+
+          <div class="box">
+            <h3>Araçta Görülen Kusurlar</h3>
+            <p>${record.vehicleDefects || "-"}</p>
+          </div>
+
+          <div class="two-col">
+            <div class="box">
+              <h3>Yapılacak İşlemler</h3>
+              ${operationsHtml || "<p>-</p>"}
+              <div class="summary"><span>Toplam</span><span>${formatMoney(recordTotal(record))}</span></div>
+            </div>
+
+            <div class="box">
+              <h3>Araç Görseli</h3>
+              ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
+              <div style="margin-top:8px;">
+                <h3 style="margin-bottom:6px;">İmza</h3>
+                ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p>İmza alınmadı.</p>`}
               </div>
             </div>
-          </body>
-        </html>
-      `);
+          </div>
 
-      win.document.close();
-      setTimeout(() => win.print(), 300);
-    }
+          <div class="box">
+            <h3>Ek Notlar</h3>
+            <p>${record.noteText || "-"}</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+
+  win.document.close();
+  setTimeout(() => win.print(), 300);
+}
 
     function render() {
       const app = document.getElementById("app");
