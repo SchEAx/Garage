@@ -92,7 +92,6 @@
     signature: "",
     kvkkOnay: false,
     musteriOnay: false,
-    isletmeOnay: false,
   };
 }
 
@@ -153,7 +152,6 @@
         status: r.status || STATUS_OPTIONS[0],
         kvkkOnay: meta.kvkkOnay || false,
         musteriOnay: meta.musteriOnay || false,
-        isletmeOnay: meta.isletmeOnay || false,
       };
     }
 
@@ -207,7 +205,6 @@
     sasiNo: form.sasiNo,
     kvkkOnay: form.kvkkOnay,
     musteriOnay: form.musteriOnay,
-    isletmeOnay: form.isletmeOnay,
   };
 
   return {
@@ -423,7 +420,7 @@ function updateOperationRow(index, key, value) {
   signature: record.signature || "",
   kvkkOnay: record.kvkkOnay || false,
   musteriOnay: record.musteriOnay || false,
-  isletmeOnay: record.isletmeOnay || false,
+
 };
 
       state.editId = id;
@@ -445,8 +442,8 @@ async function saveRecord() {
     return;
   }
 
-  if (!form.kvkkOnay || !form.musteriOnay || !form.isletmeOnay) {
-    alert("Lütfen tüm onay kutularını işaretleyin!");
+  if (!form.kvkkOnay || !form.musteriOnay) {
+    alert("Lütfen gerekli onay kutularını işaretleyin!");
     return;
   }
 
@@ -482,8 +479,8 @@ async function updateCurrentRecord() {
     return;
   }
 
-  if (!form.kvkkOnay || !form.musteriOnay || !form.isletmeOnay) {
-    alert("Lütfen tüm onay kutularını işaretleyin!");
+  if (!form.kvkkOnay || !form.musteriOnay) {
+    alert("Lütfen gerekli onay kutularını işaretleyin!");
     return;
   }
 
