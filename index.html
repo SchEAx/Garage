@@ -30,70 +30,7 @@
     const SUPABASE_URL = "https://sltuupvattwfbidxlcej.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Wkba-mO5gM2C7-QaqiXkqA_1rV1LzD0";
 
-    const OPERATION_OPTIONS = [
-       "AKÜ",
-        "AMBİYANS",
-        "ARA ATKI",
-        "ARKA EK",
-        "ARKA KORUMA",
-        "ARKA SİS",
-        "ARKA TAMPON",
-        "BAGAJ HAVUZU",
-        "BRANDA",
-        "CAM FİLMİ",
-        "CAM SUYU",
-        "ÇADIR",
-        "ÇAMURLUK DODİK",
-        "ÇEKİ HALATI",
-        "DİFÜZÖR",
-        "DİĞER AKSESUARLAR",
-        "DİREKSİYON",
-        "DİREKSİYON KILIFI",
-        "EKRAN ÇERÇEVESİ",
-        "LED FAR",
-        "HAVA KOMPRASÖRÜ",
-        "HAYALET EKRAN",
-        "İŞÇİLİK",
-        "KAPI DODİK",
-        "KAPUT RÜZGARLIĞI",
-        "KAR ÇORABI",
-        "KAR ZİNCİRİ",
-        "KAYIT KAMERASI",
-        "KOLÇAK",
-        "KOLTUK KILIFI",
-        "KROM AKSESUAR",
-        "LED AMPÜL",
-        "MULTİMEDYA",
-        "OFFROAD LED",
-        "ÖN EK",
-        "ÖN KORUMA",
-        "ÖN LİP",
-        "ÖN SİS",
-        "ÖN TAMPON",
-        "PANJUR",
-        "PASPAS",
-        "PORTBAGAJ",
-        "ROLLBAR",
-        "ROLLBAR (LEDLİ)",
-        "ROLLBAR (CAMP)",
-        "SES SİSTEMİ",
-        "SPOİLER",
-        "STOP",
-        "SÜRGÜ KAPAK",
-        "TAKVİYE KABLOSU",
-        "TAVAN ÇITASI",
-        "TAVAN DÖŞEME",
-        "TENTE",
-        "TORPİDO ŞEMSİYESİ",
-        "TRAFİK SETİ",
-        "AYAK ALTI LED",
-        "YAN BASAMAK",
-        "YAN MARŞPİYEL",
-        "YARASA AYNA KAPAĞI",
-
-    ];
-
-    const STATUS_OPTIONS = [
+      const STATUS_OPTIONS = [
       "Beklemede",
       "Montaj Sürecinde",
       "Montaj Bitti",
@@ -131,9 +68,9 @@
       return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
     }
 
-    function grandTotal(records) {
-      return (records || []).reduce((sum, record) => sum + recordTotal(record), 0);
-    }
+    function recordTotal(record) {
+  return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
+}
 
     function emptyForm() {
   return {
@@ -145,8 +82,9 @@
     type: "",
     plaka: "",
     sasiNo: "",
-    operations: [],
-    operationFees: {},
+   operations: [
+  { name: "", fee: "" }
+],
     status: STATUS_OPTIONS[0],
     vehicleImage: "",
     noteText: "",
@@ -191,9 +129,11 @@
     function mapDbRow(r) {
       const meta = safeParseJson(r.notes, {});
       const operations = Array.isArray(meta.operations)
-        ? meta.operations.map((name) => ({ name, fee: meta.operationFees?.[name] || "" }))
-        : [];
-
+  ? meta.operations.map((op) => ({
+      name: op.name || "",
+      fee: op.fee || ""
+    }))
+  : [];
       return {
         id: String(r.id),
         recordNo: r.record_no || "-",
@@ -255,7 +195,6 @@
       const meta = {
         invoiceAddress: form.invoiceAddress,
         operations: form.operations,
-        operationFees: form.operationFees,
         vehicleImage: form.vehicleImage,
         noteText: form.noteText,
         technician: form.technician,
@@ -420,35 +359,27 @@
     function updateForm(key, value) {
       state.form[key] = value;
     }
+    function addOperationRow() {
+  state.form.operations.push({ name: "", fee: "" });
+  render();
+}
+
+function removeOperationRow(index) {
+  state.form.operations.splice(index, 1);
+  if (!state.form.operations.length) {
+    state.form.operations.push({ name: "", fee: "" });
+  }
+  render();
+}
+
+function updateOperationRow(index, key, value) {
+  state.form.operations[index][key] = value;
+  render();
+}
 
     function updateCompany(key, value) {
       state.company[key] = value;
     }
-
-    function preserveOperationScrollRender() {
-      const el = document.getElementById("operationListBox");
-      const top = el ? el.scrollTop : 0;
-      render();
-      requestAnimationFrame(() => {
-        const next = document.getElementById("operationListBox");
-        if (next) next.scrollTop = top;
-      });
-    }
-
-    function toggleOperation(name, checked) {
-      if (checked) {
-        if (!state.form.operations.includes(name)) state.form.operations.push(name);
-      } else {
-        state.form.operations = state.form.operations.filter((op) => op !== name);
-        delete state.form.operationFees[name];
-      }
-      preserveOperationScrollRender();
-    }
-
-    function updateOperationFee(name, value) {
-      state.form.operationFees[name] = value;
-    }
-
     function selectedRecord() {
       if (!state.selectedId) return null;
       return state.records.find((r) => r.id === state.selectedId) || null;
@@ -480,8 +411,7 @@
   brand: record.brand || "",
   model: record.model || "",
   type: record.type || "",
-  operations: (record.operations || []).map((op) => op.name),
-  operationFees: Object.fromEntries((record.operations || []).map((op) => [op.name, op.fee || ""])),
+  operations: (record.operations || []).length ? record.operations : [{ name: "", fee: "" }],
   status: record.status || STATUS_OPTIONS[0],
   vehicleImage: record.vehicleImage || "",
   noteText: record.noteText || "",
@@ -502,12 +432,12 @@
 
     async function saveRecord() {
   const form = state.form;
-
-  if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
-    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
-    return;
+const validOperations = (form.operations || []).filter(op => op.name && op.name.trim() && op.fee !== "");
+  if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
+  alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, En az 1 işlem ve ücret.");
+  return;
+}
   }
-
   if (!form.kvkkOnay || !form.musteriOnay || !form.isletmeOnay) {
     alert("Lütfen tüm onay kutularını işaretleyin!");
     return;
@@ -530,7 +460,7 @@
     async function updateCurrentRecord() {
       if (!state.editId) return;
       const form = state.form;
-      if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.length) {
+      if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.validOperations) {
         alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
         return;
       }
@@ -746,18 +676,56 @@
                 <div class="box">
                   <h3>Yapılacak İşlemler</h3>
                   ${operationsHtml || "<p>-</p>"}
-                  <div class="summary"><span>Toplam</span><span>${formatMoney(recordTotal(record))}</span></div>
-                </div>
-                <div class="box">
-                  <h3>Araç Görseli</h3>
-                  ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
-                  <div style="margin-top:8px;">
-                    <h3 style="margin-bottom:6px;">İmza</h3>
-                    ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p>İmza alınmadı.</p>`}
-                  </div>
-                </div>
-              </div>
-              <div class="box">
+                  <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+  <div class="p-6 pb-3">
+    <h2 class="text-lg font-semibold">Yapılacak İşlemler</h2>
+    <p class="text-sm text-zinc-400">İşlem adı ve ücret ekleyin</p>
+  </div>
+
+  <div class="space-y-3 p-6 pt-0">
+    ${(state.form.operations || []).map((op, index) => `
+      <div class="grid gap-3 md:grid-cols-[1fr_180px_70px]">
+        <input
+          type="text"
+          placeholder="İşlem adı"
+          value="${op.name || ""}"
+          data-op-name="${index}"
+          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+        />
+
+        <input
+          type="number"
+          placeholder="Ücret"
+          value="${op.fee || ""}"
+          data-op-fee="${index}"
+          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+        />
+
+        <button
+          type="button"
+          data-op-remove="${index}"
+          class="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20"
+        >
+          Sil
+        </button>
+      </div>
+    `).join("")}
+
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+      <button
+        type="button"
+        id="addOperationRow"
+        class="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white hover:bg-white/10"
+      >
+        + Satır Ekle
+      </button>
+
+      <div class="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
+        Toplam: ${formatMoney(recordTotal(state.form))}
+      </div>
+    </div>
+  </div>
+</div>
                 <h3>Ek Notlar</h3>
                 <p>${record.noteText || "-"}</p>
               </div>
@@ -972,7 +940,7 @@
                       </div>
                     </div>
 
-                    ${state.form.operations.length ? `
+                    ${state.form.operations.validOperations ? `
                       <div class="space-y-2 md:col-span-2">
                         <label class="text-sm text-zinc-300">İşlem Ücretleri</label>
                         <div class="grid gap-3 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:grid-cols-2">
@@ -1278,14 +1246,28 @@ document.getElementById("typeSelect")?.addEventListener("change", (e) => {
         el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value));
       });
 
-      document.querySelectorAll("[data-operation]").forEach((el) => {
-        el.addEventListener("change", (e) => toggleOperation(el.dataset.operation, e.target.checked));
-      });
+     document.querySelectorAll("[data-op-name]").forEach((el) => {
+  el.oninput = (e) => {
+    updateOperationRow(Number(el.getAttribute("data-op-name")), "name", e.target.value);
+  };
+});
 
-      document.querySelectorAll("[data-operation-fee]").forEach((el) => {
-        el.addEventListener("input", (e) => updateOperationFee(el.dataset.operationFee, e.target.value));
-      });
+document.querySelectorAll("[data-op-fee]").forEach((el) => {
+  el.oninput = (e) => {
+    updateOperationRow(Number(el.getAttribute("data-op-fee")), "fee", e.target.value);
+  };
+});
 
+document.querySelectorAll("[data-op-remove]").forEach((el) => {
+  el.onclick = () => {
+    removeOperationRow(Number(el.getAttribute("data-op-remove")));
+  };
+});
+
+const addOpBtn = document.getElementById("addOperationRow");
+if (addOpBtn) {
+  addOpBtn.onclick = () => addOperationRow();
+}
       document.getElementById("vehicleImageInput")?.addEventListener("change", (e) => handleVehicleImage(e.target.files?.[0]));
       document.getElementById("removeVehicleImage")?.addEventListener("click", () => {
         state.form.vehicleImage = "";
