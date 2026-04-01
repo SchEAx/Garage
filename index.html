@@ -188,36 +188,40 @@
     }
 
     function formToPayload(form, existingRecordNo = null) {
-      const meta = {
-        invoiceAddress: form.invoiceAddress,
-        operations: form.operations,
-        vehicleImage: form.vehicleImage,
-        noteText: form.noteText,
-        technician: form.technician,
-        vehicleDefects: form.vehicleDefects,
-        signature: form.signature,
-        plaka: form.plaka,
-        sasiNo: form.sasiNo,
-        kvkkOnay: form.kvkkOnay,
-        musteriOnay: form.musteriOnay,
-        isletmeOnay: form.isletmeOnay,
-      };
+  const cleanedOperations = (form.operations || []).filter(
+    op => op.name && op.name.trim() && op.fee !== ""
+  );
 
-      return {
-        record_no: existingRecordNo || `SRV-${Date.now().toString().slice(-6)}`,
-        customer_name: form.customerName,
-        phone: form.phone,
-        address: form.invoiceAddress || "",
-        device_type: (form.operations || []).join(", "),
-        brand: form.brand,
-        model: form.model,
-        issue: (form.operations || []).join(", "),
-        notes: JSON.stringify(meta),
-        receiver: "",
-        status: form.status,
-        signature: form.signature || "",
-      };
-    }
+  const meta = {
+    invoiceAddress: form.invoiceAddress,
+    operations: cleanedOperations,
+    vehicleImage: form.vehicleImage,
+    noteText: form.noteText,
+    technician: form.technician,
+    vehicleDefects: form.vehicleDefects,
+    signature: form.signature,
+    plaka: form.plaka,
+    sasiNo: form.sasiNo,
+    kvkkOnay: form.kvkkOnay,
+    musteriOnay: form.musteriOnay,
+    isletmeOnay: form.isletmeOnay,
+  };
+
+  return {
+    record_no: existingRecordNo || `SRV-${Date.now().toString().slice(-6)}`,
+    customer_name: form.customerName,
+    phone: form.phone,
+    address: form.invoiceAddress || "",
+    device_type: cleanedOperations.map(op => op.name).join(", "),
+    brand: form.brand,
+    model: form.model,
+    issue: cleanedOperations.map(op => op.name).join(", "),
+    notes: JSON.stringify(meta),
+    receiver: "",
+    status: form.status,
+    signature: form.signature || "",
+  };
+}
 
     async function dbInsertRecord(form) {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
@@ -426,8 +430,9 @@ function updateOperationRow(index, key, value) {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    async function saveRecord() {
+async function saveRecord() {
   const form = state.form;
+
   const validOperations = (form.operations || []).filter(
     op => op.name && op.name.trim() && op.fee !== ""
   );
@@ -460,10 +465,11 @@ function updateOperationRow(index, key, value) {
     console.error(e);
   }
 }
-    async function updateCurrentRecord() {
+async function updateCurrentRecord() {
   if (!state.editId) return;
 
   const form = state.form;
+
   const validOperations = (form.operations || []).filter(
     op => op.name && op.name.trim() && op.fee !== ""
   );
