@@ -68,10 +68,6 @@
       return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
     }
 
-    function recordTotal(record) {
-  return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
-}
-
     function emptyForm() {
   return {
     customerName: "",
@@ -246,10 +242,10 @@
           customer_name: payload.customer_name,
           phone: payload.phone,
           address: payload.address,
-          device_type: payload.device_type,
+          device_type: (form.operations || []).map(op => op.name).join(", "),
           brand: payload.brand,
           model: payload.model,
-          issue: payload.issue,
+         issue: (form.operations || []).map(op => op.name).join(", "),
           notes: payload.notes,
           status: payload.status,
           signature: payload.signature
@@ -432,19 +428,27 @@ function updateOperationRow(index, key, value) {
 
     async function saveRecord() {
   const form = state.form;
-const validOperations = (form.operations || []).filter(op => op.name && op.name.trim() && op.fee !== "");
+  const validOperations = (form.operations || []).filter(
+    op => op.name && op.name.trim() && op.fee !== ""
+  );
+
   if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
-  alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, En az 1 işlem ve ücret.");
-  return;
-}
+    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, En az 1 işlem ve ücret.");
+    return;
   }
+
   if (!form.kvkkOnay || !form.musteriOnay || !form.isletmeOnay) {
     alert("Lütfen tüm onay kutularını işaretleyin!");
     return;
   }
 
+  const payloadForm = {
+    ...form,
+    operations: validOperations
+  };
+
   try {
-    await dbInsertRecord(form);
+    await dbInsertRecord(payloadForm);
     state.form = emptyForm();
     state.editId = null;
     state.activeTab = "liste";
@@ -456,30 +460,44 @@ const validOperations = (form.operations || []).filter(op => op.name && op.name.
     console.error(e);
   }
 }
-
     async function updateCurrentRecord() {
-      if (!state.editId) return;
-      const form = state.form;
-      if (!form.customerName || !form.phone || !form.brand || !form.model || !form.operations.validOperations) {
-        alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, Yapılacak İşlemler.");
-        return;
-      }
+  if (!state.editId) return;
 
-      const currentRecord = state.records.find((r) => r.id === state.editId);
-      if (!currentRecord) return;
+  const form = state.form;
+  const validOperations = (form.operations || []).filter(
+    op => op.name && op.name.trim() && op.fee !== ""
+  );
 
-      try {
-        await dbUpdateRecord(state.editId, form, currentRecord.recordNo);
-        state.form = emptyForm();
-        state.editId = null;
-        state.activeTab = "liste";
-        signatureHandlersBound = false;
-        await loadRecordsFromDb();
-      } catch (e) {
-        alert("Kayıt güncellenemedi");
-        console.error(e);
-      }
-    }
+  if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
+    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, En az 1 işlem ve ücret.");
+    return;
+  }
+
+  if (!form.kvkkOnay || !form.musteriOnay || !form.isletmeOnay) {
+    alert("Lütfen tüm onay kutularını işaretleyin!");
+    return;
+  }
+
+  const currentRecord = state.records.find((r) => r.id === state.editId);
+  if (!currentRecord) return;
+
+  const payloadForm = {
+    ...form,
+    operations: validOperations
+  };
+
+  try {
+    await dbUpdateRecord(state.editId, payloadForm, currentRecord.recordNo);
+    state.form = emptyForm();
+    state.editId = null;
+    state.activeTab = "liste";
+    signatureHandlersBound = false;
+    await loadRecordsFromDb();
+  } catch (e) {
+    alert("Kayıt güncellenemedi");
+    console.error(e);
+  }
+}
 
     function cancelEdit() {
       state.form = emptyForm();
