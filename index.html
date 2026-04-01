@@ -67,6 +67,9 @@
     function recordTotal(record) {
       return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
     }
+    function grandTotal(records) {
+  return (records || []).reduce((sum, record) => sum + recordTotal(record), 0);
+}
 
     function emptyForm() {
   return {
