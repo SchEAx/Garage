@@ -1074,8 +1074,11 @@ async function updateCurrentRecord() {
                             <span class="text-lg font-semibold">${record.customerName}</span>
                             <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.recordNo}</span>
                             <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">${record.status}</span>
+                            <span class="inline-flex rounded-xl bg-emerald-500/20 px-3 py-1 text-xs text-emerald-300 font-semibold">
+  🚗 ${record.plaka || "-"}
+</span>
                           </div>
-                          <div class="text-sm text-zinc-400">${record.phone} · ${record.brand} ${record.model}</div>
+                          <div class="text-sm text-zinc-400">${record.phone} · ${record.brand} ${record.model} · ${record.plaka || "-"}</div>
                           <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
                           <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
                           <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
