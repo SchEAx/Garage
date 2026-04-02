@@ -1392,15 +1392,29 @@ if (addOpBtn) {
         render();
       });
 
-      document.getElementById("search")?.addEventListener("input", (e) => {
-        state.searchDraft = e.target.value;
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(async () => {
-          state.search = state.searchDraft;
-          state.visibleCount = PAGE_SIZE;
-          await loadRecordsFromDb();
-        }, 300);
-      });
+ const searchEl = document.getElementById("search");
+
+if (searchEl) {
+  searchEl.addEventListener("input", (e) => {
+    state.searchDraft = e.target.value;
+  });
+
+  searchEl.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      state.search = state.searchDraft;
+      state.visibleCount = PAGE_SIZE;
+      await loadRecordsFromDb();
+    }
+  });
+
+  searchEl.addEventListener("blur", async () => {
+    if (state.search !== state.searchDraft) {
+      state.search = state.searchDraft;
+      state.visibleCount = PAGE_SIZE;
+      await loadRecordsFromDb();
+    }
+  });
+}
 
       document.getElementById("statusFilter")?.addEventListener("change", async (e) => {
         state.statusFilter = e.target.value;
