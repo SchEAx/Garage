@@ -203,16 +203,7 @@ function plateHistory(plate, currentId = null) {
       const trimmed = (search || "").trim();
       if (trimmed) {
         const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
-        params.set(
-                   .or(`
-            record_no.ilike.%${q}%,
-            customer_name.ilike.%${q}%,
-            phone.ilike.%${q}%,
-            brand.ilike.%${q}%,
-            model.ilike.%${q}%,
-            plaka.ilike.%${q}%
-          `)
-                  );
+        params.set{.or(` record_no.ilike.%${q}%, customer_name.ilike.%${q}%, phone.ilike.%${q}%, brand.ilike.%${q}%, model.ilike.%${q}%, plaka.ilike.%${q}%`);}
                 }
 
       const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
