@@ -375,15 +375,15 @@ function removeOperationRow(index) {
 function updateOperationRow(index, key, value, shouldRender = false) {
   state.form.operations[index][key] = value;
 
+  const totalBox = document.getElementById("operationTotalBox");
+  if (totalBox) {
+    totalBox.textContent = `Toplam: ${formatMoney(recordTotal(state.form))}`;
+  }
+
   if (shouldRender) {
     render();
   }
-}
-} else {
-   const totalBox = document.getElementById("operationTotalBox");
-if (totalBox) {
-  totalBox.textContent = `Toplam: ${formatMoney(recordTotal(state.form))}`;
-}
+} 
 
     function updateCompany(key, value) {
       state.company[key] = value;
