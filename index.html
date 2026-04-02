@@ -174,7 +174,7 @@ function plateHistory(plate, currentId = null) {
         createdAt: r.created_at,
         customerName: r.customer_name || "",
         phone: r.phone || "",
-        plaka: meta.plaka || "",
+        plaka: row.plaka || meta.plaka || "",
         sasiNo: meta.sasiNo || "",
         invoiceAddress: meta.invoiceAddress || r.address || "",
         brand: r.brand || "",
@@ -204,10 +204,16 @@ function plateHistory(plate, currentId = null) {
       if (trimmed) {
         const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
         params.set(
-          "or",
-          `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`
-        );
-      }
+                   .or(`
+            record_no.ilike.%${q}%,
+            customer_name.ilike.%${q}%,
+            phone.ilike.%${q}%,
+            brand.ilike.%${q}%,
+            model.ilike.%${q}%,
+            plaka.ilike.%${q}%
+          `)
+                  );
+                }
 
       const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
         headers: apiHeaders({
@@ -285,8 +291,10 @@ function plateHistory(plate, currentId = null) {
           device_type: (form.operations || []).map(op => op.name).join(", "),
           brand: payload.brand,
           model: payload.model,
+          plaka: form.plaka,
          issue: (form.operations || []).map(op => op.name).join(", "),
           notes: payload.notes,
+          plaka: form.plaka,
           status: payload.status,
           signature: payload.signature
         }),
