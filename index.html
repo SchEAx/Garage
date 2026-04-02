@@ -202,9 +202,12 @@ function plateHistory(plate, currentId = null) {
 
       const trimmed = (search || "").trim();
       if (trimmed) {
-        const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
-        params.set{.or(` record_no.ilike.%${q}%, customer_name.ilike.%${q}%, phone.ilike.%${q}%, brand.ilike.%${q}%, model.ilike.%${q}%, plaka.ilike.%${q}%`);}
-                }
+  const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
+  params.set(
+    "or",
+    `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,plaka.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`
+  );
+}
 
       const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
         headers: apiHeaders({
@@ -240,21 +243,21 @@ function plateHistory(plate, currentId = null) {
     musteriOnay: form.musteriOnay,
   };
 
-  return {
-    record_no: existingRecordNo || `SRV-${Date.now().toString().slice(-6)}`,
-    customer_name: form.customerName,
-    phone: form.phone,
-    address: form.invoiceAddress || "",
-    device_type: cleanedOperations.map(op => op.name).join(", "),
-    brand: form.brand,
-    model: form.model,
-    issue: cleanedOperations.map(op => op.name).join(", "),
-    notes: JSON.stringify(meta),
-    receiver: "",
-    status: form.status,
-    signature: form.signature || "",
-  };
-}
+ return {
+  record_no: existingRecordNo || `SRV-${Date.now().toString().slice(-6)}`,
+  customer_name: form.customerName,
+  phone: form.phone,
+  address: form.invoiceAddress || "",
+  device_type: cleanedOperations.map(op => op.name).join(", "),
+  brand: form.brand,
+  model: form.model,
+  plaka: form.plaka || "",
+  issue: cleanedOperations.map(op => op.name).join(", "),
+  notes: JSON.stringify(meta),
+  receiver: "",
+  status: form.status,
+  signature: form.signature || "",
+};
 
     async function dbInsertRecord(form) {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
@@ -282,7 +285,6 @@ function plateHistory(plate, currentId = null) {
           device_type: (form.operations || []).map(op => op.name).join(", "),
           brand: payload.brand,
           model: payload.model,
-          plaka: form.plaka,
          issue: (form.operations || []).map(op => op.name).join(", "),
           notes: payload.notes,
           plaka: form.plaka,
