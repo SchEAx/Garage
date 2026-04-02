@@ -373,8 +373,36 @@ function removeOperationRow(index) {
 }
 
 function updateOperationRow(index, key, value) {
+  const active = document.activeElement;
+  const scrollY = window.scrollY;
+
   state.form.operations[index][key] = value;
   render();
+
+  requestAnimationFrame(() => {
+    window.scrollTo(0, scrollY);
+
+    if (active) {
+      const opNameIndex = active.getAttribute?.("data-op-name");
+      const opFeeIndex = active.getAttribute?.("data-op-fee");
+
+      let selector = "";
+      if (opNameIndex !== null) selector = `[data-op-name="${opNameIndex}"]`;
+      if (opFeeIndex !== null) selector = `[data-op-fee="${opFeeIndex}"]`;
+
+      if (selector) {
+        const newEl = document.querySelector(selector);
+        if (newEl) {
+          newEl.focus();
+
+          const len = newEl.value.length;
+          try {
+            newEl.setSelectionRange(len, len);
+          } catch {}
+        }
+      }
+    }
+  });
 }
 
     function updateCompany(key, value) {
