@@ -830,78 +830,125 @@ async function updateCurrentRecord() {
                       <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
                     </div>
                     <div class="space-y-2">
-  <label class="text-sm text-zinc-300">Araç Plakası</label>
-  <input
-    data-form="plaka"
-    class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-    placeholder="34 ABC 123"
-    value="${state.form.plaka || ""}"
-  />
-</div>
-
-<div class="space-y-2">
-  <label class="text-sm text-zinc-300">Şasi Numarası</label>
-  <input
-    data-form="sasiNo"
-    maxlength="17"
-    class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-    placeholder="VF1XXXXXXXXXXXXXX"
-    value="${state.form.sasiNo || ""}"
-  />
-</div>
- <div class="space-y-2">
-  <label class="text-sm text-zinc-300">Araç Marka *</label>
-  <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
-    <option value="">Marka Seç</option>
-    ${Object.keys(aracVerileri)
-      .sort((a, b) => a.localeCompare(b, "tr"))
-      .map((marka) => `
-        <option value="${marka}" ${state.form.brand === marka ? "selected" : ""}>${marka}</option>
-      `).join("")}
-  </select>
-</div>
-
-<div class="space-y-2">
-  <label class="text-sm text-zinc-300">Araç Modeli *</label>
-  <select id="modelSelect" ${!state.form.brand ? "disabled" : ""} class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white ${!state.form.brand ? "opacity-60" : ""}">
-    <option value="">${state.form.brand ? "Model Seç" : "Önce Marka Seç"}</option>
-    ${state.form.brand
-      ? Object.keys(aracVerileri[state.form.brand] || {})
-          .sort((a, b) => a.localeCompare(b, "tr"))
-          .map((model) => `
-            <option value="${model}" ${state.form.model === model ? "selected" : ""}>${model}</option>
-          `).join("")
-      : ""}
-  </select>
-</div>
-
-<div class="space-y-2">
-  <label class="text-sm text-zinc-300">Model Tipi</label>
-  <select id="typeSelect" ${!state.form.brand || !state.form.model ? "disabled" : ""} class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white ${!state.form.brand || !state.form.model ? "opacity-60" : ""}">
-    <option value="">${state.form.model ? "Tip Seç" : "Önce Model Seç"}</option>
-    ${(state.form.brand && state.form.model)
-      ? (aracVerileri[state.form.brand]?.[state.form.model] || []).map((tip) => `
-          <option value="${tip}" ${state.form.type === tip ? "selected" : ""}>${tip}</option>
-        `).join("")
-      : ""}
-  </select>
-</div>
-
-  <div class="space-y-2">
-    <label class="text-sm text-zinc-300">Model Yılı</label>
-    <input
-      id="yearInput"
-      type="text"
-      inputmode="numeric"
-      placeholder="2020"
-      maxlength="4"
-      oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4)"
-      class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-    />
-  </div>
-</div>
+                      <label class="text-sm text-zinc-300">Araç Plakası</label>
+                      <input
+                        data-form="plaka"
+                        class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+                        placeholder="34 ABC 123"
+                        value="${state.form.plaka || ""}"
+                      />
+                    </div>
                     
-                    ` : ""}
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Şasi Numarası</label>
+                      <input
+                        data-form="sasiNo"
+                        maxlength="17"
+                        class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+                        placeholder="VF1XXXXXXXXXXXXXX"
+                        value="${state.form.sasiNo || ""}"
+                      />
+                    </div>
+                     <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Araç Marka *</label>
+                      <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
+                        <option value="">Marka Seç</option>
+                        ${Object.keys(aracVerileri)
+                          .sort((a, b) => a.localeCompare(b, "tr"))
+                          .map((marka) => `
+                            <option value="${marka}" ${state.form.brand === marka ? "selected" : ""}>${marka}</option>
+                          `).join("")}
+                      </select>
+                    </div>
+                    
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Araç Modeli *</label>
+                      <select id="modelSelect" ${!state.form.brand ? "disabled" : ""} class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white ${!state.form.brand ? "opacity-60" : ""}">
+                        <option value="">${state.form.brand ? "Model Seç" : "Önce Marka Seç"}</option>
+                        ${state.form.brand
+                          ? Object.keys(aracVerileri[state.form.brand] || {})
+                              .sort((a, b) => a.localeCompare(b, "tr"))
+                              .map((model) => `
+                                <option value="${model}" ${state.form.model === model ? "selected" : ""}>${model}</option>
+                              `).join("")
+                          : ""}
+                      </select>
+                    </div>
+                    
+                    <div class="space-y-2">
+                      <label class="text-sm text-zinc-300">Model Tipi</label>
+                      <select id="typeSelect" ${!state.form.brand || !state.form.model ? "disabled" : ""} class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white ${!state.form.brand || !state.form.model ? "opacity-60" : ""}">
+                        <option value="">${state.form.model ? "Tip Seç" : "Önce Model Seç"}</option>
+                        ${(state.form.brand && state.form.model)
+                          ? (aracVerileri[state.form.brand]?.[state.form.model] || []).map((tip) => `
+                              <option value="${tip}" ${state.form.type === tip ? "selected" : ""}>${tip}</option>
+                            `).join("")
+                          : ""}
+                      </select>
+                    </div>
+                    
+                      <div class="space-y-2">
+                        <label class="text-sm text-zinc-300">Model Yılı</label>
+                        <input
+                          id="yearInput"
+                          type="text"
+                          inputmode="numeric"
+                          placeholder="2020"
+                          maxlength="4"
+                          oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4)"
+                          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+                        />
+                      </div>
+                    </div>
+                   <div class="space-y-2 md:col-span-2">
+                    <label class="text-sm text-zinc-300">Yapılacak İşlemler *</label>
+                    <div class="space-y-3 rounded-2xl border border-white/10 bg-zinc-950 p-4">
+                      ${(state.form.operations || []).map((op, index) => `
+                        <div class="grid gap-3 md:grid-cols-[1fr_180px_70px]">
+                          <input
+                            type="text"
+                            placeholder="İşlem adı"
+                            value="${op.name || ""}"
+                            data-op-name="${index}"
+                            class="w-full rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+                          />
+                  
+                          <div class="flex items-center rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2">
+                            <span class="mr-2 text-sm text-zinc-400">₺</span>
+                            <input
+                              type="number"
+                              placeholder="0"
+                              value="${op.fee || ""}"
+                              data-op-fee="${index}"
+                              class="w-full bg-transparent text-sm text-white outline-none"
+                            />
+                          </div>
+                  
+                          <button
+                            type="button"
+                            data-op-remove="${index}"
+                            class="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20"
+                          >
+                            Sil
+                          </button>
+                        </div>
+                      `).join("")}
+                  
+                      <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                        <button
+                          type="button"
+                          id="addOperationRow"
+                          class="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white hover:bg-white/10"
+                        >
+                          + Satır Ekle
+                        </button>
+                  
+                        <div class="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
+                          Toplam: ${formatMoney(recordTotal(state.form))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                     <div class="space-y-2 md:col-span-2">
                       <label class="text-sm text-zinc-300">Araçta Görülen Kusurlar</label>
