@@ -174,7 +174,7 @@ function plateHistory(plate, currentId = null) {
         createdAt: r.created_at,
         customerName: r.customer_name || "",
         phone: r.phone || "",
-        plaka: row.plaka || meta.plaka || "",
+        plaka: r.plaka || meta.plaka || "",
         sasiNo: meta.sasiNo || "",
         invoiceAddress: meta.invoiceAddress || r.address || "",
         brand: r.brand || "",
