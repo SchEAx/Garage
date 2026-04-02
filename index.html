@@ -375,10 +375,10 @@ function removeOperationRow(index) {
 function updateOperationRow(index, key, value, shouldRender = false) {
   state.form.operations[index][key] = value;
 
-  // sadece ücret değişince ve render istenirse render et
-  if (shouldRender && key === "fee") {
+  if (shouldRender) {
     render();
   }
+}
 } else {
    const totalBox = document.getElementById("operationTotalBox");
 if (totalBox) {
@@ -1250,35 +1250,37 @@ document.getElementById("typeSelect")?.addEventListener("change", (e) => {
         el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value));
       });
 
-  document.querySelectorAll("[data-op-name]").forEach((el) => {
-  el.oninput = (e) => {
+  // işlem adı
+document.querySelectorAll("[data-op-name]").forEach((el) => {
+  el.addEventListener("input", (e) => {
     updateOperationRow(
       Number(el.getAttribute("data-op-name")),
       "name",
       e.target.value,
       false
     );
-  };
+  });
 });
 
+// ücret
 document.querySelectorAll("[data-op-fee]").forEach((el) => {
-  el.oninput = (e) => {
+  el.addEventListener("input", (e) => {
     updateOperationRow(
       Number(el.getAttribute("data-op-fee")),
       "fee",
       e.target.value,
       false
     );
-  };
+  });
 
-  el.onblur = (e) => {
+  el.addEventListener("blur", (e) => {
     updateOperationRow(
       Number(el.getAttribute("data-op-fee")),
       "fee",
       e.target.value,
       true
     );
-  };
+  });
 });
 document.querySelectorAll("[data-op-remove]").forEach((el) => {
   el.onclick = () => {
