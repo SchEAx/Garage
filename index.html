@@ -70,6 +70,42 @@
     function grandTotal(records) {
   return (records || []).reduce((sum, record) => sum + recordTotal(record), 0);
 }
+    function normalizePlate(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+function isToday(value) {
+  if (!value) return false;
+  const d = new Date(value);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
+function todayTotal(records) {
+  return (records || [])
+    .filter((r) => isToday(r.createdAt))
+    .reduce((sum, r) => sum + recordTotal(r), 0);
+}
+
+function todayCount(records) {
+  return (records || []).filter((r) => isToday(r.createdAt)).length;
+}
+
+function plateHistory(plate, currentId = null) {
+  const normalized = normalizePlate(plate);
+  if (!normalized) return [];
+  return (state.records || []).filter((r) => {
+    if (currentId && r.id === currentId) return false;
+    return normalizePlate(r.plaka) === normalized;
+  });
+}
 
     function emptyForm() {
   return {
@@ -721,12 +757,17 @@ async function updateCurrentRecord() {
     function render() {
       const app = document.getElementById("app");
       const s = stats();
-      const rows = visibleRows();
+       const rows = visibleRows();
       const selected = selectedRecord();
       const showModal = !!state.selectedId && !!selected;
       const grand = grandTotal(rows);
+      const todayGrand = todayTotal(rows);
+      const todayRecordsCount = todayCount(rows);
       const totalCount = state.totalRemoteCount;
       const canShowMore = state.records.length < state.totalRemoteCount;
+      const selectedPlateHistory = selected ? plateHistory(selected.plaka, selected.id) : [];
+      const uniqueCustomers = new Set(rows.map((r) => (r.customerName || "").trim()).filter(Boolean)).size;
+      const uniquePlates = new Set(rows.map((r) => normalizePlate(r.plaka)).filter(Boolean)).size;
 
       const tabs = state.tabletMode
         ? [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }]
@@ -1040,21 +1081,39 @@ async function updateCurrentRecord() {
               </div>
             ` : ""}
 
-            ${state.activeTab === "liste" ? `
-              <div class="mb-4 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div class="text-sm text-emerald-200">Kayıtlar Toplam Tutarı</div>
-                  <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
-                </div>
-                <div class="text-sm text-emerald-100">${totalCount} kayıt bulundu. Şu an ${rows.length} kayıt gösteriliyor.</div>
-              </div>
+          ${state.activeTab === "liste" ? `
+  <div class="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+      <div class="text-sm text-emerald-200">Gösterilen Kayıtlar Toplamı</div>
+      <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
+      <div class="mt-1 text-xs text-emerald-100">${rows.length} kayıt ekranda</div>
+    </div>
+
+    <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5">
+      <div class="text-sm text-sky-200">Bugünkü Toplam</div>
+      <div class="text-2xl font-bold text-sky-300">${formatMoney(todayGrand)}</div>
+      <div class="mt-1 text-xs text-sky-100">Bugün açılan kayıt: ${todayRecordsCount}</div>
+    </div>
+
+    <div class="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
+      <div class="text-sm text-amber-200">Tekil Müşteri</div>
+      <div class="text-2xl font-bold text-amber-300">${uniqueCustomers}</div>
+      <div class="mt-1 text-xs text-amber-100">Gösterilen kayıtlar içinde</div>
+    </div>
+
+    <div class="rounded-3xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-5">
+      <div class="text-sm text-fuchsia-200">Tekil Plaka</div>
+      <div class="text-2xl font-bold text-fuchsia-300">${uniquePlates}</div>
+      <div class="mt-1 text-xs text-fuchsia-100">${totalCount} kayıt bulundu</div>
+    </div>
+  </div>
 
               <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                 <div class="p-6 pb-3">
                   <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <h2 class="text-lg font-semibold">Kayıt Listesi</h2>
                     <div class="flex w-full flex-col gap-3 md:max-w-2xl md:flex-row">
-                      <input id="search" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Kayıt no, müşteri, telefon, araç, işlem..." value="${state.searchDraft}" />
+                     <input id="search" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Kayıt no, plaka, müşteri, telefon, araç, işlem..." value="${state.searchDraft}" />
                       <select id="statusFilter" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
                         <option value="Tümü" ${state.statusFilter === "Tümü" ? "selected" : ""}>Tümü</option>
                         ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.statusFilter === status ? "selected" : ""}>${status}</option>`).join("")}
@@ -1168,12 +1227,35 @@ async function updateCurrentRecord() {
                       </div>
                     </div>
                     <div>
-                      <h3 class="mb-2 font-semibold">Araç Bilgileri</h3>
-                      <div class="space-y-2 text-sm text-zinc-300">
-                        <div><span class="text-zinc-500">Araç Marka:</span> ${selected.brand || "-"}</div>
-                        <div><span class="text-zinc-500">Araç Modeli:</span> ${selected.model || "-"}</div>
-                      </div>
-                    </div>
+  <h3 class="mb-2 font-semibold">Plaka Geçmişi</h3>
+  <div class="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300 space-y-2">
+    ${selectedPlateHistory.length
+      ? selectedPlateHistory
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .map((item) => `
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2 last:border-0 last:pb-0">
+              <div>
+                <div class="font-medium text-white">${item.recordNo}</div>
+                <div class="text-xs text-zinc-400">${formatDateTime(item.createdAt)}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs text-zinc-400">${item.brand || "-"} ${item.model || ""}</div>
+                <div class="text-sm font-semibold text-emerald-300">${formatMoney(recordTotal(item))}</div>
+              </div>
+            </div>
+          `).join("")
+      : `<div class="text-zinc-500">Bu plakaya ait başka kayıt yok.</div>`}
+  </div>
+</div>
+                    <div>
+  <h3 class="mb-2 font-semibold">Araç Bilgileri</h3>
+  <div class="space-y-2 text-sm text-zinc-300">
+    <div><span class="text-zinc-500">Plaka:</span> ${selected.plaka || "-"}</div>
+    <div><span class="text-zinc-500">Şasi No:</span> ${selected.sasiNo || "-"}</div>
+    <div><span class="text-zinc-500">Araç Marka:</span> ${selected.brand || "-"}</div>
+    <div><span class="text-zinc-500">Araç Modeli:</span> ${selected.model || "-"}</div>
+  </div>
+</div>
                   </div>
 
                   <div>
