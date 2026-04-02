@@ -430,9 +430,34 @@ function updateOperationRow(index, key, value, shouldRender = false) {
       return state.records.find((r) => r.id === state.selectedId) || null;
     }
 
-    function visibleRows() {
-      return state.records;
-    }
+   function visibleRows() {
+  const q = String(state.search || "").trim().toLowerCase();
+  if (!q) return state.records;
+
+  const normalizedQ = normalizePlate(q);
+
+  return (state.records || []).filter((r) => {
+    const plateMatch = normalizePlate(r.plaka).includes(normalizedQ);
+
+    const textMatch = [
+      r.recordNo,
+      r.customerName,
+      r.phone,
+      r.brand,
+      r.model,
+      r.noteText,
+      r.technician,
+      r.vehicleDefects,
+      r.status,
+      (r.operations || []).map((op) => op.name).join(" ")
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+
+    return plateMatch || textMatch;
+  });
+}
 
     function stats() {
       return {
