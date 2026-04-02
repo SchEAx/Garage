@@ -375,14 +375,14 @@ function removeOperationRow(index) {
 function updateOperationRow(index, key, value, shouldRender = false) {
   state.form.operations[index][key] = value;
 
-  if (shouldRender) {
+  // sadece ücret değişince ve render istenirse render et
+  if (shouldRender && key === "fee") {
     render();
-  } else {
-    const totalBox = document.getElementById("operationTotalBox");
-    if (totalBox) {
-      totalBox.textContent = `Toplam: ${formatMoney(recordTotal(state.form))}`;
-    }
   }
+} else {
+   const totalBox = document.getElementById("operationTotalBox");
+if (totalBox) {
+  totalBox.textContent = `Toplam: ${formatMoney(recordTotal(state.form))}`;
 }
 
     function updateCompany(key, value) {
@@ -1250,27 +1250,34 @@ document.getElementById("typeSelect")?.addEventListener("change", (e) => {
         el.addEventListener("input", (e) => updateCompany(el.dataset.company, e.target.value));
       });
 
-   document.querySelectorAll("[data-op-name]").forEach((el) => {
+  document.querySelectorAll("[data-op-name]").forEach((el) => {
   el.oninput = (e) => {
-    updateOperationRow(Number(el.getAttribute("data-op-name")), "name", e.target.value, false);
-  };
-  el.onchange = (e) => {
-    updateOperationRow(Number(el.getAttribute("data-op-name")), "name", e.target.value, true);
-  };
-  el.onblur = (e) => {
-    updateOperationRow(Number(el.getAttribute("data-op-name")), "name", e.target.value, true);
+    updateOperationRow(
+      Number(el.getAttribute("data-op-name")),
+      "name",
+      e.target.value,
+      false
+    );
   };
 });
 
 document.querySelectorAll("[data-op-fee]").forEach((el) => {
   el.oninput = (e) => {
-    updateOperationRow(Number(el.getAttribute("data-op-fee")), "fee", e.target.value, false);
+    updateOperationRow(
+      Number(el.getAttribute("data-op-fee")),
+      "fee",
+      e.target.value,
+      false
+    );
   };
-  el.onchange = (e) => {
-    updateOperationRow(Number(el.getAttribute("data-op-fee")), "fee", e.target.value, true);
-  };
+
   el.onblur = (e) => {
-    updateOperationRow(Number(el.getAttribute("data-op-fee")), "fee", e.target.value, true);
+    updateOperationRow(
+      Number(el.getAttribute("data-op-fee")),
+      "fee",
+      e.target.value,
+      true
+    );
   };
 });
 document.querySelectorAll("[data-op-remove]").forEach((el) => {
