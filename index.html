@@ -19,7 +19,7 @@
 }
     textarea, input, select { outline: none; }
     @media print {
-      @page { size: A4 portrait; margin: 8mm; }
+      @page { size: A5 portrait; margin: 8mm; }
       html, body { background: #fff !important; }
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
@@ -694,7 +694,7 @@ async function updateCurrentRecord() {
     </div>
   `).join("");
 
-  const win = window.open("", "_blank", "width=900,height=1200");
+  const win = window.open("", "_blank", "width=700,height=1000");
   if (!win) return;
 
   win.document.write(`
@@ -702,26 +702,124 @@ async function updateCurrentRecord() {
       <head>
         <title>Servis Fişi - ${record.recordNo}</title>
         <style>
-          @page { size: A4 portrait; margin: 8mm; }
-          body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 11px; }
-          .page { padding: 8mm; box-sizing: border-box; }
-          .box { border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
-          h1,h2,h3,p { margin: 0 0 6px 0; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-          .label { color: #666; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
-          .value { font-size: 11px; font-weight: 600; word-break: break-word; }
-          .line-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #ddd; }
-          .vehicle-image { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
-          .sign-image { width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; background: #fafafa; }
-          .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 8px; }
-          .summary { margin-top: 8px; display:flex; justify-content:space-between; font-size:12px; font-weight:700; }
+          @page { size: A5 portrait; margin: 6mm; }
+
+          html, body {
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            color: #111;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          body {
+            font-size: 10px;
+            line-height: 1.3;
+          }
+
+          .page {
+            box-sizing: border-box;
+            width: 100%;
+            padding: 6mm;
+          }
+
+          .box {
+            border: 1px solid #cfcfcf;
+            border-radius: 8px;
+            padding: 7px 8px;
+            margin-bottom: 6px;
+            page-break-inside: avoid;
+          }
+
+          h1, h2, h3, p {
+            margin: 0 0 4px 0;
+          }
+
+          h1 {
+            font-size: 16px;
+          }
+
+          h2 {
+            font-size: 13px;
+          }
+
+          h3 {
+            font-size: 11px;
+          }
+
+          .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+          }
+
+          .label {
+            color: #666;
+            font-size: 9px;
+            text-transform: uppercase;
+            margin-bottom: 1px;
+          }
+
+          .value {
+            font-size: 10px;
+            font-weight: 600;
+            word-break: break-word;
+            margin-bottom: 4px;
+          }
+
+          .line-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 3px 0;
+            border-bottom: 1px dashed #ddd;
+            font-size: 10px;
+          }
+
+          .vehicle-image {
+            width: 100%;
+            max-height: 110px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+          }
+
+          .sign-image {
+            width: 100%;
+            max-height: 80px;
+            object-fit: contain;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background: #fafafa;
+          }
+
+          .two-col {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+          }
+
+          .summary {
+            margin-top: 6px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 700;
+          }
+
+          .muted {
+            color: #666;
+          }
         </style>
       </head>
       <body>
         <div class="page">
           <div class="box">
             <h1>${state.company.name}</h1>
-            <p>${state.company.phone} · ${state.company.email}</p>
+            <p>${state.company.phone}</p>
+            <p>${state.company.email}</p>
             <p>${state.company.address}</p>
           </div>
 
@@ -729,24 +827,45 @@ async function updateCurrentRecord() {
             <h2>Araç Kabul Fişi</h2>
             <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
             <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
-            <p><strong>Durum:</strong> ${record.status}</p>
+            <p><strong>Durum:</strong> ${record.status || "-"}</p>
             <p><strong>Usta:</strong> ${record.technician || "-"}</p>
           </div>
 
           <div class="grid">
             <div class="box">
               <h3>Müşteri Bilgileri</h3>
-              <div class="label">Ad Soyad</div><div class="value">${record.customerName || "-"}</div>
-              <div class="label">Telefon</div><div class="value">${record.phone || "-"}</div>
-              <div class="label">Fatura Adresi</div><div class="value">${record.invoiceAddress || "-"}</div>
+              <div class="label">Ad Soyad</div>
+              <div class="value">${record.customerName || "-"}</div>
+
+              <div class="label">Telefon</div>
+              <div class="value">${record.phone || "-"}</div>
+
+              <div class="label">Fatura Adresi</div>
+              <div class="value">${record.invoiceAddress || "-"}</div>
             </div>
 
             <div class="box">
               <h3>Araç Bilgileri</h3>
-              <div class="label">Araç Plakası</div><div class="value">${record.plaka || "-"}</div>
-              <div class="label">Şasi Numarası</div><div class="value">${record.sasiNo || "-"}</div>
-              <div class="label">Araç Marka</div><div class="value">${record.brand || "-"}</div>
-              <div class="label">Araç Modeli</div><div class="value">${record.model || "-"}</div>
+              <div class="label">Araç Plakası</div>
+              <div class="value">${record.plaka || "-"}</div>
+
+              <div class="label">Şasi Numarası</div>
+              <div class="value">${record.sasiNo || "-"}</div>
+
+              <div class="label">Araç Marka</div>
+              <div class="value">${record.brand || "-"}</div>
+
+              <div class="label">Araç Modeli</div>
+              <div class="value">${record.model || "-"}</div>
+            </div>
+          </div>
+
+          <div class="box">
+            <h3>Yapılacak İşlemler</h3>
+            ${operationsHtml || "<p>-</p>"}
+            <div class="summary">
+              <span>Toplam</span>
+              <span>${formatMoney(recordTotal(record))}</span>
             </div>
           </div>
 
@@ -757,18 +876,13 @@ async function updateCurrentRecord() {
 
           <div class="two-col">
             <div class="box">
-              <h3>Yapılacak İşlemler</h3>
-              ${operationsHtml || "<p>-</p>"}
-              <div class="summary"><span>Toplam</span><span>${formatMoney(recordTotal(record))}</span></div>
+              <h3>Araç Görseli</h3>
+              ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p class="muted">Görsel eklenmedi.</p>`}
             </div>
 
             <div class="box">
-              <h3>Araç Görseli</h3>
-              ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p>Görsel eklenmedi.</p>`}
-              <div style="margin-top:8px;">
-                <h3 style="margin-bottom:6px;">İmza</h3>
-                ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p>İmza alınmadı.</p>`}
-              </div>
+              <h3>İmza</h3>
+              ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p class="muted">İmza alınmadı.</p>`}
             </div>
           </div>
 
@@ -782,7 +896,10 @@ async function updateCurrentRecord() {
   `);
 
   win.document.close();
-  setTimeout(() => win.print(), 300);
+  setTimeout(() => {
+    win.focus();
+    win.print();
+  }, 300);
 }
 
     function render() {
@@ -1193,6 +1310,7 @@ async function updateCurrentRecord() {
                             <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Detay</button>
                             <button data-edit="${record.id}" class="rounded-2xl bg-amber-400 px-4 py-2 text-sm font-medium text-black hover:bg-amber-300">Forma Al</button>
                             <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
+                            
                             <button data-delete="${record.id}" class="rounded-2xl bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500">🗑️ Sil</button>
                           </div>
                         </div>
