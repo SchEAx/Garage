@@ -694,7 +694,7 @@ async function updateCurrentRecord() {
     </div>
   `).join("");
 
-  const win = window.open("", "_blank", "width=700,height=1000");
+  const win = window.open("", "_blank", "width=800,height=1100");
   if (!win) return;
 
   win.document.write(`
@@ -702,62 +702,65 @@ async function updateCurrentRecord() {
       <head>
         <title>Servis Fişi - ${record.recordNo}</title>
         <style>
-          @page { size: A5 portrait; margin: 6mm; }
+          @page { size: A5 portrait; margin: 7mm; }
 
           html, body {
-            background: #fff;
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
+            background: #fff;
             color: #111;
+            font-family: Arial, sans-serif;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
 
           body {
-            font-size: 10px;
-            line-height: 1.3;
+            font-size: 10.5px;
+            line-height: 1.35;
           }
 
           .page {
+            padding: 7mm;
             box-sizing: border-box;
             width: 100%;
-            padding: 6mm;
           }
 
           .box {
             border: 1px solid #cfcfcf;
-            border-radius: 8px;
-            padding: 7px 8px;
-            margin-bottom: 6px;
+            border-radius: 10px;
+            padding: 8px 9px;
+            margin-bottom: 7px;
             page-break-inside: avoid;
           }
 
           h1, h2, h3, p {
-            margin: 0 0 4px 0;
+            margin: 0 0 5px 0;
           }
 
           h1 {
-            font-size: 16px;
+            font-size: 15px;
+            line-height: 1.2;
           }
 
           h2 {
-            font-size: 13px;
+            font-size: 12.5px;
+            line-height: 1.2;
           }
 
           h3 {
             font-size: 11px;
+            line-height: 1.2;
           }
 
           .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 6px;
+            gap: 7px;
           }
 
           .label {
             color: #666;
-            font-size: 9px;
+            font-size: 8.5px;
             text-transform: uppercase;
             margin-bottom: 1px;
           }
@@ -773,32 +776,32 @@ async function updateCurrentRecord() {
             display: flex;
             justify-content: space-between;
             gap: 8px;
-            padding: 3px 0;
+            padding: 4px 0;
             border-bottom: 1px dashed #ddd;
             font-size: 10px;
           }
 
           .vehicle-image {
             width: 100%;
-            max-height: 110px;
+            max-height: 95px;
             object-fit: cover;
-            border-radius: 6px;
+            border-radius: 7px;
             border: 1px solid #ddd;
           }
 
           .sign-image {
             width: 100%;
-            max-height: 80px;
+            max-height: 70px;
             object-fit: contain;
-            border-radius: 6px;
+            border-radius: 7px;
             border: 1px solid #ddd;
             background: #fafafa;
           }
 
           .two-col {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 6px;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
           }
 
           .summary {
@@ -818,8 +821,7 @@ async function updateCurrentRecord() {
         <div class="page">
           <div class="box">
             <h1>${state.company.name}</h1>
-            <p>${state.company.phone}</p>
-            <p>${state.company.email}</p>
+            <p>${state.company.phone} · ${state.company.email}</p>
             <p>${state.company.address}</p>
           </div>
 
@@ -827,7 +829,7 @@ async function updateCurrentRecord() {
             <h2>Araç Kabul Fişi</h2>
             <p><strong>Kayıt No:</strong> ${record.recordNo}</p>
             <p><strong>Tarih:</strong> ${formatDateTime(record.createdAt)}</p>
-            <p><strong>Durum:</strong> ${record.status || "-"}</p>
+            <p><strong>Durum:</strong> ${record.status}</p>
             <p><strong>Usta:</strong> ${record.technician || "-"}</p>
           </div>
 
@@ -861,28 +863,28 @@ async function updateCurrentRecord() {
           </div>
 
           <div class="box">
-            <h3>Yapılacak İşlemler</h3>
-            ${operationsHtml || "<p>-</p>"}
-            <div class="summary">
-              <span>Toplam</span>
-              <span>${formatMoney(recordTotal(record))}</span>
-            </div>
-          </div>
-
-          <div class="box">
             <h3>Araçta Görülen Kusurlar</h3>
             <p>${record.vehicleDefects || "-"}</p>
           </div>
 
           <div class="two-col">
             <div class="box">
-              <h3>Araç Görseli</h3>
-              ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p class="muted">Görsel eklenmedi.</p>`}
+              <h3>Yapılacak İşlemler</h3>
+              ${operationsHtml || "<p>-</p>"}
+              <div class="summary">
+                <span>Toplam</span>
+                <span>${formatMoney(recordTotal(record))}</span>
+              </div>
             </div>
 
             <div class="box">
-              <h3>İmza</h3>
-              ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p class="muted">İmza alınmadı.</p>`}
+              <h3>Araç Görseli</h3>
+              ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p class="muted">Görsel eklenmedi.</p>`}
+
+              <div style="margin-top:7px;">
+                <h3 style="margin-bottom:5px;">İmza</h3>
+                ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p class="muted">İmza alınmadı.</p>`}
+              </div>
             </div>
           </div>
 
@@ -901,7 +903,6 @@ async function updateCurrentRecord() {
     win.print();
   }, 300);
 }
-
     function render() {
       const app = document.getElementById("app");
       const s = stats();
