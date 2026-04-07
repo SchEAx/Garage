@@ -702,7 +702,7 @@ async function updateCurrentRecord() {
       <head>
         <title>Servis Fişi - ${record.recordNo}</title>
         <style>
-          @page { size: A5 portrait; margin: 7mm; }
+         @page { size: A5 portrait; margin: 5mm; }
 
           html, body {
             margin: 0;
@@ -715,102 +715,102 @@ async function updateCurrentRecord() {
           }
 
           body {
-            font-size: 10.5px;
-            line-height: 1.35;
-          }
+  font-size: 10px;
+  line-height: 1.25;
+}
 
           .page {
-            padding: 7mm;
-            box-sizing: border-box;
-            width: 100%;
-          }
+  padding: 5mm;
+  box-sizing: border-box;
+  width: 100%;
+}
 
           .box {
-            border: 1px solid #cfcfcf;
-            border-radius: 10px;
-            padding: 8px 9px;
-            margin-bottom: 7px;
-            page-break-inside: avoid;
-          }
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 6px 7px;
+  margin-bottom: 5px;
+  page-break-inside: avoid;
+}
 
           h1, h2, h3, p {
-            margin: 0 0 5px 0;
+            margin: 0 0 3px 0;
           }
 
           h1 {
-            font-size: 15px;
-            line-height: 1.2;
-          }
+  font-size: 14px;
+  line-height: 1.15;
+}
 
-          h2 {
-            font-size: 12.5px;
-            line-height: 1.2;
-          }
+h2 {
+  font-size: 12px;
+  line-height: 1.15;
+}
 
-          h3 {
-            font-size: 11px;
-            line-height: 1.2;
-          }
+h3 {
+  font-size: 10.5px;
+  line-height: 1.15;
+}
 
           .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 7px;
-          }
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
 
           .label {
-            color: #666;
-            font-size: 8.5px;
-            text-transform: uppercase;
-            margin-bottom: 1px;
-          }
+  color: #666;
+  font-size: 8px;
+  text-transform: uppercase;
+  margin-bottom: 0;
+}
 
-          .value {
-            font-size: 10px;
-            font-weight: 600;
-            word-break: break-word;
-            margin-bottom: 4px;
-          }
+.value {
+  font-size: 9.5px;
+  font-weight: 600;
+  word-break: break-word;
+  margin-bottom: 2px;
+}
 
           .line-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 4px 0;
-            border-bottom: 1px dashed #ddd;
-            font-size: 10px;
-          }
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 0;
+  border-bottom: 1px dashed #ddd;
+  font-size: 9.5px;
+}
 
           .vehicle-image {
-            width: 100%;
-            max-height: 95px;
-            object-fit: cover;
-            border-radius: 7px;
-            border: 1px solid #ddd;
-          }
+  width: 100%;
+  max-height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+}
 
-          .sign-image {
-            width: 100%;
-            max-height: 70px;
-            object-fit: contain;
-            border-radius: 7px;
-            border: 1px solid #ddd;
-            background: #fafafa;
-          }
+.sign-image {
+  width: 100%;
+  max-height: 52px;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+}
 
-          .two-col {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 7px;
-          }
+         .two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
 
           .summary {
-            margin-top: 6px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            font-weight: 700;
-          }
+  margin-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+}
 
           .muted {
             color: #666;
