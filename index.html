@@ -585,7 +585,10 @@ async function updateCurrentRecord() {
     }
 
     async function deleteRecord(id) {
-      try {
+
+  if (!confirm("Bu kaydı silmek istediğine emin misin?")) return;
+
+  try {
         await dbDeleteRecord(id);
         if (state.selectedId === id) state.selectedId = null;
         if (state.editId === id) {
