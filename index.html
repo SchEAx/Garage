@@ -92,7 +92,9 @@ function isToday(value) {
 
 function todayTotal(records) {
   return (records || [])
-    .filter((r) => isToday(r.createdAt))
+    .filter((r) => 
+      isToday(r.createdAt) && r.status === "Montaj Bitti"
+    )
     .reduce((sum, r) => sum + recordTotal(r), 0);
 }
 
@@ -136,6 +138,7 @@ function plateHistory(plate, currentId = null) {
     const state = {
       records: [],
       totalRemoteCount: 0,
+      todayFinishedRevenueAll: 0,
       search: "",
       searchDraft: "",
       selectedId: null,
@@ -196,7 +199,7 @@ function plateHistory(plate, currentId = null) {
     async function dbFetchRecords({ offset = 0, limit = PAGE_SIZE, search = "", status = "Tümü" } = {}) {
       const params = new URLSearchParams();
       params.set("select", "*");
-      params.set("order", "id.desc");
+      params.set("order", "created_at.desc");
 
       if (status && status !== "Tümü") {
         params.set("status", `eq.${status}`);
@@ -225,6 +228,32 @@ function plateHistory(plate, currentId = null) {
       const total = Number(totalPart) || 0;
       return { data, total };
     }
+    async function dbFetchTodayFinishedRevenue() {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+
+  const params = new URLSearchParams();
+  params.set("select", "notes,created_at,status");
+  params.set("status", "eq.Montaj Bitti");
+  params.set("created_at", `gte.${start}`);
+  params.append("created_at", `lt.${end}`);
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
+    headers: apiHeaders(),
+  });
+
+  if (!res.ok) throw new Error("Bugünkü ciro alınamadı");
+
+  const data = await res.json();
+
+  return (data || []).reduce((sum, row) => {
+    const meta = safeParseJson(row.notes, {});
+    const ops = Array.isArray(meta.operations) ? meta.operations : [];
+    const total = ops.reduce((s, op) => s + Number(op.fee || 0), 0);
+    return sum + total;
+  }, 0);
+}
 
     function formToPayload(form, existingRecordNo = null) {
   const cleanedOperations = (form.operations || []).filter(
@@ -262,17 +291,25 @@ function plateHistory(plate, currentId = null) {
 };
 }
     async function dbInsertRecord(form) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
-        method: "POST",
-        headers: apiHeaders({
-          "Content-Type": "application/json",
-          Prefer: "return=representation",
-        }),
-        body: JSON.stringify(formToPayload(form)),
-      });
-      if (!res.ok) throw new Error("Kayıt eklenemedi");
-      return await res.json();
-    }
+  const payload = formToPayload(form);
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
+    method: "POST",
+    headers: apiHeaders({
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    }),
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  console.log("INSERT STATUS:", res.status);
+  console.log("INSERT RESPONSE:", text);
+  console.log("INSERT PAYLOAD:", payload);
+
+  if (!res.ok) throw new Error(`Kayıt eklenemedi: ${text}`);
+  return text ? JSON.parse(text) : [];
+}
 
     async function dbUpdateRecord(id, form, existingRecordNo) {
       const payload = formToPayload(form, existingRecordNo);
@@ -306,30 +343,44 @@ function plateHistory(plate, currentId = null) {
       if (!res.ok) throw new Error("Durum güncellenemedi");
     }
 
-    async function dbUpdateMeta(id, currentRecord, patchMeta) {
-      const existingMeta = {
-        invoiceAddress: currentRecord.invoiceAddress || "",
-        operations: (currentRecord.operations || []).map((op) => op.name),
-        operationFees: Object.fromEntries((currentRecord.operations || []).map((op) => [op.name, op.fee || ""])),
-        vehicleImage: currentRecord.vehicleImage || "",
-        noteText: currentRecord.noteText || "",
-        technician: currentRecord.technician || "",
-        vehicleDefects: currentRecord.vehicleDefects || "",
-        signature: currentRecord.signature || "",
-      };
+   async function dbUpdateMeta(id, currentRecord, patchMeta) {
+  const existingMeta = {
+    invoiceAddress: currentRecord.invoiceAddress || "",
+    operations: Array.isArray(currentRecord.operations)
+      ? currentRecord.operations.map((op) => ({
+          name: op.name || "",
+          fee: op.fee || ""
+        }))
+      : [],
+    vehicleImage: currentRecord.vehicleImage || "",
+    noteText: currentRecord.noteText || "",
+    technician: currentRecord.technician || "",
+    vehicleDefects: currentRecord.vehicleDefects || "",
+    signature: currentRecord.signature || "",
+    plaka: currentRecord.plaka || "",
+    sasiNo: currentRecord.sasiNo || "",
+    kvkkOnay: !!currentRecord.kvkkOnay,
+    musteriOnay: !!currentRecord.musteriOnay,
+  };
 
-      const nextMeta = { ...existingMeta, ...patchMeta };
+  const nextMeta = { ...existingMeta, ...patchMeta };
 
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
-        method: "PATCH",
-        headers: apiHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          notes: JSON.stringify(nextMeta),
-          signature: nextMeta.signature || ""
-        }),
-      });
-      if (!res.ok) throw new Error("Kayıt güncellenemedi");
-    }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+    method: "PATCH",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      notes: JSON.stringify(nextMeta),
+      signature: nextMeta.signature || ""
+    }),
+  });
+
+  const text = await res.text();
+  console.log("META UPDATE STATUS:", res.status);
+  console.log("META UPDATE RESPONSE:", text);
+  console.log("META UPDATE PAYLOAD:", nextMeta);
+
+  if (!res.ok) throw new Error(`Kayıt güncellenemedi: ${text}`);
+}
 
     async function dbDeleteRecord(id) {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
@@ -340,22 +391,27 @@ function plateHistory(plate, currentId = null) {
     }
 
     async function loadRecordsFromDb() {
-      state.loading = true;
-      render();
-      try {
-        const { data, total } = await dbFetchRecords({
-          offset: 0,
-          limit: state.visibleCount,
-          search: state.search,
-          status: state.statusFilter,
-        });
-        state.records = data.map(mapDbRow);
-        state.totalRemoteCount = total;
-      } finally {
-        state.loading = false;
-        render();
-      }
-    }
+  state.loading = true;
+  render();
+  try {
+    const [recordsResult, todayRevenue] = await Promise.all([
+      dbFetchRecords({
+        offset: 0,
+        limit: state.visibleCount,
+        search: state.search,
+        status: state.statusFilter,
+      }),
+      dbFetchTodayFinishedRevenue(),
+    ]);
+
+    state.records = recordsResult.data.map(mapDbRow);
+    state.totalRemoteCount = recordsResult.total;
+    state.todayFinishedRevenueAll = todayRevenue;
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
 
     function resizeImage(file, maxWidth = 1280, quality = 0.72) {
       return new Promise((resolve, reject) => {
@@ -533,7 +589,7 @@ async function saveRecord() {
     state.visibleCount = PAGE_SIZE;
     await loadRecordsFromDb();
   } catch (e) {
-    alert("Kayıt veritabanına eklenemedi");
+    alert("Kayıt veritabanına eklenemedi: " + (e.message || "Bilinmeyen hata"));
     console.error(e);
   }
 }
@@ -572,9 +628,9 @@ async function updateCurrentRecord() {
     signatureHandlersBound = false;
     await loadRecordsFromDb();
   } catch (e) {
-    alert("Kayıt güncellenemedi");
-    console.error(e);
-  }
+  alert("Kayıt güncellenemedi: " + (e.message || "Bilinmeyen hata"));
+  console.error(e);
+}
 }
 
     function cancelEdit() {
@@ -597,22 +653,24 @@ async function updateCurrentRecord() {
         }
         await loadRecordsFromDb();
       } catch (e) {
-        alert("Kayıt silinemedi");
-        console.error(e);
-      }
+  alert("Kayıt silinemedi: " + (e.message || "Bilinmeyen hata"));
+  console.error(e);
+}
     }
 
     async function updateRecordStatus(id, status) {
-      try {
-        await dbUpdateStatus(id, status);
-        const local = state.records.find((r) => r.id === id);
-        if (local) local.status = status;
-        render();
-      } catch (e) {
-        alert("Durum güncellenemedi");
-        console.error(e);
-      }
-    }
+  try {
+    await dbUpdateStatus(id, status);
+
+    const local = state.records.find((r) => r.id === id);
+    if (local) local.status = status;
+
+    await loadRecordsFromDb();
+  } catch (e) {
+  alert("Durum güncellenemedi: " + (e.message || "Bilinmeyen hata"));
+  console.error(e);
+}
+}
 
     async function updateRecordTechnician(id, technician) {
       const record = state.records.find((r) => r.id === id);
@@ -910,7 +968,7 @@ h3 {
       const selected = selectedRecord();
       const showModal = !!state.selectedId && !!selected;
       const grand = grandTotal(rows);
-      const todayGrand = todayTotal(rows);
+      const todayGrand = state.todayFinishedRevenueAll || 0;
       const todayRecordsCount = todayCount(rows);
       const totalCount = state.totalRemoteCount;
       const canShowMore = state.records.length < state.totalRemoteCount;
@@ -991,8 +1049,14 @@ h3 {
               </div>
             </div>
 
-            ${state.loading ? `<div class="mb-4 rounded-2xl border border-white/10 bg-zinc-900/90 p-4 text-sm text-zinc-300">Veriler yükleniyor...</div>` : ""}
-
+            ${state.loading ? `
+  <div class="fixed bottom-4 right-4 z-[9999] rounded-2xl border border-white/10 bg-black/80 px-4 py-3 text-sm text-white shadow-2xl backdrop-blur-xl">
+    <div class="flex items-center gap-3">
+      <div class="h-4 w-4 animate-spin rounded-full border-2 border-white/25 border-t-white"></div>
+      <span>Veriler güncelleniyor...</span>
+    </div>
+  </div>
+` : ""}
             ${!state.tabletMode ? `
               <div class="mb-4 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                 <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Firma Bilgileri</h2></div>
