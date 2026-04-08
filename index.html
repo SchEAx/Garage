@@ -213,12 +213,13 @@ function plateHistory(plate, currentId = null) {
 
   // Tek status seçildiyse onu uygula
   if (status && status !== "Tümü") {
-    params.set("status", `eq.${status}`);
-  } else {
-    // Varsayılan durumda sadece aktif kayıtları getir
-    if (!showArchive && !trimmed) {
-     params.set("or", "status.eq.Beklemede,status.eq.Montaj Sürecinde");
-    }
+  params.set("status", `eq.${status}`);
+} else {
+  // Varsayılan durumda sadece aktif kayıtları getir
+  if (!showArchive && !trimmed) {
+    params.set("status", "in.(Beklemede,\"Montaj Sürecinde\")");
+  }
+}
   }
 
   // Arama varsa metin araması da çalışsın
