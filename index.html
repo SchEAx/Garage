@@ -393,7 +393,7 @@ async function dbFetchTodayFinishedRevenue() {
       if (!res.ok) throw new Error("Kayıt silinemedi");
     }
 
-   async function loadRecordsFromDb() {
+  async function loadRecordsFromDb() {
   state.loading = true;
   render();
 
@@ -408,6 +408,11 @@ async function dbFetchTodayFinishedRevenue() {
     state.records = recordsResult.data.map(mapDbRow);
     state.totalRemoteCount = recordsResult.total;
 
+    // Liste gelsin, ekran beklemede kalmasın
+    state.loading = false;
+    render();
+
+    // Günlük ciro arkadan yüklensin
     try {
       const todayRevenue = await dbFetchTodayFinishedRevenue();
       state.todayFinishedRevenueAll = todayRevenue;
@@ -415,12 +420,16 @@ async function dbFetchTodayFinishedRevenue() {
       console.error("Bugünkü ciro alınamadı:", e);
       state.todayFinishedRevenueAll = 0;
     }
-  } finally {
+
+    render();
+  } catch (e) {
+    console.error("Kayıtlar alınamadı:", e);
     state.loading = false;
+    state.todayFinishedRevenueAll = 0;
+    alert("Kayıtlar yüklenemedi: " + (e.message || "Bilinmeyen hata"));
     render();
   }
 }
-
     function resizeImage(file, maxWidth = 1280, quality = 0.72) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
