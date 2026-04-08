@@ -395,15 +395,15 @@ function plateHistory(plate, currentId = null) {
   state.loading = true;
   render();
   try {
-    const [recordsResult, todayRevenue] = await Promise.all([
-      dbFetchRecords({
-        offset: 0,
-        limit: state.visibleCount,
-        search: state.search,
-        status: state.statusFilter,
-      }),
-      dbFetchTodayFinishedRevenue(),
-    ]);
+    const recordsResult = await dbFetchRecords({
+  offset: 0,
+  limit: state.visibleCount,
+  search: state.search,
+  status: state.statusFilter,
+});
+state.records = recordsResult.data.map(mapDbRow);
+state.totalRemoteCount = recordsResult.total;
+state.todayFinishedRevenueAll = 0;
 
     state.records = recordsResult.data.map(mapDbRow);
     state.totalRemoteCount = recordsResult.total;
