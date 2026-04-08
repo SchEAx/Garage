@@ -144,6 +144,7 @@ function plateHistory(plate, currentId = null) {
       selectedId: null,
       tabletMode: false,
       statusFilter: "Tümü",
+      showArchive: false,
       activeTab: "kayit",
       loading: false,
       editId: null,
@@ -197,38 +198,54 @@ function plateHistory(plate, currentId = null) {
       };
     }
 
-    async function dbFetchRecords({ offset = 0, limit = PAGE_SIZE, search = "", status = "Tümü" } = {}) {
-      const params = new URLSearchParams();
-      params.set("select", "*");
-      params.set("order", "created_at.desc");
+  async function dbFetchRecords({
+  offset = 0,
+  limit = PAGE_SIZE,
+  search = "",
+  status = "Tümü",
+  showArchive = false
+} = {}) {
+  const params = new URLSearchParams();
+  params.set("select", "*");
+  params.set("order", "created_at.desc");
 
-      if (status && status !== "Tümü") {
-        params.set("status", `eq.${status}`);
-      }
+  const trimmed = (search || "").trim();
 
-      const trimmed = (search || "").trim();
-      if (trimmed) {
-  const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
-  params.set(
-    "or",
-    `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,plaka.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`
-  );
-}
-
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
-        headers: apiHeaders({
-          Range: `${offset}-${offset + limit - 1}`,
-          Prefer: "count=exact"
-        }),
-      });
-
-      if (!res.ok) throw new Error("Kayıtlar alınamadı");
-      const data = await res.json();
-      const rangeHeader = res.headers.get("content-range") || "0-0/0";
-      const totalPart = rangeHeader.split("/")[1] || "0";
-      const total = Number(totalPart) || 0;
-      return { data, total };
+  // Tek status seçildiyse onu uygula
+  if (status && status !== "Tümü") {
+    params.set("status", `eq.${status}`);
+  } else {
+    // Varsayılan durumda sadece aktif kayıtları getir
+    if (!showArchive && !trimmed) {
+      params.set("or", "(status.eq.Beklemede,status.eq.Montaj Sürecinde)");
     }
+  }
+
+  // Arama varsa metin araması da çalışsın
+  if (trimmed) {
+    const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
+    const searchOr =
+      `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,plaka.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`;
+
+    // Arama varken tüm kayıtlar içinde ara
+    params.set("or", searchOr);
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
+    headers: apiHeaders({
+      Range: `${offset}-${offset + limit - 1}`,
+      Prefer: "count=exact"
+    }),
+  });
+
+  if (!res.ok) throw new Error("Kayıtlar alınamadı");
+  const data = await res.json();
+  const rangeHeader = res.headers.get("content-range") || "0-0/0";
+  const totalPart = rangeHeader.split("/")[1] || "0";
+  const total = Number(totalPart) || 0;
+
+  return { data, total };
+}
 async function dbFetchTodayFinishedRevenue() {
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
@@ -397,12 +414,13 @@ async function dbFetchTodayFinishedRevenue() {
   render();
 
   try {
-    const recordsResult = await dbFetchRecords({
-      offset: 0,
-      limit: state.visibleCount,
-      search: state.search,
-      status: state.statusFilter,
-    });
+   const recordsResult = await dbFetchRecords({
+  offset: 0,
+  limit: state.visibleCount,
+  search: state.search,
+  status: state.statusFilter,
+  showArchive: state.showArchive,
+});
 
     state.records = recordsResult.data.map(mapDbRow);
     state.totalRemoteCount = recordsResult.total;
@@ -506,16 +524,24 @@ function updateOperationRow(index, key, value, shouldRender = false) {
 
    function visibleRows() {
   const q = String(state.search || "").trim().toLowerCase();
+  const activeStatuses = ["Beklemede", "Montaj Sürecinde"];
 
-  // Arama yoksa sadece bugünün kayıtları
-  if (!q) {
-    return (state.records || []).filter((r) => isToday(r.createdAt));
+  let rows = state.records || [];
+
+  // Arşiv kapalıysa sadece aktif kayıtlar
+  if (!state.showArchive && !q) {
+    rows = rows.filter((r) => activeStatuses.includes(r.status));
   }
 
-  // Arama varsa geçmiş kayıtlar da gelsin
+  // Arama yoksa mevcut rows'u döndür
+  if (!q) {
+    return rows;
+  }
+
+  // Arama varsa geçmiş kayıtlar da eşleşiyorsa gelsin
   const normalizedQ = normalizePlate(q);
 
-  return (state.records || []).filter((r) => {
+  return rows.filter((r) => {
     const plateMatch = normalizePlate(r.plaka).includes(normalizedQ);
 
     const textMatch = [
