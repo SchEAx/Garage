@@ -229,15 +229,15 @@ function plateHistory(plate, currentId = null) {
       const total = Number(totalPart) || 0;
       return { data, total };
     }
-    async function dbFetchTodayFinishedRevenue() {
+async function dbFetchTodayFinishedRevenue() {
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
 
   const params = new URLSearchParams();
-  params.set("select", "notes,created_at,status");
+  params.set("select", "total_fee");
   params.set("status", "eq.Montaj Bitti");
-  params.set("created_at", `gte.${start}`);
+  params.append("created_at", `gte.${start}`);
   params.append("created_at", `lt.${end}`);
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/records?${params.toString()}`, {
@@ -248,11 +248,11 @@ function plateHistory(plate, currentId = null) {
 
   const data = await res.json();
 
-  return (data || []).reduce((sum, row) => {
-    const meta = safeParseJson(row.notes, {});
-    const ops = Array.isArray(meta.operations) ? meta.operations : [];
-    const total = ops.reduce((s, op) => s + Number(op.fee || 0), 0);
-    return sum + total;
+  return (data || []).reduce((sum, row) => sum + Number(row.total_fee || 0), 0);
+}
+    function calculateOperationsTotal(operations = []) {
+  return (operations || []).reduce((sum, op) => {
+    return sum + Number(op.fee || 0);
   }, 0);
 }
 
@@ -289,6 +289,7 @@ function plateHistory(plate, currentId = null) {
   receiver: "",
   status: form.status,
   signature: form.signature || "",
+  total_fee: calculateOperationsTotal(cleanedOperations),
 };
 }
     async function dbInsertRecord(form) {
@@ -329,6 +330,7 @@ function plateHistory(plate, currentId = null) {
           notes: payload.notes,
           plaka: form.plaka,
           status: payload.status,
+          total_fee: payload.total_fee,
           signature: payload.signature
         }),
       });
