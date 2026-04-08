@@ -244,10 +244,9 @@ async function dbFetchTodayFinishedRevenue() {
     headers: apiHeaders(),
   });
 
-  if (!res.ok) throw new Error("Bugünkü ciro alınamadı");
+  if (!res.ok) throw new Error(`Bugünkü ciro alınamadı: ${res.status}`);
 
   const data = await res.json();
-
   return (data || []).reduce((sum, row) => sum + Number(row.total_fee || 0), 0);
 }
     function calculateOperationsTotal(operations = []) {
