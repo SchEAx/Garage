@@ -148,6 +148,7 @@ function plateHistory(plate, currentId = null) {
       loading: false,
       editId: null,
       visibleCount: PAGE_SIZE,
+      selectedDate: new Date().toISOString().slice(0, 10),
       company: {
         name: "Garage İstanbul Oto Aksesuar",
         phone: "0 (554) 537 36 36",
@@ -490,8 +491,13 @@ function updateOperationRow(index, key, value, shouldRender = false) {
 
    function visibleRows() {
   const q = String(state.search || "").trim().toLowerCase();
-  if (!q) return state.records;
 
+  // Arama yoksa sadece bugünün kayıtları
+  if (!q) {
+    return (state.records || []).filter((r) => isToday(r.createdAt));
+  }
+
+  // Arama varsa geçmiş kayıtlar da gelsin
   const normalizedQ = normalizePlate(q);
 
   return (state.records || []).filter((r) => {
@@ -518,13 +524,18 @@ function updateOperationRow(index, key, value, shouldRender = false) {
 }
 
     function stats() {
-      return {
-        total: state.totalRemoteCount || state.records.length,
-        pending: state.records.filter((r) => r.status === "Beklemede").length,
-        inProgress: state.records.filter((r) => r.status === "Montaj Sürecinde").length,
-        completed: state.records.filter((r) => r.status === "Montaj Bitti").length,
-      };
-    }
+  const selectedRows = (state.records || []).filter((r) => {
+    const recordDate = new Date(r.createdAt).toISOString().slice(0, 10);
+    return recordDate === state.selectedDate;
+  });
+
+  return {
+    total: selectedRows.length,
+    pending: selectedRows.filter((r) => r.status === "Beklemede").length,
+    inProgress: selectedRows.filter((r) => r.status === "Montaj Sürecinde").length,
+    completed: selectedRows.filter((r) => r.status === "Montaj Bitti").length,
+  };
+}
 
     function loadRecordToForm(id) {
       const record = state.records.find((r) => r.id === id);
@@ -1032,7 +1043,15 @@ h3 {
                   <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Hızlı Liste</span>
                 </div>
               </div>
-
+<div class="mb-4 flex flex-wrap items-center gap-3">
+  <label class="text-sm text-zinc-400">İstatistik Tarihi:</label>
+  <input
+    id="selectedDateInput"
+    type="date"
+    value="${state.selectedDate}"
+    class="rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+  />
+</div>
               <div class="grid grid-cols-2 gap-4">
                 ${statCards.map((item) => `
                   <div class="rounded-3xl border border-white/10 bg-zinc-900/80 text-white">
@@ -1635,6 +1654,10 @@ if (searchEl) {
         state.visibleCount = PAGE_SIZE;
         await loadRecordsFromDb();
       });
+      document.getElementById("selectedDateInput")?.addEventListener("change", (e) => {
+  state.selectedDate = e.target.value;
+  render();
+});
 
       document.getElementById("showMoreBtn")?.addEventListener("click", async () => {
         state.visibleCount += PAGE_SIZE;
