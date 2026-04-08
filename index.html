@@ -217,7 +217,7 @@ function plateHistory(plate, currentId = null) {
   } else {
     // Varsayılan durumda sadece aktif kayıtları getir
     if (!showArchive && !trimmed) {
-      params.set("or", "(status.eq.Beklemede,status.eq.Montaj Sürecinde)");
+     params.set("or", "status.eq.Beklemede,status.eq.Montaj Sürecinde");
     }
   }
 
@@ -517,6 +517,11 @@ function updateOperationRow(index, key, value, shouldRender = false) {
     function updateCompany(key, value) {
       state.company[key] = value;
     }
+    async function toggleArchive() {
+  state.showArchive = !state.showArchive;
+  state.visibleCount = PAGE_SIZE;
+  await loadRecordsFromDb();
+}
     function selectedRecord() {
       if (!state.selectedId) return null;
       return state.records.find((r) => r.id === state.selectedId) || null;
@@ -1387,6 +1392,7 @@ h3 {
       <div class="mt-1 text-xs text-fuchsia-100">${totalCount} kayıt bulundu</div>
     </div>
   </div>
+  
 
               <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                 <div class="p-6 pb-3">
@@ -1398,6 +1404,12 @@ h3 {
                         <option value="Tümü" ${state.statusFilter === "Tümü" ? "selected" : ""}>Tümü</option>
                         ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${state.statusFilter === status ? "selected" : ""}>${status}</option>`).join("")}
                       </select>
+                      <button
+  onclick="toggleArchive()"
+  class="rounded-2xl border border-white/10 bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800"
+>
+  ${state.showArchive ? "Eski Kayıtları Gizle" : "Eski Kayıtları Göster"}
+</button>
                     </div>
                   </div>
                 </div>
@@ -1444,6 +1456,7 @@ h3 {
                             <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
                             
                             <button data-delete="${record.id}" class="rounded-2xl bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500">🗑️ Sil</button>
+                            
                           </div>
                         </div>
                       </div>
