@@ -393,23 +393,28 @@ async function dbFetchTodayFinishedRevenue() {
       if (!res.ok) throw new Error("Kayıt silinemedi");
     }
 
-    async function loadRecordsFromDb() {
+   async function loadRecordsFromDb() {
   state.loading = true;
   render();
+
   try {
     const recordsResult = await dbFetchRecords({
-  offset: 0,
-  limit: state.visibleCount,
-  search: state.search,
-  status: state.statusFilter,
-});
-state.records = recordsResult.data.map(mapDbRow);
-state.totalRemoteCount = recordsResult.total;
-state.todayFinishedRevenueAll = 0;
+      offset: 0,
+      limit: state.visibleCount,
+      search: state.search,
+      status: state.statusFilter,
+    });
 
     state.records = recordsResult.data.map(mapDbRow);
     state.totalRemoteCount = recordsResult.total;
-    state.todayFinishedRevenueAll = todayRevenue;
+
+    try {
+      const todayRevenue = await dbFetchTodayFinishedRevenue();
+      state.todayFinishedRevenueAll = todayRevenue;
+    } catch (e) {
+      console.error("Bugünkü ciro alınamadı:", e);
+      state.todayFinishedRevenueAll = 0;
+    }
   } finally {
     state.loading = false;
     render();
