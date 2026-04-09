@@ -387,6 +387,61 @@
     throw new Error(`Durum güncellenemedi: ${text}`);
   }
 }
+  async function dbDeleteRecord(id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+    method: "DELETE",
+    headers: apiHeaders(),
+  });
+
+  const text = await res.text();
+  console.log("DELETE STATUS:", res.status);
+  console.log("DELETE RESPONSE:", text);
+
+  if (!res.ok) {
+    throw new Error(`Kayıt silinemedi: ${text}`);
+  }
+}
+
+async function dbUpdateMeta(id, currentRecord, patchMeta) {
+  const existingMeta = {
+    invoiceAddress: currentRecord.invoiceAddress || "",
+    operations: Array.isArray(currentRecord.operations)
+      ? currentRecord.operations.map((op) => ({
+          name: op.name || "",
+          fee: op.fee || ""
+        }))
+      : [],
+    vehicleImage: currentRecord.vehicleImage || "",
+    noteText: currentRecord.noteText || "",
+    technician: currentRecord.technician || "",
+    vehicleDefects: currentRecord.vehicleDefects || "",
+    signature: currentRecord.signature || "",
+    plaka: currentRecord.plaka || "",
+    sasiNo: currentRecord.sasiNo || "",
+    kvkkOnay: !!currentRecord.kvkkOnay,
+    musteriOnay: !!currentRecord.musteriOnay,
+  };
+
+  const nextMeta = { ...existingMeta, ...patchMeta };
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+    method: "PATCH",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      notes: JSON.stringify(nextMeta),
+      signature: nextMeta.signature || ""
+    }),
+  });
+
+  const text = await res.text();
+  console.log("META UPDATE STATUS:", res.status);
+  console.log("META UPDATE RESPONSE:", text);
+  console.log("META UPDATE PAYLOAD:", nextMeta);
+
+  if (!res.ok) {
+    throw new Error(`Kayıt güncellenemedi: ${text}`);
+  }
+}
   async function loadRecordsFromDb() {
   state.loading = true;
   render();
