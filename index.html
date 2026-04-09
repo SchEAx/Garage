@@ -132,11 +132,22 @@ async function listeyiYenile() {
     type: row.AracTip || "",
     plaka: row.Plaka || "",
     sasiNo: row.SasiNo || "",
-    operations: Array.isArray(row.YapilacakIslem)
-      ? row.YapilacakIslem
-      : (typeof row.YapilacakIslem === "string" && row.YapilacakIslem.trim()
-          ? [{ name: row.YapilacakIslem, fee: row.Ucret || "" }]
-          : [{ name: "", fee: "" }]),
+    operations: (() => {
+  const raw = row.YapilacakIslem;
+
+  if (Array.isArray(raw)) return raw;
+
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+
+    return [{ name: raw, fee: row.Ucret || "" }];
+  }
+
+  return [{ name: "", fee: "" }];
+})(),
     status: row.Durum || "Beklemede",
     vehicleImage: row.Fotograf || row.vehicleImage || "",
     noteText: row.Notlar || "",
@@ -941,7 +952,7 @@ h3 {
       const selected = selectedRecord();
       const showModal = !!state.selectedId && !!selected;
       const grand = grandTotal(rows);
-      const todayGrand = state.todayFinishedRevenueAll || 0;
+    const todayGrand = todayTotal(rows);
       const todayRecordsCount = todayCount(rows);
       const totalCount = state.totalRemoteCount;
       const canShowMore = state.records.length < state.totalRemoteCount;
@@ -1354,7 +1365,10 @@ h3 {
 </span>
                           </div>
                           <div class="text-sm text-zinc-400">${record.phone} · ${record.brand} ${record.model} · ${record.plaka || "-"}</div>
-                          <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
+                          İşlemler: ${(record.operations || [])
+  .map(op => op.name || "-")
+  .filter(Boolean)
+  .join(", ")}
                           <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
                           <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
                           <div class="mt-3 flex flex-wrap gap-2">
@@ -1391,13 +1405,7 @@ h3 {
 
                         <div class="flex w-full flex-col gap-3 xl:w-[430px]">
                           <div class="grid gap-3 md:grid-cols-2">
-                            <div>
-                              <label class="mb-1 block text-xs text-zinc-400">Durum</label>
-                              <select data-inline-status="${record.id}" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
-                                ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${record.status === status ? "selected" : ""}>${status}</option>`).join("")}
-                              </select>
-                            </div>
-                            <div>
+                              <div>
                               <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
                               <input data-inline-tech="${record.id}" maxlength="40" value="${record.technician || ""}" placeholder="Usta Ad Soyad" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
                             </div>
