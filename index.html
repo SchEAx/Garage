@@ -206,7 +206,7 @@
     showArchive = false
   } = {}) {
     const params = new URLSearchParams();
-    params.set("select", "*");
+    params.set("select", "id,record_no,created_at,customer_name,phone,brand,model,plaka,status,total_fee,notes,signature,address");
     params.set("order", "created_at.desc");
 
     const trimmed = (search || "").trim();
@@ -218,7 +218,7 @@
     if (trimmed) {
       const safe = trimmed.replace(/,/g, " ").replace(/\*/g, "");
       const searchOr =
-        `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,plaka.ilike.*${safe}*,issue.ilike.*${safe}*,notes.ilike.*${safe}*`;
+  `record_no.ilike.*${safe}*,customer_name.ilike.*${safe}*,phone.ilike.*${safe}*,brand.ilike.*${safe}*,model.ilike.*${safe}*,plaka.ilike.*${safe}*,issue.ilike.*${safe}*`;
       params.set("or", searchOr);
     }
 
@@ -226,12 +226,11 @@
     console.log("FETCH RECORDS URL:", url);
 
     const res = await fetch(url, {
-      headers: apiHeaders({
-        Range: `${offset}-${offset + limit - 1}`,
-        Prefer: "count=exact"
-      }),
-    });
-
+  headers: apiHeaders({
+    Range: `${offset}-${offset + limit - 1}`,
+    Prefer: "count=planned"
+  }),
+});
     const text = await res.text();
     console.log("FETCH RECORDS STATUS:", res.status);
     console.log("FETCH RECORDS RESPONSE:", text);
@@ -461,14 +460,14 @@ async function dbUpdateMeta(id, currentRecord, patchMeta) {
     state.loading = false;
     render();
 
-    try {
-      const todayRevenue = await dbFetchTodayFinishedRevenue();
-      state.todayFinishedRevenueAll = todayRevenue;
-    } catch (e) {
-      console.error("Bugünkü ciro alınamadı:", e);
-      state.todayFinishedRevenueAll = 0;
-    }
-
+  //  try {
+  //    const todayRevenue = await dbFetchTodayFinishedRevenue();
+ //     state.todayFinishedRevenueAll = todayRevenue;
+   // } catch (e) {
+   //   console.error("Bugünkü ciro alınamadı:", e);
+  //    state.todayFinishedRevenueAll = 0;
+ //   }
+state.todayFinishedRevenueAll = 0;
     render();
   } catch (e) {
     console.error("KAYIT YÜKLEME HATASI:", e);
