@@ -1315,6 +1315,35 @@ h3 {
                           <div class="text-sm text-zinc-500">İşlemler: ${(record.operations || []).map((op) => op.name).join(", ") || "-"}</div>
                           <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
                           <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
+                          <div class="mt-3 flex flex-wrap gap-2">
+  <button
+    data-edit="${record.id}"
+    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
+  >
+    Forma Al
+  </button>
+
+  <button
+    onclick="updateRecordStatus('${record.id}', 'Montaj Sürecinde')"
+    class="rounded-2xl bg-amber-500/20 px-4 py-2 text-sm text-amber-300 hover:bg-amber-500/30"
+  >
+    İşlemde
+  </button>
+
+  <button
+    onclick="updateRecordStatus('${record.id}', 'Montaj Bitti')"
+    class="rounded-2xl bg-emerald-500/20 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-500/30"
+  >
+    Montaj Bitti
+  </button>
+
+  <button
+    data-print="${record.id}"
+    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
+  >
+    Yazdır
+  </button>
+</div>
                           <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
                         </div>
 
