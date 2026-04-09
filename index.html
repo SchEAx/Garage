@@ -372,6 +372,42 @@
 
     if (!res.ok) throw new Error(`Kayıt güncellenemedi: ${text}`);
   }
+  async function loadRecordsFromDb() {
+  state.loading = true;
+  render();
+
+  try {
+    const recordsResult = await dbFetchRecords({
+      offset: 0,
+      limit: state.visibleCount,
+      search: state.search,
+      status: state.statusFilter,
+      showArchive: state.showArchive,
+    });
+
+    state.records = recordsResult.data.map(mapDbRow);
+    state.totalRemoteCount = recordsResult.total;
+
+    state.loading = false;
+    render();
+
+    try {
+      const todayRevenue = await dbFetchTodayFinishedRevenue();
+      state.todayFinishedRevenueAll = todayRevenue;
+    } catch (e) {
+      console.error("Bugünkü ciro alınamadı:", e);
+      state.todayFinishedRevenueAll = 0;
+    }
+
+    render();
+  } catch (e) {
+    console.error("KAYIT YÜKLEME HATASI:", e);
+    state.loading = false;
+    state.todayFinishedRevenueAll = 0;
+    alert("Kayıtlar yüklenemedi: " + (e.message || "Bilinmeyen hata"));
+    render();
+  }
+}
 
   function getFileExtension(filename = "") {
     const parts = String(filename).split(".");
