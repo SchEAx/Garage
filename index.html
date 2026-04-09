@@ -372,6 +372,21 @@
 
     if (!res.ok) throw new Error(`Kayıt güncellenemedi: ${text}`);
   }
+  async function dbUpdateStatus(id, status) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${id}`, {
+    method: "PATCH",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ status }),
+  });
+
+  const text = await res.text();
+  console.log("STATUS UPDATE STATUS:", res.status);
+  console.log("STATUS UPDATE RESPONSE:", text);
+
+  if (!res.ok) {
+    throw new Error(`Durum güncellenemedi: ${text}`);
+  }
+}
   async function loadRecordsFromDb() {
   state.loading = true;
   render();
