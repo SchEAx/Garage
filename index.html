@@ -271,6 +271,7 @@ async function listeyiYenile() {
     showArchive: false,
     activeTab: "kayit",
     loading: false,
+    saving: false,
     editId: null,
     visibleCount: PAGE_SIZE,
     selectedDate: new Date().toISOString().slice(0, 10),
@@ -504,6 +505,8 @@ function handleVehicleImage(file) {
   }
 
 async function saveRecord() {
+  if (state.saving) return;
+
   const form = state.form;
 
   const validOperations = (form.operations || []).filter(
@@ -526,41 +529,48 @@ async function saveRecord() {
   };
 
   try {
-   await kayitEkle({
-  MusteriAdi: payloadForm.customerName || "",
-  Telefon: payloadForm.phone || "",
-  FaturaAdresi: payloadForm.invoiceAddress || "",
-  AracMarka: payloadForm.brand || "",
-  AracModel: payloadForm.model || "",
-  AracTip: payloadForm.type || "",
-  Plaka: payloadForm.plaka || "",
-  SasiNo: payloadForm.sasiNo || "",
-  YapilacakIslem: Array.isArray(payloadForm.operations)
-    ? payloadForm.operations
-    : [{ name: "", fee: "" }],
-  Ucret: calculateOperationsTotal(payloadForm.operations || []),
-  Notlar: payloadForm.noteText || "",
-  Durum: payloadForm.status || "Beklemede",
-  Fotograf: payloadForm.vehicleImage || "",
-  Teknisyen: payloadForm.technician || "",
-  AracKusurlari: payloadForm.vehicleDefects || "",
-  Imza: payloadForm.signature || "",
-  KvkkOnay: !!payloadForm.kvkkOnay,
-  MusteriOnay: !!payloadForm.musteriOnay
-});
+    state.saving = true;
+    render();
+
+    await kayitEkle({
+      MusteriAdi: payloadForm.customerName || "",
+      Telefon: payloadForm.phone || "",
+      FaturaAdresi: payloadForm.invoiceAddress || "",
+      AracMarka: payloadForm.brand || "",
+      AracModel: payloadForm.model || "",
+      AracTip: payloadForm.type || "",
+      Plaka: payloadForm.plaka || "",
+      SasiNo: payloadForm.sasiNo || "",
+      YapilacakIslem: Array.isArray(payloadForm.operations)
+        ? payloadForm.operations
+        : [{ name: "", fee: "" }],
+      Ucret: calculateOperationsTotal(payloadForm.operations || []),
+      Notlar: payloadForm.noteText || "",
+      Durum: payloadForm.status || "Beklemede",
+      Fotograf: payloadForm.vehicleImage || "",
+      Teknisyen: payloadForm.technician || "",
+      AracKusurlari: payloadForm.vehicleDefects || "",
+      Imza: payloadForm.signature || "",
+      KvkkOnay: !!payloadForm.kvkkOnay,
+      MusteriOnay: !!payloadForm.musteriOnay
+    });
+
     state.form = emptyForm();
     state.editId = null;
     state.activeTab = "liste";
     signatureHandlersBound = false;
     state.visibleCount = PAGE_SIZE;
     await listeyiYenile();
-  }
-  catch (e) {
+  } catch (e) {
     alert("Kayıt veritabanına eklenemedi: " + (e.message || "Bilinmeyen hata"));
     console.error(e);
+  } finally {
+    state.saving = false;
+    render();
   }
 }
 async function updateCurrentRecord() {
+  if (state.saving) return;
   if (!state.editId) return;
 
   const form = state.form;
@@ -588,38 +598,45 @@ async function updateCurrentRecord() {
   };
 
   try {
+    state.saving = true;
+    render();
+
     await kayitGuncelle({
-  ID: currentRecord.id,
-  MusteriAdi: payloadForm.customerName || "",
-  Telefon: payloadForm.phone || "",
-  FaturaAdresi: payloadForm.invoiceAddress || "",
-  AracMarka: payloadForm.brand || "",
-  AracModel: payloadForm.model || "",
-  AracTip: payloadForm.type || "",
-  Plaka: payloadForm.plaka || "",
-  SasiNo: payloadForm.sasiNo || "",
-  YapilacakIslem: Array.isArray(payloadForm.operations)
-    ? payloadForm.operations
-    : [{ name: "", fee: "" }],
-  Ucret: calculateOperationsTotal(payloadForm.operations || []),
-  Notlar: payloadForm.noteText || "",
-  Durum: payloadForm.status || "Beklemede",
-  Fotograf: payloadForm.vehicleImage || "",
-  Teknisyen: payloadForm.technician || "",
-  AracKusurlari: payloadForm.vehicleDefects || "",
-  Imza: payloadForm.signature || "",
-  KvkkOnay: !!payloadForm.kvkkOnay,
-  MusteriOnay: !!payloadForm.musteriOnay
-});
+      ID: currentRecord.id,
+      MusteriAdi: payloadForm.customerName || "",
+      Telefon: payloadForm.phone || "",
+      FaturaAdresi: payloadForm.invoiceAddress || "",
+      AracMarka: payloadForm.brand || "",
+      AracModel: payloadForm.model || "",
+      AracTip: payloadForm.type || "",
+      Plaka: payloadForm.plaka || "",
+      SasiNo: payloadForm.sasiNo || "",
+      YapilacakIslem: Array.isArray(payloadForm.operations)
+        ? payloadForm.operations
+        : [{ name: "", fee: "" }],
+      Ucret: calculateOperationsTotal(payloadForm.operations || []),
+      Notlar: payloadForm.noteText || "",
+      Durum: payloadForm.status || "Beklemede",
+      Fotograf: payloadForm.vehicleImage || "",
+      Teknisyen: payloadForm.technician || "",
+      AracKusurlari: payloadForm.vehicleDefects || "",
+      Imza: payloadForm.signature || "",
+      KvkkOnay: !!payloadForm.kvkkOnay,
+      MusteriOnay: !!payloadForm.musteriOnay
+    });
+
     state.form = emptyForm();
     state.editId = null;
     state.activeTab = "liste";
     signatureHandlersBound = false;
     await listeyiYenile();
   } catch (e) {
-  alert("Kayıt güncellenemedi: " + (e.message || "Bilinmeyen hata"));
-  console.error(e);
-}
+    alert("Kayıt güncellenemedi: " + (e.message || "Bilinmeyen hata"));
+    console.error(e);
+  } finally {
+    state.saving = false;
+    render();
+  }
 }
 
     function cancelEdit() {
@@ -1306,7 +1323,19 @@ h3 {
                     <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Hızlı İşlemler</h2></div>
                     <div class="grid gap-3 p-6 pt-0 sm:grid-cols-2">
                       ${state.editId ? `
-                        <button id="updateRecord" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-amber-400 text-black hover:bg-amber-300">✏️ Kaydı Güncelle</button>
+                        <button
+  id="saveRecordBtn"
+  ${state.saving ? "disabled" : ""}
+  class="rounded-2xl px-4 py-3 text-sm font-medium transition ${
+    state.saving
+      ? "cursor-not-allowed bg-zinc-700 text-zinc-400"
+      : "bg-white text-black hover:bg-zinc-200"
+  }"
+>
+  ${state.saving
+    ? (state.editId ? "Güncelleniyor..." : "Kaydediliyor...")
+    : (state.editId ? "Güncelle" : "Kayıt Ekle")}
+</button>
                         <button id="cancelEdit" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition border border-white/10 bg-transparent text-white hover:bg-white/5">İptal</button>
                       ` : `
                         <button id="saveRecord" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-white text-black hover:bg-zinc-200">💾 Kaydı Oluştur</button>
