@@ -29,7 +29,43 @@
   <div id="app"></div>
 
 <script>
- 
+
+  const API_URL = "https://script.google.com/macros/s/AKfycbwaItn84REjMJIX3KI6mjg6aGwj90FOUbTwefTCbTCFFVrBlHqmU5MwyTcWebGZuG4O/exec";
+  async function veriCek() {
+  const res = await fetch(API_URL + "?action=list");
+  const data = await res.json();
+  return data.records || [];
+}
+
+async function kayitEkle(payload) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      action: "add",
+      ...payload
+    })
+  });
+  return await res.json();
+}
+
+async function kayitGuncelle(payload) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      action: "update",
+      ...payload
+    })
+  });
+  return await res.json();
+}
+
+async function listeyiYenile() {
+  const data = await veriCek();
+  state.records = data;
+  render();
+}
   const STATUS_OPTIONS = [
     "Beklemede",
     "Montaj Sürecinde",
@@ -426,32 +462,25 @@ async function updateCurrentRecord() {
       render();
     }
 
-
-   async function updateRecordStatus(id, status) {
+  async function updateRecordStatus(id, status) {
   try {
-    await kayitGuncelle(id, status);
+    const record = state.records.find(r => r.id === id);
+    if (!record) return;
 
-    const local = state.records.find((r) => r.id === id);
-    if (local) local.status = status;
+    await kayitGuncelle({
+      ID: id,
+      ...record,
+      Durum: status
+    });
 
+    record.status = status;
     render();
   } catch (e) {
-    alert("Durum güncellenemedi: " + (e.message || "Bilinmeyen hata"));
+    alert("Durum güncellenemedi");
     console.error(e);
   }
 }
 
-    async function updateRecordTechnician(id, technician) {
-      const record = state.records.find((r) => r.id === id);
-      if (!record) return;
-      try {
-        await dbUpdateMeta(id, record, { technician });
-        record.technician = technician;
-      } catch (e) {
-        alert("Usta bilgisi güncellenemedi");
-        console.error(e);
-      }
-    }
 
     function downloadFile(filename, content, type = "application/json") {
       const blob = new Blob([content], { type });
