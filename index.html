@@ -477,6 +477,16 @@ state.todayFinishedRevenueAll = 0;
     render();
   }
 }
+  async function refreshTodayRevenue() {
+  try {
+    const todayRevenue = await dbFetchTodayFinishedRevenue();
+    state.todayFinishedRevenueAll = todayRevenue;
+    render();
+  } catch (e) {
+    console.error(e);
+    alert("Ciro alınamadı");
+  }
+}
 
   function getFileExtension(filename = "") {
     const parts = String(filename).split(".");
@@ -1464,11 +1474,19 @@ h3 {
       <div class="mt-1 text-xs text-emerald-100">${rows.length} kayıt ekranda</div>
     </div>
 
-    <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5">
-      <div class="text-sm text-sky-200">Bugünkü Toplam</div>
-      <div class="text-2xl font-bold text-sky-300">${formatMoney(todayGrand)}</div>
-      <div class="mt-1 text-xs text-sky-100">Bugün açılan kayıt: ${todayRecordsCount}</div>
-    </div>
+   <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5">
+  <div class="flex items-center justify-between">
+    <div class="text-sm text-sky-200">Bugünkü Toplam</div>
+    <button onclick="refreshTodayRevenue()" 
+      class="rounded-xl bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-500">
+      Yenile
+    </button>
+  </div>
+
+  <div class="text-2xl font-bold text-sky-300">${formatMoney(todayGrand)}</div>
+  <div class="mt-1 text-xs text-sky-100">Bugün açılan kayıt: ${todayRecordsCount}</div>
+</div>
+    
 
     <div class="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
       <div class="text-sm text-amber-200">Tekil Müşteri</div>
