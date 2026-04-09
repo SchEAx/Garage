@@ -62,9 +62,48 @@ async function kayitGuncelle(payload) {
 }
 
 async function listeyiYenile() {
-  const data = await veriCek();
-  state.records = data;
-  render();
+  try {
+    state.loading = true;
+    render();
+
+    const data = await veriCek();
+    state.records = (data || []).map(mapSheetRecord);
+    state.totalRemoteCount = state.records.length;
+  } catch (e) {
+    console.error("listeyiYenile hata:", e);
+    alert("Kayıtlar alınamadı: " + (e.message || "Bilinmeyen hata"));
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+  function mapSheetRecord(row) {
+  return {
+    id: String(row.ID || ""),
+    recordNo: row.ID || "-",
+    createdAt: row.TarihSaat || "",
+    customerName: row.MusteriAdi || "",
+    phone: row.Telefon || "",
+    invoiceAddress: row.FaturaAdresi || row.invoiceAddress || "",
+    brand: row.AracMarka || "",
+    model: row.AracModel || "",
+    type: row.AracTip || "",
+    plaka: row.Plaka || "",
+    sasiNo: row.SasiNo || "",
+    operations: Array.isArray(row.YapilacakIslem)
+      ? row.YapilacakIslem
+      : (typeof row.YapilacakIslem === "string" && row.YapilacakIslem.trim()
+          ? [{ name: row.YapilacakIslem, fee: row.Ucret || "" }]
+          : [{ name: "", fee: "" }]),
+    status: row.Durum || "Beklemede",
+    vehicleImage: row.Fotograf || row.vehicleImage || "",
+    noteText: row.Notlar || "",
+    technician: row.Teknisyen || row.technician || "",
+    vehicleDefects: row.AracKusurlari || row.vehicleDefects || "",
+    signature: row.Imza || row.signature || "",
+    kvkkOnay: String(row.KvkkOnay || "").toLowerCase() === "true" || row.KvkkOnay === true,
+    musteriOnay: String(row.MusteriOnay || "").toLowerCase() === "true" || row.MusteriOnay === true
+  };
 }
   const STATUS_OPTIONS = [
     "Beklemede",
@@ -403,14 +442,36 @@ async function saveRecord() {
   };
 
   try {
-    await kayitEkle(payloadForm);
+   await kayitEkle({
+  MusteriAdi: payloadForm.customerName || "",
+  Telefon: payloadForm.phone || "",
+  FaturaAdresi: payloadForm.invoiceAddress || "",
+  AracMarka: payloadForm.brand || "",
+  AracModel: payloadForm.model || "",
+  AracTip: payloadForm.type || "",
+  Plaka: payloadForm.plaka || "",
+  SasiNo: payloadForm.sasiNo || "",
+  YapilacakIslem: Array.isArray(payloadForm.operations)
+    ? payloadForm.operations
+    : [{ name: "", fee: "" }],
+  Ucret: calculateOperationsTotal(payloadForm.operations || []),
+  Notlar: payloadForm.noteText || "",
+  Durum: payloadForm.status || "Beklemede",
+  Fotograf: payloadForm.vehicleImage || "",
+  Teknisyen: payloadForm.technician || "",
+  AracKusurlari: payloadForm.vehicleDefects || "",
+  Imza: payloadForm.signature || "",
+  KvkkOnay: !!payloadForm.kvkkOnay,
+  MusteriOnay: !!payloadForm.musteriOnay
+});
     state.form = emptyForm();
     state.editId = null;
     state.activeTab = "liste";
     signatureHandlersBound = false;
     state.visibleCount = PAGE_SIZE;
     await listeyiYenile();
-  } catch (e) {
+  }
+  catch (e) {
     alert("Kayıt veritabanına eklenemedi: " + (e.message || "Bilinmeyen hata"));
     console.error(e);
   }
@@ -443,7 +504,29 @@ async function updateCurrentRecord() {
   };
 
   try {
-    await kayitGuncelle(state.editId, payloadForm, currentRecord.recordNo);
+    await kayitGuncelle({
+  ID: currentRecord.id,
+  MusteriAdi: payloadForm.customerName || "",
+  Telefon: payloadForm.phone || "",
+  FaturaAdresi: payloadForm.invoiceAddress || "",
+  AracMarka: payloadForm.brand || "",
+  AracModel: payloadForm.model || "",
+  AracTip: payloadForm.type || "",
+  Plaka: payloadForm.plaka || "",
+  SasiNo: payloadForm.sasiNo || "",
+  YapilacakIslem: Array.isArray(payloadForm.operations)
+    ? payloadForm.operations
+    : [{ name: "", fee: "" }],
+  Ucret: calculateOperationsTotal(payloadForm.operations || []),
+  Notlar: payloadForm.noteText || "",
+  Durum: payloadForm.status || "Beklemede",
+  Fotograf: payloadForm.vehicleImage || "",
+  Teknisyen: payloadForm.technician || "",
+  AracKusurlari: payloadForm.vehicleDefects || "",
+  Imza: payloadForm.signature || "",
+  KvkkOnay: !!payloadForm.kvkkOnay,
+  MusteriOnay: !!payloadForm.musteriOnay
+});
     state.form = emptyForm();
     state.editId = null;
     state.activeTab = "liste";
@@ -462,30 +545,31 @@ async function updateCurrentRecord() {
       render();
     }
 
-  async function updateRecordTechnician(id, technician) {
+ async function updateRecordTechnician(id, technician) {
   const record = state.records.find((r) => r.id === id);
   if (!record) return;
 
   try {
     await kayitGuncelle({
-      ID: id,
-      customerName: record.customerName || "",
-      phone: record.phone || "",
-      invoiceAddress: record.invoiceAddress || "",
-      brand: record.brand || "",
-      model: record.model || "",
-      type: record.type || "",
-      plaka: record.plaka || "",
-      sasiNo: record.sasiNo || "",
-      operations: Array.isArray(record.operations) ? record.operations : [{ name: "", fee: "" }],
-      status: record.status || STATUS_OPTIONS[0],
-      vehicleImage: record.vehicleImage || "",
-      noteText: record.noteText || "",
-      technician: technician || "",
-      vehicleDefects: record.vehicleDefects || "",
-      signature: record.signature || "",
-      kvkkOnay: !!record.kvkkOnay,
-      musteriOnay: !!record.musteriOnay
+      ID: record.id,
+      MusteriAdi: record.customerName || "",
+      Telefon: record.phone || "",
+      FaturaAdresi: record.invoiceAddress || "",
+      AracMarka: record.brand || "",
+      AracModel: record.model || "",
+      AracTip: record.type || "",
+      Plaka: record.plaka || "",
+      SasiNo: record.sasiNo || "",
+      YapilacakIslem: Array.isArray(record.operations) ? record.operations : [{ name: "", fee: "" }],
+      Ucret: calculateOperationsTotal(record.operations || []),
+      Notlar: record.noteText || "",
+      Durum: record.status || "Beklemede",
+      Fotograf: record.vehicleImage || "",
+      Teknisyen: technician || "",
+      AracKusurlari: record.vehicleDefects || "",
+      Imza: record.signature || "",
+      KvkkOnay: !!record.kvkkOnay,
+      MusteriOnay: !!record.musteriOnay
     });
 
     record.technician = technician;
@@ -497,6 +581,40 @@ async function updateCurrentRecord() {
 }
 
 
+async function updateRecordStatus(id, status) {
+  const record = state.records.find((r) => r.id === id);
+  if (!record) return;
+
+  try {
+    await kayitGuncelle({
+      ID: record.id,
+      MusteriAdi: record.customerName || "",
+      Telefon: record.phone || "",
+      FaturaAdresi: record.invoiceAddress || "",
+      AracMarka: record.brand || "",
+      AracModel: record.model || "",
+      AracTip: record.type || "",
+      Plaka: record.plaka || "",
+      SasiNo: record.sasiNo || "",
+      YapilacakIslem: Array.isArray(record.operations) ? record.operations : [{ name: "", fee: "" }],
+      Ucret: calculateOperationsTotal(record.operations || []),
+      Notlar: record.noteText || "",
+      Durum: status,
+      Fotograf: record.vehicleImage || "",
+      Teknisyen: record.technician || "",
+      AracKusurlari: record.vehicleDefects || "",
+      Imza: record.signature || "",
+      KvkkOnay: !!record.kvkkOnay,
+      MusteriOnay: !!record.musteriOnay
+    });
+
+    record.status = status;
+    render();
+  } catch (e) {
+    alert("Durum güncellenemedi: " + (e.message || "Bilinmeyen hata"));
+    console.error(e);
+  }
+}
     function downloadFile(filename, content, type = "application/json") {
       const blob = new Blob([content], { type });
       const url = URL.createObjectURL(blob);
@@ -841,7 +959,7 @@ h3 {
     </div>
 
     <div class="mt-6 flex flex-wrap gap-2">
-      <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Supabase Arama</span>
+      <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Canlı Arama</span>
       <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Optimize Görsel</span>
       <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Kaydı Güncelle</span>
       <span class="inline-flex rounded-xl bg-white/10 px-3 py-1 text-xs text-white">Hızlı Liste</span>
@@ -1237,7 +1355,7 @@ h3 {
                 <div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                   <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Bu sürümde hazır olanlar</h2></div>
                   <div class="grid gap-3 p-6 pt-0 text-sm text-zinc-300">
-                    <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Pro Supabase arama</div>
+                    <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Pro Canlı Arama</div>
                     <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Kaydı güncelle modu</div>
                     <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Scroll bozmayan işlem seçimi</div>
                     <div class="rounded-2xl border border-white/10 bg-black/20 p-4">• Liste kademeli yükleme</div>
