@@ -462,21 +462,36 @@ async function updateCurrentRecord() {
       render();
     }
 
-  async function updateRecordStatus(id, status) {
-  try {
-    const record = state.records.find(r => r.id === id);
-    if (!record) return;
+  async function updateRecordTechnician(id, technician) {
+  const record = state.records.find((r) => r.id === id);
+  if (!record) return;
 
+  try {
     await kayitGuncelle({
       ID: id,
-      ...record,
-      Durum: status
+      customerName: record.customerName || "",
+      phone: record.phone || "",
+      invoiceAddress: record.invoiceAddress || "",
+      brand: record.brand || "",
+      model: record.model || "",
+      type: record.type || "",
+      plaka: record.plaka || "",
+      sasiNo: record.sasiNo || "",
+      operations: Array.isArray(record.operations) ? record.operations : [{ name: "", fee: "" }],
+      status: record.status || STATUS_OPTIONS[0],
+      vehicleImage: record.vehicleImage || "",
+      noteText: record.noteText || "",
+      technician: technician || "",
+      vehicleDefects: record.vehicleDefects || "",
+      signature: record.signature || "",
+      kvkkOnay: !!record.kvkkOnay,
+      musteriOnay: !!record.musteriOnay
     });
 
-    record.status = status;
+    record.technician = technician;
     render();
   } catch (e) {
-    alert("Durum güncellenemedi");
+    alert("Usta bilgisi güncellenemedi");
     console.error(e);
   }
 }
