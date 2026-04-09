@@ -952,7 +952,7 @@ h3 {
       const selected = selectedRecord();
       const showModal = !!state.selectedId && !!selected;
       const grand = grandTotal(rows);
-    const todayGrand = todayTotal(rows);
+      const todayGrand = todayTotal(state.records);
       const todayRecordsCount = todayCount(rows);
       const totalCount = state.totalRemoteCount;
       const canShowMore = state.records.length < state.totalRemoteCount;
