@@ -655,6 +655,7 @@ async function updateCurrentRecord() {
     }
 
  async function updateRecordTechnician(id, technician) {
+   if (state.saving) return;
   const record = state.records.find((r) => r.id === id);
   if (!record) return;
 
@@ -1511,7 +1512,14 @@ h3 {
                           <div class="grid gap-3 md:grid-cols-2">
                               <div>
                               <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
-                              <input data-inline-tech="${record.id}" maxlength="40" value="${record.technician || ""}" placeholder="Usta Ad Soyad" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
+                              <input
+  data-inline-tech="${record.id}"
+  maxlength="40"
+  value="${record.technician || ""}"
+  placeholder="Usta Ad Soyad"
+  onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+  class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+/>
                             </div>
                           </div>
 
