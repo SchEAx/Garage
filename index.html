@@ -32,7 +32,10 @@
 
   const API_URL = "https://script.google.com/macros/s/AKfycbwaItn84REjMJIX3KI6mjg6aGwj90FOUbTwefTCbTCFFVrBlHqmU5MwyTcWebGZuG4O/exec";
   async function veriCek() {
-  const res = await fetch(API_URL + "?action=list");
+  const res = await fetch(API_URL + "?action=list&_t=" + Date.now(), {
+    cache: "no-store"
+  });
+
   const text = await res.text();
 
   let data = {};
@@ -50,15 +53,17 @@
 }
 async function kayitEkle(payload) {
   const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      action: "add",
-      ...payload
-    })
-  });
+  method: "POST",
+  cache: "no-store",
+  redirect: "follow",
+  headers: {
+    "Content-Type": "text/plain;charset=utf-8"
+  },
+  body: JSON.stringify({
+    action: "add",
+    ...payload
+  })
+});
 
   const text = await res.text();
   let data = {};
@@ -77,15 +82,17 @@ async function kayitEkle(payload) {
 }
 async function kayitGuncelle(payload) {
   const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      action: "update",
-      ...payload
-    })
-  });
+  method: "POST",
+  cache: "no-store",
+  redirect: "follow",
+  headers: {
+    "Content-Type": "text/plain;charset=utf-8"
+  },
+  body: JSON.stringify({
+    action: "add",
+    ...payload
+  })
+});
 
   const text = await res.text();
   let data = {};
@@ -113,7 +120,6 @@ async function listeyiYenile() {
     state.totalRemoteCount = state.records.length;
   } catch (e) {
     console.error("listeyiYenile hata:", e);
-    alert("Kayıtlar alınamadı: " + (e.message || "Bilinmeyen hata"));
   } finally {
     state.loading = false;
     render();
@@ -562,9 +568,11 @@ async function saveRecord() {
     state.visibleCount = PAGE_SIZE;
     await listeyiYenile();
   } catch (e) {
-    alert("Kayıt veritabanına eklenemedi: " + (e.message || "Bilinmeyen hata"));
-    console.error(e);
-  } finally {
+  console.error("saveRecord hata:", e);
+  setTimeout(() => {
+    listeyiYenile();
+  }, 1200);
+} finally {
     state.saving = false;
     render();
   }
@@ -676,9 +684,15 @@ async function updateCurrentRecord() {
     record.technician = technician;
     render();
   } catch (e) {
-    alert("Usta bilgisi güncellenemedi");
-    console.error(e);
-  }
+  console.error("Teknisyen güncelleme hata:", e);
+
+  record.technician = technician;
+  render();
+
+  setTimeout(() => {
+    listeyiYenile();
+  }, 1200);
+}
 }
 
 
@@ -712,9 +726,18 @@ async function updateRecordStatus(id, status) {
     record.status = status;
     render();
   } catch (e) {
-    alert("Durum güncellenemedi: " + (e.message || "Bilinmeyen hata"));
-    console.error(e);
+  console.error("Durum güncelleme hata:", e);
+
+  const local = state.records.find((r) => r.id === id);
+  if (local) {
+    local.status = status;
+    render();
   }
+
+  setTimeout(() => {
+    listeyiYenile();
+  }, 1200);
+}
 }
     function downloadFile(filename, content, type = "application/json") {
       const blob = new Blob([content], { type });
@@ -894,7 +917,7 @@ h3 {
   gap: 5px;
 }
 
-          .summary {
+      .summary {
   margin-top: 4px;
   display: flex;
   justify-content: space-between;
@@ -902,13 +925,38 @@ h3 {
   font-weight: 700;
 }
 
-          .muted {
-            color: #666;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="page">
+.muted {
+  color: #666;
+}
+
+.print-btn-wrap {
+  padding: 8px 5mm 0 5mm;
+}
+
+.print-btn {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #111;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+@media print {
+  .print-btn-wrap {
+    display: none;
+  }
+}
+</style>
+</head>
+<body>
+  <div class="print-btn-wrap">
+    <button class="print-btn" onclick="window.print()">Yazdır</button>
+  </div>
+
+  <div class="page">
           <div class="box">
             <h1>${state.company.name}</h1>
             <p>${state.company.phone} · ${state.company.email}</p>
