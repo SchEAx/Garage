@@ -654,8 +654,7 @@ async function updateCurrentRecord() {
       render();
     }
 
- async function updateRecordTechnician(id, technician) {
-   if (state.saving) return;
+async function updateRecordTechnician(id, technician) {
   const record = state.records.find((r) => r.id === id);
   if (!record) return;
 
@@ -685,15 +684,8 @@ async function updateCurrentRecord() {
     record.technician = technician;
     render();
   } catch (e) {
-  console.error("Teknisyen güncelleme hata:", e);
-
-  record.technician = technician;
-  render();
-
-  setTimeout(() => {
-    listeyiYenile();
-  }, 1200);
-}
+    console.error("Teknisyen güncelleme hata:", e);
+  }
 }
 
 
@@ -1842,17 +1834,28 @@ if (searchEl) {
         });
       });
 
-      document.querySelectorAll("[data-inline-tech]").forEach((el) => {
-        let timer = null;
-        const save = async () => {
-          await updateRecordTechnician(el.dataset.inlineTech, el.value.trim());
-        };
-        el.addEventListener("input", () => {
-          clearTimeout(timer);
-          timer = setTimeout(save, 700);
-        });
-        el.addEventListener("blur", save);
-      });
+     document.querySelectorAll("[data-inline-tech]").forEach((el) => {
+  let lastSavedValue = (el.value || "").trim();
+
+  const save = async () => {
+    const newValue = (el.value || "").trim();
+
+    if (newValue === lastSavedValue) return;
+    lastSavedValue = newValue;
+
+    await updateRecordTechnician(el.dataset.inlineTech, newValue);
+  };
+
+  el.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      await save();
+      el.blur();
+    }
+  });
+
+  el.addEventListener("blur", save);
+});
 
       document.getElementById("detailStatusSelect")?.addEventListener("change", async (e) => {
         const selectedCurrent = selectedRecord();
