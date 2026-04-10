@@ -656,7 +656,7 @@ async function updateCurrentRecord() {
 
 async function updateRecordTechnician(id, technician) {
   const record = state.records.find((r) => r.id === id);
-  if (!record) return;
+  if (!record) return false;
 
   try {
     await kayitGuncelle({
@@ -683,8 +683,10 @@ async function updateRecordTechnician(id, technician) {
 
     record.technician = technician;
     render();
+    return true;
   } catch (e) {
     console.error("Teknisyen güncelleme hata:", e);
+    return false;
   }
 }
 
@@ -1841,9 +1843,13 @@ if (searchEl) {
     const newValue = (el.value || "").trim();
 
     if (newValue === lastSavedValue) return;
-    lastSavedValue = newValue;
 
-    await updateRecordTechnician(el.dataset.inlineTech, newValue);
+    try {
+      await updateRecordTechnician(el.dataset.inlineTech, newValue);
+      lastSavedValue = newValue;
+    } catch (e) {
+      console.error("inline tech save hata:", e);
+    }
   };
 
   el.addEventListener("keydown", async (e) => {
@@ -1854,6 +1860,7 @@ if (searchEl) {
     }
   });
 
+  el.addEventListener("change", save);
   el.addEventListener("blur", save);
 });
 
