@@ -82,17 +82,17 @@ async function kayitEkle(payload) {
 }
 async function kayitGuncelle(payload) {
   const res = await fetch(API_URL, {
-  method: "POST",
-  cache: "no-store",
-  redirect: "follow",
-  headers: {
-    "Content-Type": "text/plain;charset=utf-8"
-  },
-  body: JSON.stringify({
-    action: "add",
-    ...payload
-  })
-});
+    method: "POST",
+    cache: "no-store",
+    redirect: "follow",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      action: "update",
+      ...payload
+    })
+  });
 
   const text = await res.text();
   let data = {};
