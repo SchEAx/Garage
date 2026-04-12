@@ -1564,13 +1564,21 @@ h3 {
                         <div class="flex w-full flex-col gap-3 xl:w-[430px]">
                           <div class="grid gap-3 md:grid-cols-2">
                              <div class="space-y-2">
-  <label class="text-sm text-zinc-300">Ustanın Adı Soyadı</label>
+  <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
+<div class="flex gap-2">
   <input
-    data-form="technician"
-    class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-    value="${state.form.technician || ""}"
+    data-inline-tech="${record.id}"
+    maxlength="40"
+    value="${record.technician || ""}"
     placeholder="Usta Ad Soyad"
+    class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
   />
+  <button
+    data-save-tech="${record.id}"
+    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
+  >
+    Ekle
+  </button>
 </div>
                           </div>
 
@@ -1983,6 +1991,37 @@ searchEl.addEventListener("keydown", (e) => {
 
   el.addEventListener("change", save);
   el.addEventListener("blur", save);
+});
+      document.querySelectorAll("[data-save-tech]").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const id = btn.dataset.saveTech;
+    const input = document.querySelector(`[data-inline-tech="${id}"]`);
+    if (!input) return;
+
+    const technician = input.value.trim();
+    if (!technician) {
+      alert("Lütfen usta adı gir.");
+      return;
+    }
+
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = "Kaydediliyor...";
+
+    const ok = await updateRecordTechnician(id, technician);
+
+    btn.disabled = false;
+    btn.textContent = ok ? "Kaydedildi" : oldText;
+
+    if (ok) {
+      setTimeout(() => {
+        btn.textContent = "Ekle";
+      }, 1200);
+    } else {
+      alert("Usta adı kaydedilemedi.");
+      btn.textContent = oldText;
+    }
+  });
 });
 
       document.getElementById("detailStatusSelect")?.addEventListener("change", async (e) => {
