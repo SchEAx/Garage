@@ -30,7 +30,7 @@
 
 <script>
 
-  const API_URL = "https://script.google.com/macros/s/AKfycbwaItn84REjMJIX3KI6mjg6aGwj90FOUbTwefTCbTCFFVrBlHqmU5MwyTcWebGZuG4O/exec";
+  const API_URL = "/api/kayit";
   async function veriCek() {
   const res = await fetch(API_URL + "?action=list&_t=" + Date.now(), {
     cache: "no-store"
