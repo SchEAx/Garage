@@ -195,9 +195,11 @@ async function listeyiYenile() {
     type: row.AracTip || "",
     plaka: row.Plaka || "",
     sasiNo: row.SasiNo || "",
-  operations: (() => {
+ operations: (() => {
   const raw = row.YapilacakIslem;
+  const toplamUcret = row.Ucret || "";
 
+  // Direkt array geldiyse
   if (Array.isArray(raw)) {
     return raw.map(op => ({
       name: op?.name || "",
@@ -205,15 +207,35 @@ async function listeyiYenile() {
     }));
   }
 
+  // String geldiyse önce JSON mu diye dene
   if (typeof raw === "string" && raw.trim()) {
-    return raw
+    try {
+      const parsed = JSON.parse(raw);
+
+      if (Array.isArray(parsed)) {
+        return parsed.map(op => ({
+          name: op?.name || "",
+          fee: op?.fee || ""
+        }));
+      }
+    } catch (e) {
+      // JSON değilse normal metin gibi devam
+    }
+
+    const names = raw
       .split(",")
       .map(x => x.trim())
-      .filter(Boolean)
-      .map(name => ({ name, fee: "" }));
+      .filter(Boolean);
+
+    if (names.length) {
+      return names.map((name, index) => ({
+        name,
+        fee: index === 0 ? toplamUcret : ""
+      }));
+    }
   }
 
-  return [{ name: "", fee: "" }];
+  return [{ name: "", fee: toplamUcret }];
 })(),
     status: row.Durum || "Beklemede",
     vehicleImage: row.Fotograf || row.vehicleImage || "",
@@ -755,37 +777,33 @@ async function updateRecordStatus(id, status) {
 
   try {
     state.statusUpdatingId = id;
-
-    // anında ekranda değişsin
     record.status = status;
     render();
 
-    await kayitGuncelle({
-      ID: record.id,
-      MusteriAdi: record.customerName || "",
-      Telefon: record.phone || "",
-      FaturaAdresi: record.invoiceAddress || "",
-      AracMarka: record.brand || "",
-      AracModel: record.model || "",
-      AracTip: record.type || "",
-      Plaka: record.plaka || "",
-      SasiNo: record.sasiNo || "",
-      YapilacakIslem: Array.isArray(record.operations) ? record.operations : [{ name: "", fee: "" }],
-      Ucret: calculateOperationsTotal(record.operations || []),
-      Notlar: record.noteText || "",
-      Durum: status,
-      Fotograf: record.vehicleImage || "",
-      Teknisyen: record.technician || "",
-      AracKusurlari: record.vehicleDefects || "",
-      Imza: record.signature || "",
-      KvkkOnay: !!record.kvkkOnay,
-      MusteriOnay: !!record.musteriOnay
-    });
+    await kayitGuncelle(buildPayloadFromForm({
+      customerName: record.customerName,
+      phone: record.phone,
+      invoiceAddress: record.invoiceAddress,
+      brand: record.brand,
+      model: record.model,
+      type: record.type,
+      plaka: record.plaka,
+      sasiNo: record.sasiNo,
+      operations: record.operations,
+      status,
+      vehicleImage: record.vehicleImage,
+      noteText: record.noteText,
+      technician: record.technician,
+      vehicleDefects: record.vehicleDefects,
+      signature: record.signature,
+      kvkkOnay: record.kvkkOnay,
+      musteriOnay: record.musteriOnay
+    }, {
+      ID: record.id
+    }));
 
   } catch (e) {
     console.error("Durum güncelleme hata:", e);
-
-    // hata olursa eski haline dön
     record.status = oldStatus;
     alert("Durum güncellenemedi.");
   } finally {
