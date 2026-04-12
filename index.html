@@ -182,6 +182,9 @@ async function listeyiYenile() {
     render();
   }
 }
+  async function refreshTodayRevenue() {
+  await listeyiYenile();
+}
   function mapSheetRecord(row) {
   return {
     id: String(row.ID || ""),
