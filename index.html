@@ -109,6 +109,63 @@ async function kayitGuncelle(payload) {
 
   return data;
 }
+  async function kayitSil(id) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    cache: "no-store",
+    redirect: "follow",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      action: "delete",
+      ID: id
+    })
+  });
+
+  const text = await res.text();
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("Silme cevabı bozuk: " + text);
+  }
+
+  if (!res.ok || data.success === false) {
+    throw new Error(data.message || `HTTP ${res.status}`);
+  }
+
+  return data;
+}
+
+async function deleteRecord(id) {
+  if (!id) return;
+
+  const ok = confirm("Bu kaydı silmek istediğine emin misin?");
+  if (!ok) return;
+
+  try {
+    await kayitSil(id);
+
+    state.records = state.records.filter(r => r.id !== id);
+
+    if (state.selectedId === id) {
+      state.selectedId = null;
+    }
+
+    if (state.editId === id) {
+      state.editId = null;
+      state.form = emptyForm();
+    }
+
+    render();
+    await listeyiYenile();
+  } catch (e) {
+    console.error("Silme hata:", e);
+    alert("Kayıt silinemedi: " + (e.message || "Bilinmeyen hata"));
+  }
+}
 
 async function listeyiYenile() {
   try {
@@ -139,17 +196,22 @@ async function listeyiYenile() {
     plaka: row.Plaka || "",
     sasiNo: row.SasiNo || "",
     operations: (() => {
+  operations: (() => {
   const raw = row.YapilacakIslem;
 
-  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw)) {
+    return raw.map(op => ({
+      name: op?.name || "",
+      fee: op?.fee || ""
+    }));
+  }
 
   if (typeof raw === "string" && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    } catch (e) {}
-
-    return [{ name: raw, fee: row.Ucret || "" }];
+    return raw
+      .split(",")
+      .map(x => x.trim())
+      .filter(Boolean)
+      .map(name => ({ name, fee: "" }));
   }
 
   return [{ name: "", fee: "" }];
@@ -279,6 +341,7 @@ async function listeyiYenile() {
     loading: false,
     saving: false,
     editId: null,
+    statusUpdatingId: null,
     visibleCount: PAGE_SIZE,
     selectedDate: new Date().toISOString().slice(0, 10),
     company: {
@@ -294,6 +357,40 @@ async function listeyiYenile() {
       return sum + Number(op.fee || 0);
     }, 0);
   }
+  function temizOperations(operations = []) {
+  return (operations || [])
+    .filter(op => op && String(op.name || "").trim() && String(op.fee || "").trim() !== "")
+    .map(op => ({
+      name: String(op.name || "").trim(),
+      fee: Number(op.fee || 0)
+    }));
+}
+
+function buildPayloadFromForm(form, override = {}) {
+  const ops = temizOperations(form.operations);
+
+  return {
+    MusteriAdi: form.customerName || "",
+    Telefon: form.phone || "",
+    FaturaAdresi: form.invoiceAddress || "",
+    AracMarka: form.brand || "",
+    AracModel: form.model || "",
+    AracTip: form.type || "",
+    Plaka: form.plaka || "",
+    SasiNo: form.sasiNo || "",
+    YapilacakIslem: ops.map(op => op.name).join(", "),
+    Ucret: calculateOperationsTotal(ops),
+    Notlar: form.noteText || "",
+    Durum: form.status || "Beklemede",
+    Fotograf: form.vehicleImage || "",
+    Teknisyen: form.technician || "",
+    AracKusurlari: form.vehicleDefects || "",
+    Imza: form.signature || "",
+    KvkkOnay: !!form.kvkkOnay,
+    MusteriOnay: !!form.musteriOnay,
+    ...override
+  };
+}
 
   function formToPayload(form, existingRecordNo = null) {
     const cleanedOperations = (form.operations || []).filter(
@@ -423,45 +520,48 @@ function handleVehicleImage(file) {
     if (!state.selectedId) return null;
     return state.records.find((r) => r.id === state.selectedId) || null;
   }
+function visibleRows() {
+  const q = String(state.search || "").trim().toLowerCase();
+  const activeStatuses = ["Beklemede", "Montaj Sürecinde"];
 
-  function visibleRows() {
-    const q = String(state.search || "").trim().toLowerCase();
-    const activeStatuses = ["Beklemede", "Montaj Sürecinde"];
+  let rows = [...(state.records || [])];
 
-    let rows = state.records || [];
-
-    if (!state.showArchive && !q) {
-      rows = rows.filter((r) => activeStatuses.includes(r.status));
-    }
-
-    if (!q) {
-      return rows;
-    }
-
-    const normalizedQ = normalizePlate(q);
-
-    return rows.filter((r) => {
-      const plateMatch = normalizePlate(r.plaka).includes(normalizedQ);
-
-      const textMatch = [
-        r.recordNo,
-        r.customerName,
-        r.phone,
-        r.brand,
-        r.model,
-        r.noteText,
-        r.technician,
-        r.vehicleDefects,
-        r.status,
-        (r.operations || []).map((op) => op.name).join(" ")
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(q);
-
-      return plateMatch || textMatch;
-    });
+  if (!state.showArchive && !q) {
+    rows = rows.filter((r) => activeStatuses.includes(r.status));
   }
+
+  if (state.statusFilter && state.statusFilter !== "Tümü") {
+    rows = rows.filter((r) => r.status === state.statusFilter);
+  }
+
+  if (!q) {
+    return rows.slice(0, state.visibleCount);
+  }
+
+  const normalizedQ = normalizePlate(q);
+
+  return rows.filter((r) => {
+    const plateMatch = normalizePlate(r.plaka).includes(normalizedQ);
+
+    const textMatch = [
+      r.recordNo,
+      r.customerName,
+      r.phone,
+      r.brand,
+      r.model,
+      r.noteText,
+      r.technician,
+      r.vehicleDefects,
+      r.status,
+      (r.operations || []).map((op) => op.name).join(" ")
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+
+    return plateMatch || textMatch;
+  }).slice(0, state.visibleCount);
+}
 
   function stats() {
     const selectedRows = (state.records || []).filter((r) => {
@@ -514,13 +614,10 @@ async function saveRecord() {
   if (state.saving) return;
 
   const form = state.form;
-
-  const validOperations = (form.operations || []).filter(
-    op => op.name && op.name.trim() && op.fee !== ""
-  );
+  const validOperations = temizOperations(form.operations);
 
   if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
-    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, En az 1 işlem ve ücret.");
+    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, en az 1 işlem ve ücret.");
     return;
   }
 
@@ -529,50 +626,28 @@ async function saveRecord() {
     return;
   }
 
-  const payloadForm = {
-    ...form,
-    operations: validOperations
-  };
-
   try {
     state.saving = true;
     render();
 
-    await kayitEkle({
-      MusteriAdi: payloadForm.customerName || "",
-      Telefon: payloadForm.phone || "",
-      FaturaAdresi: payloadForm.invoiceAddress || "",
-      AracMarka: payloadForm.brand || "",
-      AracModel: payloadForm.model || "",
-      AracTip: payloadForm.type || "",
-      Plaka: payloadForm.plaka || "",
-      SasiNo: payloadForm.sasiNo || "",
-      YapilacakIslem: Array.isArray(payloadForm.operations)
-        ? payloadForm.operations
-        : [{ name: "", fee: "" }],
-      Ucret: calculateOperationsTotal(payloadForm.operations || []),
-      Notlar: payloadForm.noteText || "",
-      Durum: payloadForm.status || "Beklemede",
-      Fotograf: payloadForm.vehicleImage || "",
-      Teknisyen: payloadForm.technician || "",
-      AracKusurlari: payloadForm.vehicleDefects || "",
-      Imza: payloadForm.signature || "",
-      KvkkOnay: !!payloadForm.kvkkOnay,
-      MusteriOnay: !!payloadForm.musteriOnay
+    const payload = buildPayloadFromForm({
+      ...form,
+      operations: validOperations
     });
+
+    await kayitEkle(payload);
 
     state.form = emptyForm();
     state.editId = null;
     state.activeTab = "liste";
     signatureHandlersBound = false;
     state.visibleCount = PAGE_SIZE;
+
     await listeyiYenile();
   } catch (e) {
-  console.error("saveRecord hata:", e);
-  setTimeout(() => {
-    listeyiYenile();
-  }, 1200);
-} finally {
+    console.error("saveRecord hata:", e);
+    alert("Kayıt eklenemedi: " + (e.message || "Bilinmeyen hata"));
+  } finally {
     state.saving = false;
     render();
   }
@@ -582,13 +657,10 @@ async function updateCurrentRecord() {
   if (!state.editId) return;
 
   const form = state.form;
-
-  const validOperations = (form.operations || []).filter(
-    op => op.name && op.name.trim() && op.fee !== ""
-  );
+  const validOperations = temizOperations(form.operations);
 
   if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
-    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, En az 1 işlem ve ücret.");
+    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, en az 1 işlem ve ücret.");
     return;
   }
 
@@ -598,49 +670,31 @@ async function updateCurrentRecord() {
   }
 
   const currentRecord = state.records.find((r) => r.id === state.editId);
-  if (!currentRecord) return;
-
-  const payloadForm = {
-    ...form,
-    operations: validOperations
-  };
+  if (!currentRecord) {
+    alert("Güncellenecek kayıt bulunamadı.");
+    return;
+  }
 
   try {
     state.saving = true;
     render();
 
-    await kayitGuncelle({
-      ID: currentRecord.id,
-      MusteriAdi: payloadForm.customerName || "",
-      Telefon: payloadForm.phone || "",
-      FaturaAdresi: payloadForm.invoiceAddress || "",
-      AracMarka: payloadForm.brand || "",
-      AracModel: payloadForm.model || "",
-      AracTip: payloadForm.type || "",
-      Plaka: payloadForm.plaka || "",
-      SasiNo: payloadForm.sasiNo || "",
-      YapilacakIslem: Array.isArray(payloadForm.operations)
-        ? payloadForm.operations
-        : [{ name: "", fee: "" }],
-      Ucret: calculateOperationsTotal(payloadForm.operations || []),
-      Notlar: payloadForm.noteText || "",
-      Durum: payloadForm.status || "Beklemede",
-      Fotograf: payloadForm.vehicleImage || "",
-      Teknisyen: payloadForm.technician || "",
-      AracKusurlari: payloadForm.vehicleDefects || "",
-      Imza: payloadForm.signature || "",
-      KvkkOnay: !!payloadForm.kvkkOnay,
-      MusteriOnay: !!payloadForm.musteriOnay
-    });
+    const payload = buildPayloadFromForm(
+      { ...form, operations: validOperations },
+      { ID: currentRecord.id }
+    );
+
+    await kayitGuncelle(payload);
 
     state.form = emptyForm();
     state.editId = null;
     state.activeTab = "liste";
     signatureHandlersBound = false;
+
     await listeyiYenile();
   } catch (e) {
+    console.error("updateCurrentRecord hata:", e);
     alert("Kayıt güncellenemedi: " + (e.message || "Bilinmeyen hata"));
-    console.error(e);
   } finally {
     state.saving = false;
     render();
@@ -659,27 +713,27 @@ async function updateRecordTechnician(id, technician) {
   if (!record) return false;
 
   try {
-    await kayitGuncelle({
-      ID: record.id,
-      MusteriAdi: record.customerName || "",
-      Telefon: record.phone || "",
-      FaturaAdresi: record.invoiceAddress || "",
-      AracMarka: record.brand || "",
-      AracModel: record.model || "",
-      AracTip: record.type || "",
-      Plaka: record.plaka || "",
-      SasiNo: record.sasiNo || "",
-      YapilacakIslem: Array.isArray(record.operations) ? record.operations : [{ name: "", fee: "" }],
-      Ucret: calculateOperationsTotal(record.operations || []),
-      Notlar: record.noteText || "",
-      Durum: record.status || "Beklemede",
-      Fotograf: record.vehicleImage || "",
-      Teknisyen: technician || "",
-      AracKusurlari: record.vehicleDefects || "",
-      Imza: record.signature || "",
-      KvkkOnay: !!record.kvkkOnay,
-      MusteriOnay: !!record.musteriOnay
-    });
+    await kayitGuncelle(buildPayloadFromForm({
+      customerName: record.customerName,
+      phone: record.phone,
+      invoiceAddress: record.invoiceAddress,
+      brand: record.brand,
+      model: record.model,
+      type: record.type,
+      plaka: record.plaka,
+      sasiNo: record.sasiNo,
+      operations: record.operations,
+      status: record.status,
+      vehicleImage: record.vehicleImage,
+      noteText: record.noteText,
+      technician,
+      vehicleDefects: record.vehicleDefects,
+      signature: record.signature,
+      kvkkOnay: record.kvkkOnay,
+      musteriOnay: record.musteriOnay
+    }, {
+      ID: record.id
+    }));
 
     record.technician = technician;
     render();
@@ -695,7 +749,15 @@ async function updateRecordStatus(id, status) {
   const record = state.records.find((r) => r.id === id);
   if (!record) return;
 
+  const oldStatus = record.status;
+
   try {
+    state.statusUpdatingId = id;
+
+    // anında ekranda değişsin
+    record.status = status;
+    render();
+
     await kayitGuncelle({
       ID: record.id,
       MusteriAdi: record.customerName || "",
@@ -718,21 +780,16 @@ async function updateRecordStatus(id, status) {
       MusteriOnay: !!record.musteriOnay
     });
 
-    record.status = status;
-    render();
   } catch (e) {
-  console.error("Durum güncelleme hata:", e);
+    console.error("Durum güncelleme hata:", e);
 
-  const local = state.records.find((r) => r.id === id);
-  if (local) {
-    local.status = status;
+    // hata olursa eski haline dön
+    record.status = oldStatus;
+    alert("Durum güncellenemedi.");
+  } finally {
+    state.statusUpdatingId = null;
     render();
   }
-
-  setTimeout(() => {
-    listeyiYenile();
-  }, 1200);
-}
 }
     function downloadFile(filename, content, type = "application/json") {
       const blob = new Blob([content], { type });
@@ -1470,35 +1527,7 @@ h3 {
   .join(", ")}
                           <div class="text-sm font-semibold text-emerald-300">Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}</div>
                           <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
-                          <div class="mt-3 flex flex-wrap gap-2">
-  <button
-    data-edit="${record.id}"
-    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
-  >
-    Forma Al
-  </button>
 
-  <button
-    onclick="updateRecordStatus('${record.id}', 'Montaj Sürecinde')"
-    class="rounded-2xl bg-amber-500/20 px-4 py-2 text-sm text-amber-300 hover:bg-amber-500/30"
-  >
-    İşlemde
-  </button>
-
-  <button
-    onclick="updateRecordStatus('${record.id}', 'Montaj Bitti')"
-    class="rounded-2xl bg-emerald-500/20 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-500/30"
-  >
-    Montaj Bitti
-  </button>
-
-  <button
-    data-print="${record.id}"
-    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
-  >
-    Yazdır
-  </button>
-</div>
                           <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
                         </div>
 
@@ -1517,14 +1546,69 @@ h3 {
                             </div>
                           </div>
 
-                          <div class="flex flex-wrap gap-2">
-                            <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Detay</button>
-                            <button data-edit="${record.id}" class="rounded-2xl bg-amber-400 px-4 py-2 text-sm font-medium text-black hover:bg-amber-300">Forma Al</button>
-                            <button data-print="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">⬇️ Fiş</button>
-                            
-                            <button data-delete="${record.id}" class="rounded-2xl bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500">🗑️ Sil</button>
-                            
-                          </div>
+                       <div class="flex flex-wrap gap-2">
+
+  <button
+    data-detail="${record.id}"
+    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
+  >
+    Detay
+  </button>
+
+  <button
+    data-edit="${record.id}"
+    class="rounded-2xl bg-yellow-500 px-4 py-2 text-sm text-black font-semibold hover:bg-yellow-400"
+  >
+    Forma Al
+  </button>
+
+  <button
+  onclick="updateRecordStatus('${record.id}', 'Montaj Sürecinde')"
+  ${state.statusUpdatingId === record.id ? "disabled" : ""}
+  class="rounded-2xl px-4 py-2 text-sm transition ${
+    record.status === "Montaj Sürecinde"
+      ? "bg-amber-500 text-black font-semibold"
+      : "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+  } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
+>
+  ${
+    state.statusUpdatingId === record.id && record.status === "Montaj Sürecinde"
+      ? "Kaydediliyor..."
+      : "İşlemde"
+  }
+</button>
+
+<button
+  onclick="updateRecordStatus('${record.id}', 'Montaj Bitti')"
+  ${state.statusUpdatingId === record.id ? "disabled" : ""}
+  class="rounded-2xl px-4 py-2 text-sm transition ${
+    record.status === "Montaj Bitti"
+      ? "bg-green-500 text-black font-semibold"
+      : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
+  } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
+>
+  ${
+    state.statusUpdatingId === record.id && record.status === "Montaj Bitti"
+      ? "Kaydediliyor..."
+      : "Montaj Bitti"
+  }
+</button>
+
+  <button
+    data-print="${record.id}"
+    class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600"
+  >
+    Fiş
+  </button>
+
+  <button
+    data-delete="${record.id}"
+    class="rounded-2xl bg-red-500/15 px-4 py-2 text-sm text-red-300 hover:bg-red-500/25"
+  >
+    Sil
+  </button>
+
+</div>
                         </div>
                       </div>
                     </div>
@@ -1768,48 +1852,48 @@ if (searchEl) {
     state.searchDraft = e.target.value;
 
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(async () => {
-      if (state.search !== state.searchDraft.trim()) {
-        state.search = state.searchDraft.trim();
-        state.visibleCount = PAGE_SIZE;
-        await listeyiYenile();
-      }
-    }, 600);
+    searchTimer = setTimeout(() => {
+  if (state.search !== state.searchDraft.trim()) {
+    state.search = state.searchDraft.trim();
+    state.visibleCount = PAGE_SIZE;
+    render();
+  }
+}, 250);
   });
 
-  searchEl.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      clearTimeout(searchTimer);
-      state.search = state.searchDraft.trim();
-      state.visibleCount = PAGE_SIZE;
-      await listeyiYenile();
-    }
-  });
-
-  searchEl.addEventListener("blur", async () => {
+searchEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
     clearTimeout(searchTimer);
-    if (state.search !== state.searchDraft.trim()) {
-      state.search = state.searchDraft.trim();
-      state.visibleCount = PAGE_SIZE;
-      await listeyiYenile();
-    }
-  });
+    state.search = state.searchDraft.trim();
+    state.visibleCount = PAGE_SIZE;
+    render();
+  }
+});
+
+  searchEl.addEventListener("blur", () => {
+  clearTimeout(searchTimer);
+  if (state.search !== state.searchDraft.trim()) {
+    state.search = state.searchDraft.trim();
+    state.visibleCount = PAGE_SIZE;
+    render();
+  }
+});
 }
 
-      document.getElementById("statusFilter")?.addEventListener("change", async (e) => {
-        state.statusFilter = e.target.value;
-        state.visibleCount = PAGE_SIZE;
-        await listeyiYenile();
-      });
+      document.getElementById("statusFilter")?.addEventListener("change", (e) => {
+  state.statusFilter = e.target.value;
+  state.visibleCount = PAGE_SIZE;
+  render();
+});
       document.getElementById("selectedDateInput")?.addEventListener("change", (e) => {
   state.selectedDate = e.target.value;
   render();
 });
 
-      document.getElementById("showMoreBtn")?.addEventListener("click", async () => {
-        state.visibleCount += PAGE_SIZE;
-        await listeyiYenile();
-      });
+      document.getElementById("showMoreBtn")?.addEventListener("click", () => {
+  state.visibleCount += PAGE_SIZE;
+  render();
+});
 
       document.querySelectorAll("[data-detail]").forEach((btn) => {
         btn.addEventListener("click", () => {
