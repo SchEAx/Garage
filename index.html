@@ -52,46 +52,16 @@
   return data.records || [];
 }
 async function kayitEkle(payload) {
-  const res = await fetch(API_URL, {
-  method: "POST",
-  cache: "no-store",
-  redirect: "follow",
-  headers: {
-    "Content-Type": "text/plain;charset=utf-8"
-  },
-  body: JSON.stringify({
+  const qs = new URLSearchParams({
     action: "add",
-    ...payload
-  })
-});
+    ...Object.fromEntries(
+      Object.entries(payload).map(([k, v]) => [k, String(v ?? "")])
+    )
+  });
 
-  const text = await res.text();
-  let data = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error("Sunucudan geçersiz cevap geldi: " + text);
-  }
-
-  if (!res.ok || data.success === false) {
-    throw new Error(data.message || `HTTP ${res.status}`);
-  }
-
-  return data;
-}
-async function kayitGuncelle(payload) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    cache: "no-store",
-    redirect: "follow",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      action: "update",
-      ...payload
-    })
+  const res = await fetch(API_URL + "?" + qs.toString(), {
+    method: "GET",
+    cache: "no-store"
   });
 
   const text = await res.text();
@@ -109,18 +79,43 @@ async function kayitGuncelle(payload) {
 
   return data;
 }
-  async function kayitSil(id) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    cache: "no-store",
-    redirect: "follow",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      action: "delete",
-      ID: id
-    })
+async function kayitGuncelle(payload) {
+  const qs = new URLSearchParams({
+    action: "update",
+    ...Object.fromEntries(
+      Object.entries(payload).map(([k, v]) => [k, String(v ?? "")])
+    )
+  });
+
+  const res = await fetch(API_URL + "?" + qs.toString(), {
+    method: "GET",
+    cache: "no-store"
+  });
+
+  const text = await res.text();
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("Sunucudan geçersiz cevap geldi: " + text);
+  }
+
+  if (!res.ok || data.success === false) {
+    throw new Error(data.message || `HTTP ${res.status}`);
+  }
+
+  return data;
+}
+async function kayitSil(id) {
+  const qs = new URLSearchParams({
+    action: "delete",
+    ID: String(id || "")
+  });
+
+  const res = await fetch(API_URL + "?" + qs.toString(), {
+    method: "GET",
+    cache: "no-store"
   });
 
   const text = await res.text();
