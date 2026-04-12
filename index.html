@@ -1563,89 +1563,72 @@ h3 {
 
                         <div class="flex w-full flex-col gap-3 xl:w-[430px]">
                           <div class="grid gap-3 md:grid-cols-2">
-                             <div class="space-y-2">
-  <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
-<div class="flex gap-2">
-  <input
-    data-inline-tech="${record.id}"
-    maxlength="40"
-    value="${record.technician || ""}"
-    placeholder="Usta Ad Soyad"
-    class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-  />
-  <button
-    data-save-tech="${record.id}"
-    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
-  >
-    Ekle
-  </button>
+<div class="flex flex-col gap-2">
+
+  <!-- ÜST: USTA + EKLE -->
+  <div class="flex gap-2">
+    <input
+      data-inline-tech="${record.id}"
+      maxlength="40"
+      value="${record.technician || ""}"
+      placeholder="Usta Ad Soyad"
+      class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+    />
+    <button
+      data-save-tech="${record.id}"
+      class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700 whitespace-nowrap"
+    >
+      Ekle
+    </button>
+  </div>
+
+  <!-- ALT: TÜM BUTONLAR -->
+  <div class="flex flex-wrap gap-2">
+
+    <button
+      data-detail="${record.id}"
+      class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
+    >
+      Detay
+    </button>
+
+    <button
+      data-edit="${record.id}"
+      class="rounded-2xl bg-yellow-500 px-4 py-2 text-sm text-black font-semibold hover:bg-yellow-400"
+    >
+      Forma Al
+    </button>
+
+    <button
+      onclick="updateRecordStatus('${record.id}', 'Montaj Sürecinde')"
+      class="rounded-2xl bg-amber-500/20 px-4 py-2 text-sm text-amber-300 hover:bg-amber-500/30"
+    >
+      İşlemde
+    </button>
+
+    <button
+      onclick="updateRecordStatus('${record.id}', 'Montaj Bitti')"
+      class="rounded-2xl bg-green-500/20 px-4 py-2 text-sm text-green-300 hover:bg-green-500/30"
+    >
+      Montaj Bitti
+    </button>
+
+    <button
+      data-print="${record.id}"
+      class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600"
+    >
+      Fiş
+    </button>
+
+    <button
+      data-delete="${record.id}"
+      class="rounded-2xl bg-red-500/15 px-4 py-2 text-sm text-red-300 hover:bg-red-500/25"
+    >
+      Sil
+    </button>
+
+  </div>
 </div>
-                          </div>
-
-                       <div class="flex flex-wrap gap-2">
-
-  <button
-    data-detail="${record.id}"
-    class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
-  >
-    Detay
-  </button>
-
-  <button
-    data-edit="${record.id}"
-    class="rounded-2xl bg-yellow-500 px-4 py-2 text-sm text-black font-semibold hover:bg-yellow-400"
-  >
-    Forma Al
-  </button>
-
-  <button
-  onclick="updateRecordStatus('${record.id}', 'Montaj Sürecinde')"
-  ${state.statusUpdatingId === record.id ? "disabled" : ""}
-  class="rounded-2xl px-4 py-2 text-sm transition ${
-    record.status === "Montaj Sürecinde"
-      ? "bg-amber-500 text-black font-semibold"
-      : "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
-  } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
->
-  ${
-    state.statusUpdatingId === record.id && record.status === "Montaj Sürecinde"
-      ? "Kaydediliyor..."
-      : "İşlemde"
-  }
-</button>
-
-<button
-  onclick="updateRecordStatus('${record.id}', 'Montaj Bitti')"
-  ${state.statusUpdatingId === record.id ? "disabled" : ""}
-  class="rounded-2xl px-4 py-2 text-sm transition ${
-    record.status === "Montaj Bitti"
-      ? "bg-green-500 text-black font-semibold"
-      : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
-  } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
->
-  ${
-    state.statusUpdatingId === record.id && record.status === "Montaj Bitti"
-      ? "Kaydediliyor..."
-      : "Montaj Bitti"
-  }
-</button>
-
-  <button
-    data-print="${record.id}"
-    class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600"
-  >
-    Fiş
-  </button>
-
-  <button
-    data-delete="${record.id}"
-    class="rounded-2xl bg-red-500/15 px-4 py-2 text-sm text-red-300 hover:bg-red-500/25"
-  >
-    Sil
-  </button>
-
-</div>
-                        </div>
                       </div>
                     </div>
                   `).join("")}
