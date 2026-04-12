@@ -659,6 +659,8 @@ async function saveRecord() {
       operations: validOperations
     });
 
+      console.log("GIDEN PAYLOAD:", payload);
+    
     await kayitEkle(payload);
 
     state.form = emptyForm();
