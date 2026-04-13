@@ -387,7 +387,6 @@ async function listeyiYenile() {
       fee: Number(op.fee || 0)
     }));
 }
-
 function buildPayloadFromForm(form, override = {}) {
   const ops = temizOperations(form.operations);
 
@@ -400,7 +399,7 @@ function buildPayloadFromForm(form, override = {}) {
     AracTip: form.type || "",
     Plaka: form.plaka || "",
     SasiNo: form.sasiNo || "",
-    YapilacakIslem: ops.map(op => op.name).join(", "),
+    YapilacakIslem: JSON.stringify(ops), // ESKİSİ: ops.map(op => op.name).join(", ")
     Ucret: calculateOperationsTotal(ops),
     Notlar: form.noteText || "",
     Durum: form.status || "Beklemede",
