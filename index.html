@@ -35,6 +35,18 @@
   const res = await fetch(API_URL + "?action=list&_t=" + Date.now(), {
     cache: "no-store"
   });
+    let requestQueue = Promise.resolve();
+
+function enqueueRequest(task) {
+  requestQueue = requestQueue
+    .then(() => task())
+    .catch((err) => {
+      console.error("Queue hata:", err);
+      throw err;
+    });
+
+  return requestQueue;
+}
 
   const text = await res.text();
 
@@ -52,90 +64,96 @@
   return data.records || [];
 }
 async function kayitEkle(payload) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      action: "add",
-      ...payload
-    })
+  return enqueueRequest(async () => {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        action: "add",
+        ...payload
+      })
+    });
+
+    const text = await res.text();
+    let data = {};
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error("Sunucudan geçersiz cevap geldi: " + text);
+    }
+
+    if (!res.ok || data.success === false) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
+    return data;
   });
-
-  const text = await res.text();
-  let data = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error("Sunucudan geçersiz cevap geldi: " + text);
-  }
-
-  if (!res.ok || data.success === false) {
-    throw new Error(data.message || `HTTP ${res.status}`);
-  }
-
-  return data;
 }
 
 async function kayitGuncelle(payload) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      action: "update",
-      ...payload
-    })
+  return enqueueRequest(async () => {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        action: "update",
+        ...payload
+      })
+    });
+
+    const text = await res.text();
+    let data = {};
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error("Sunucudan geçersiz cevap geldi: " + text);
+    }
+
+    if (!res.ok || data.success === false) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
+    return data;
   });
-
-  const text = await res.text();
-  let data = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error("Sunucudan geçersiz cevap geldi: " + text);
-  }
-
-  if (!res.ok || data.success === false) {
-    throw new Error(data.message || `HTTP ${res.status}`);
-  }
-
-  return data;
 }
 
 async function kayitSil(id) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      action: "delete",
-      ID: String(id || "")
-    })
+  return enqueueRequest(async () => {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        action: "delete",
+        ID: String(id || "")
+      })
+    });
+
+    const text = await res.text();
+    let data = {};
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error("Silme cevabı bozuk: " + text);
+    }
+
+    if (!res.ok || data.success === false) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
+    return data;
   });
-
-  const text = await res.text();
-  let data = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error("Silme cevabı bozuk: " + text);
-  }
-
-  if (!res.ok || data.success === false) {
-    throw new Error(data.message || `HTTP ${res.status}`);
-  }
-
-  return data;
 }
 async function deleteRecord(id) {
   if (!id) return;
@@ -190,25 +208,22 @@ async function listeyiYenile() {
     createdAt: row.TarihSaat || "",
     customerName: row.MusteriAdi || "",
     phone: row.Telefon || "",
-    invoiceAddress: row.FaturaAdresi || row.invoiceAddress || "",
     brand: row.AracMarka || "",
     model: row.AracModel || "",
     type: row.AracTip || "",
     plaka: row.Plaka || "",
     sasiNo: row.SasiNo || "",
- operations: (() => {
+operations: (() => {
   const raw = row.YapilacakIslem;
-  const toplamUcret = row.Ucret || "";
+  const toplamUcret = Number(row.Ucret || 0);
 
-  // Direkt array geldiyse
   if (Array.isArray(raw)) {
     return raw.map(op => ({
       name: op?.name || "",
-      fee: op?.fee || ""
+      fee: Number(op?.fee || 0)
     }));
   }
 
-  // String geldiyse önce JSON mu diye dene
   if (typeof raw === "string" && raw.trim()) {
     try {
       const parsed = JSON.parse(raw);
@@ -216,11 +231,11 @@ async function listeyiYenile() {
       if (Array.isArray(parsed)) {
         return parsed.map(op => ({
           name: op?.name || "",
-          fee: op?.fee || ""
+          fee: Number(op?.fee || 0)
         }));
       }
     } catch (e) {
-      // JSON değilse normal metin gibi devam
+      // eski bozuk kayıtlar için aşağıdaki fallback çalışacak
     }
 
     const names = raw
@@ -228,15 +243,22 @@ async function listeyiYenile() {
       .map(x => x.trim())
       .filter(Boolean);
 
-    if (names.length) {
-      return names.map((name, index) => ({
+    if (names.length === 1) {
+      return [{
+        name: names[0],
+        fee: toplamUcret
+      }];
+    }
+
+    if (names.length > 1) {
+      return names.map(name => ({
         name,
-        fee: index === 0 ? toplamUcret : ""
+        fee: ""
       }));
     }
   }
 
-  return [{ name: "", fee: toplamUcret }];
+  return [{ name: "", fee: toplamUcret || "" }];
 })(),
     status: row.Durum || "Beklemede",
     vehicleImage: row.Fotograf || row.vehicleImage || "",
@@ -331,7 +353,6 @@ async function listeyiYenile() {
     return {
       customerName: "",
       phone: "",
-      invoiceAddress: "",
       brand: "",
       model: "",
       type: "",
@@ -393,7 +414,6 @@ function buildPayloadFromForm(form, override = {}) {
   return {
     MusteriAdi: form.customerName || "",
     Telefon: form.phone || "",
-    FaturaAdresi: form.invoiceAddress || "",
     AracMarka: form.brand || "",
     AracModel: form.model || "",
     AracTip: form.type || "",
@@ -610,7 +630,6 @@ function visibleRows() {
       phone: record.phone || "",
       plaka: record.plaka || "",
       sasiNo: record.sasiNo || "",
-      invoiceAddress: record.invoiceAddress || "",
       brand: record.brand || "",
       model: record.model || "",
       type: record.type || "",
@@ -661,15 +680,17 @@ async function saveRecord() {
 
       console.log("GIDEN PAYLOAD:", payload);
     
-    await kayitEkle(payload);
+    const result = await kayitEkle(payload);
 
-    state.form = emptyForm();
-    state.editId = null;
-    state.activeTab = "liste";
-    signatureHandlersBound = false;
-    state.visibleCount = PAGE_SIZE;
+state.form = emptyForm();
+state.editId = null;
+state.activeTab = "liste";
+signatureHandlersBound = false;
+state.visibleCount = PAGE_SIZE;
 
-    await listeyiYenile();
+setTimeout(() => {
+  listeyiYenile();
+}, 300);
   } catch (e) {
     console.error("saveRecord hata:", e);
     alert("Kayıt eklenemedi: " + (e.message || "Bilinmeyen hata"));
@@ -719,14 +740,17 @@ async function updateCurrentRecord() {
       delete payload.Imza;
     }
 
-    await kayitGuncelle(payload);
+    const result = await kayitGuncelle(payload);
 
-    state.form = emptyForm();
-    state.editId = null;
-    state.activeTab = "liste";
-    signatureHandlersBound = false;
+state.form = emptyForm();
+state.editId = null;
+state.activeTab = "liste";
+signatureHandlersBound = false;
+state.visibleCount = PAGE_SIZE;
 
-    await listeyiYenile();
+setTimeout(() => {
+  listeyiYenile();
+}, 300);
   } catch (e) {
     console.error("updateCurrentRecord hata:", e);
     alert("Kayıt güncellenemedi: " + (e.message || "Bilinmeyen hata"));
@@ -846,7 +870,7 @@ async function updateRecordStatus(id, status) {
 
     function toCsv(rows) {
       const headers = [
-        "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Fatura Adresi", "Araç Marka", "Araç Modeli",
+        "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Araç Marka", "Araç Modeli",
         "Yapılacak İşlemler", "İşlem Ücretleri", "Toplam Tutar", "Araçta Görülen Kusurlar", "Usta", "Durum", "Ek Notlar"
       ];
 
@@ -865,7 +889,6 @@ async function updateRecordStatus(id, status) {
           formatDateTime(r.createdAt),
           r.customerName,
           r.phone,
-          r.invoiceAddress || "",
           r.brand,
           r.model,
           (r.operations || []).map((op) => op.name).join(", "),
@@ -1109,10 +1132,7 @@ async function updateRecordStatus(id, status) {
 
               <div class="label">Telefon</div>
               <div class="value">${record.phone || "-"}</div>
-
-              <div class="label">Fatura Adresi</div>
-              <div class="value">${record.invoiceAddress || "-"}</div>
-            </div>
+          </div>
 
             <div class="box">
               <h3>Araç Bilgileri</h3>
