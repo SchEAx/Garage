@@ -30,12 +30,9 @@
 
 <script>
 
-  const API_URL = "/api/kayit";
-  async function veriCek() {
-  const res = await fetch(API_URL + "?action=list&_t=" + Date.now(), {
-    cache: "no-store"
-  });
-    let requestQueue = Promise.resolve();
+ const API_URL = "/api/kayit";
+
+let requestQueue = Promise.resolve();
 
 function enqueueRequest(task) {
   requestQueue = requestQueue
@@ -47,6 +44,11 @@ function enqueueRequest(task) {
 
   return requestQueue;
 }
+
+async function veriCek() {
+  const res = await fetch(API_URL + "?action=list&_t=" + Date.now(), {
+    cache: "no-store"
+  });
 
   const text = await res.text();
 
