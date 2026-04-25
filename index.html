@@ -813,37 +813,18 @@ async function updateRecordTechnician(id, technician) {
   if (!record) return false;
 
   try {
-    const payload = buildPayloadFromForm({
-      customerName: record.customerName,
-      phone: record.phone,
-      invoiceAddress: record.invoiceAddress,
-      brand: record.brand,
-      model: record.model,
-      type: record.type,
-      plaka: record.plaka,
-      sasiNo: record.sasiNo,
-      operations: record.operations,
-      status: record.status,
-      noteText: record.noteText,
-      technician,
-      vehicleDefects: record.vehicleDefects,
-      kvkkOnay: record.kvkkOnay,
-      musteriOnay: record.musteriOnay
-    }, {
-      ID: record.id
+    await kayitGuncelle({
+      ID: record.id,
+      Teknisyen: technician,
+      onlyTechnician: true
     });
-
-    delete payload.Fotograf;
-    delete payload.Imza;
-    delete payload.UstaImza;
-
-    await kayitGuncelle(payload);
 
     record.technician = technician;
     render();
     return true;
   } catch (e) {
     console.error("Teknisyen güncelleme hata:", e);
+    alert("Usta adı kaydedilemedi: " + (e.message || "Bilinmeyen hata"));
     return false;
   }
 }
