@@ -418,6 +418,21 @@ operations: (() => {
       fee: Number(op.fee || 0)
     }));
 }
+  function syncOperationsFromDom() {
+  const names = [...document.querySelectorAll("[data-op-name]")];
+  const fees = [...document.querySelectorAll("[data-op-fee]")];
+
+  if (!names.length) return;
+
+  state.form.operations = names.map((nameEl, index) => {
+    const feeEl = fees[index];
+
+    return {
+      name: String(nameEl.value || "").trim(),
+      fee: String(feeEl?.value || "").trim()
+    };
+  });
+}
 function buildPayloadFromForm(form, override = {}) {
   const ops = temizOperations(form.operations);
 
@@ -670,8 +685,12 @@ function visibleRows() {
 async function saveRecord() {
   if (state.saving) return;
 
-  const form = state.form;
-  const validOperations = temizOperations(form.operations);
+ syncOperationsFromDom();
+
+const form = state.form;
+const validOperations = temizOperations(form.operations);
+
+console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
 
   if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
     alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, en az 1 işlem ve ücret.");
@@ -717,8 +736,12 @@ async function updateCurrentRecord() {
   if (state.saving) return;
   if (!state.editId) return;
 
-  const form = state.form;
-  const validOperations = temizOperations(form.operations);
+  syncOperationsFromDom();
+
+const form = state.form;
+const validOperations = temizOperations(form.operations);
+
+console.log("GÜNCELLEME ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
 
   if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
     alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, en az 1 işlem ve ücret.");
