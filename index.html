@@ -265,6 +265,17 @@ async function deleteRecord(id) {
       state.editId = null;
       state.form = emptyForm();
     }
+    const record = state.records.find(r => r.id === id);
+
+// ilk foto
+await deleteFromSupabase(record.vehicleImage, "vehicle-photos");
+
+// son foto
+await deleteFromSupabase(record.sonKontrolFoto, "vehicle-photos");
+
+// imzalar
+await deleteFromSupabase(record.signature, "signatures");
+await deleteFromSupabase(record.technicianSignature, "signatures");
 
     render();
     await listeyiYenile();
@@ -273,7 +284,18 @@ async function deleteRecord(id) {
     alert("Kayıt silinemedi: " + (e.message || "Bilinmeyen hata"));
   }
 }
+async function deleteFromSupabase(url, bucket) {
+  try {
+    if (!url || !url.includes("/storage/v1/object/public/")) return;
 
+    const path = url.split(`/storage/v1/object/public/${bucket}/`)[1];
+    if (!path) return;
+
+    await supabaseClient.storage.from(bucket).remove([path]);
+  } catch (e) {
+    console.warn("Supabase silme hatası:", e);
+  }
+}
 async function listeyiYenile() {
   try {
     state.loading = true;
