@@ -2030,8 +2030,14 @@ Kontrol Et
                         <div><b class="text-white">Usta İmzası:</b> ${kontrolRecord.technicianSignature ? "Var" : "Yok"}</div>
                       </div>
 
-                      <button onclick="saveKontrol()" class="w-full rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black hover:bg-emerald-400">Kontrolü Kaydet ve Montaj Bitti Yap</button>
-                    </div>
+                      <button
+  id="kontrolSaveBtn"
+  onclick="saveKontrol()"
+  class="w-full rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+>
+  Kontrolü Kaydet ve Montaj Bitti Yap
+</button>
+</div>
                   </div>
                 `}
               </div>
@@ -2349,9 +2355,40 @@ function handleKontrolFoto(file) {
   };
   reader.readAsDataURL(file);
 }
+  function showToast(message, type = "success") {
+  const old = document.getElementById("appToast");
+  if (old) old.remove();
+
+  const div = document.createElement("div");
+  div.id = "appToast";
+  div.textContent = message;
+  div.style.cssText = `
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 99999;
+    padding: 12px 16px;
+    border-radius: 16px;
+    color: ${type === "error" ? "#fecaca" : "#bbf7d0"};
+    background: ${type === "error" ? "rgba(127,29,29,.95)" : "rgba(20,83,45,.95)"};
+    border: 1px solid ${type === "error" ? "rgba(248,113,113,.35)" : "rgba(74,222,128,.35)"};
+    box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    font-size: 14px;
+    font-weight: 700;
+  `;
+
+  document.body.appendChild(div);
+
+  setTimeout(() => {
+    div.remove();
+  }, 2500);
+}
 
 async function saveKontrol() {
   if (!kontrolRecord) return;
+
+  const btn = document.getElementById("kontrolSaveBtn");
+  const oldText = btn ? btn.textContent : "";
 
   document.querySelectorAll("[data-kontrol-note]").forEach((el) => {
     kontrolState.notes[el.getAttribute("data-kontrol-note")] = el.value || "";
@@ -2370,22 +2407,36 @@ async function saveKontrol() {
   }
 
   try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Kaydediliyor...";
+    }
+
     await kayitGuncelle({
       ID: kontrolRecord.id,
       MontajKontrolJSON: checklist,
       SonKontrolFotograf: kontrolState.foto,
-      MontajKontrolTarih: new Date().toISOString(),
+      MontajKontrolTarih: new Date().toLocaleString("tr-TR", {
+        timeZone: "Europe/Istanbul"
+      }),
       Durum: "Montaj Bitti"
     });
 
     kontrolRecord = null;
     kontrolState = { answers: {}, notes: {}, foto: "" };
     state.activeTab = "liste";
+
     await listeyiYenile();
-    alert("Montaj kontrol kaydedildi ✅");
+
+    showToast("Montaj kontrol kaydedildi ✅");
   } catch(e) {
     console.error("Kontrol kaydedilemedi:", e);
-    alert("Kontrol kaydedilemedi: " + (e.message || "Bilinmeyen hata"));
+    showToast("Kontrol kaydedilemedi: " + (e.message || "Bilinmeyen hata"), "error");
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = oldText || "Kontrolü Kaydet ve Montaj Bitti Yap";
+    }
   }
 }
     function setupSignatureCanvas(config) {
