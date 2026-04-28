@@ -102,30 +102,68 @@ async function veriCek(dateValue = state.selectedDate) {
 
   return data.records || [];
 }
-  async function uploadDataUrlToSupabase(dataUrl, bucket, folder = "general") {
-  if (!dataUrl) return "";
+function isDataUrl(value) {
+  return typeof value === "string" && value.startsWith("data:");
+}
 
-  if (String(dataUrl).startsWith("http")) {
-    return dataUrl;
+function hasBase64Image(value) {
+  return typeof value === "string" && value.startsWith("data:image/");
+}
+
+function assertNoBase64InPayload(payload) {
+  const fields = ["Fotograf", "Imza", "UstaImza", "SonKontrolFotograf"];
+  const badField = fields.find((field) => hasBase64Image(payload[field]));
+
+  if (badField) {
+    console.error("BASE64 YAKALANDI, SHEETS'E GÖNDERİLMEDİ:", badField, payload[badField].slice(0, 80));
+    throw new Error(`${badField} alanı hâlâ base64. Supabase yükleme başarısız olduğu için Sheets'e gönderim durduruldu.`);
+  }
+}
+
+async function uploadDataUrlToSupabase(value, bucket, folder = "general") {
+  if (!value) return "";
+
+  const text = String(value);
+
+  // Zaten Supabase/public URL ise tekrar yükleme yapma.
+  if (text.startsWith("http://") || text.startsWith("https://")) {
+    return text;
   }
 
-  const res = await fetch(dataUrl);
+  // Görsel değilse aynen dön.
+  if (!isDataUrl(text)) {
+    return text;
+  }
+
+  if (!supabaseClient || !supabaseClient.storage) {
+    throw new Error("Supabase bağlantısı hazır değil. Görsel Sheets'e base64 olarak gönderilmedi.");
+  }
+
+  const res = await fetch(text);
   const blob = await res.blob();
 
-  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const mime = blob.type || "image/jpeg";
+  const ext = mime.includes("png") ? "png" : "jpg";
+  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
   const { error } = await supabaseClient.storage
     .from(bucket)
     .upload(fileName, blob, {
-      contentType: blob.type || "image/jpeg",
-      upsert: true
+      contentType: mime,
+      upsert: false
     });
 
-  if (error) throw new Error("Supabase yükleme hatası: " + error.message);
+  if (error) {
+    throw new Error("Supabase yükleme hatası: " + error.message);
+  }
 
   const { data } = supabaseClient.storage
     .from(bucket)
     .getPublicUrl(fileName);
+
+  if (!data || !data.publicUrl) {
+    throw new Error("Supabase public URL alınamadı. Görsel Sheets'e base64 olarak gönderilmedi.");
+  }
 
   return data.publicUrl;
 }
@@ -836,16 +874,22 @@ console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
   try {
     state.saving = true;
     render();
-form.vehicleImage = await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first");
-form.signature = await uploadDataUrlToSupabase(form.signature, "signatures", "customer");
-form.technicianSignature = await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician");
-    const payload = buildPayloadFromForm({
+const uploadedForm = {
       ...form,
+      vehicleImage: await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
+      signature: await uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
+      technicianSignature: await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
+    };
+
+    const payload = buildPayloadFromForm({
+      ...uploadedForm,
       operations: validOperations
     });
 
-      console.log("GIDEN PAYLOAD:", payload);
-    
+    assertNoBase64InPayload(payload);
+
+    console.log("GIDEN PAYLOAD:", payload);
+
     const result = await kayitEkle(payload);
 
 state.form = emptyForm();
@@ -895,11 +939,15 @@ console.log("GÜNCELLEME ÖNCESİ OPERATIONS:", JSON.stringify(validOperations))
   try {
     state.saving = true;
     render();
-form.vehicleImage = await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first");
-form.signature = await uploadDataUrlToSupabase(form.signature, "signatures", "customer");
-form.technicianSignature = await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician");
+const uploadedForm = {
+      ...form,
+      vehicleImage: await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
+      signature: await uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
+      technicianSignature: await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
+    };
+
     const payload = buildPayloadFromForm(
-      { ...form, operations: validOperations },
+      { ...uploadedForm, operations: validOperations },
       { ID: currentRecord.id }
     );
 
@@ -915,6 +963,8 @@ form.technicianSignature = await uploadDataUrlToSupabase(form.technicianSignatur
     if (form.technicianSignature === currentRecord.technicianSignature) {
       delete payload.UstaImza;
     }
+
+    assertNoBase64InPayload(payload);
 
     const result = await kayitGuncelle(payload);
 
@@ -2502,7 +2552,7 @@ async function saveKontrol() {
       btn.textContent = "Kaydediliyor...";
     }
 
-    await kayitGuncelle({
+    const kontrolPayload = {
       ID: kontrolRecord.id,
       MontajKontrolJSON: checklist,
       SonKontrolFotograf: await uploadDataUrlToSupabase(kontrolState.foto, "vehicle-photos", "final"),
@@ -2510,7 +2560,10 @@ async function saveKontrol() {
         timeZone: "Europe/Istanbul"
       }),
       Durum: "Montaj Bitti"
-    });
+    };
+
+    assertNoBase64InPayload(kontrolPayload);
+    await kayitGuncelle(kontrolPayload);
 
     kontrolRecord = null;
     kontrolState = { answers: {}, notes: {}, foto: "" };
