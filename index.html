@@ -32,6 +32,32 @@
 
  const API_URL = "/api/kayit";
 
+const MONTAJ_KONTROL_ITEMS = [
+  "İş emri ile araç plakası uyumlu mu?",
+  "Müşteri şikayetleri ve özel istekler not edilmiş mi?",
+  "Araç içi/dışı mevcut hasar kayıtları kontrol edildi mi?",
+  "Montajı yapılan aksesuarların yerleşimi simetrik ve nizami mi?",
+  "Sabitleme elemanları sağlam mı?",
+  "Gövde ile aksesuar arasında boşluk veya kasılma var mı?",
+  "Hareketli parçaların çalışmasına engel bir durum var mı?",
+  "Kablo tesisatı uygun ve izole edilmiş mi?",
+  "Elektrikli aksesuarların fonksiyonları tam mı?",
+  "Sigorta değerleri ve bağlantı noktaları kontrol edildi mi?",
+  "Gösterge panelinde arıza lambası yanıyor mu?",
+  "Montaj sonrası temizlik yapıldı mı?",
+  "Araç yüzeyinde yeni çizik veya deformasyon var mı?",
+  "Koruyucu kılıflar çıkarıldı mı?",
+  "Garanti belgeleri ve kullanım kılavuzları hazırlandı mı?",
+  "Değişen veya çıkan eski parçalar müşteriye hazırlanmış mı?"
+];
+
+let kontrolRecord = null;
+let kontrolState = {
+  answers: {},
+  notes: {},
+  foto: ""
+};
+
 let requestQueue = Promise.resolve();
 
 function enqueueRequest(task) {
@@ -72,18 +98,29 @@ async function veriCek(dateValue = state.selectedDate) {
   return data.records || [];
 }
   function openKontrol(id) {
-  const record = state.records.find(r => r.id === id);
+  const record = state.records.find(record => record.id === id);
   if (!record) return;
 
-  kontrolRecord = record;
-  kontrolMode = true;
+  const parsed = Array.isArray(record.montajKontrol) ? record.montajKontrol : [];
+  const answers = {};
+  const notes = {};
 
+  parsed.forEach((item, index) => {
+    answers[index] = item.answer || "";
+    notes[index] = item.note || "";
+  });
+
+  kontrolRecord = record;
   kontrolState = {
-    answers: record.montajKontrol || {},
+    answers,
+    notes,
     foto: record.sonKontrolFoto || ""
   };
 
+  state.activeTab = "kontrol";
+  state.selectedId = null;
   render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 async function kayitEkle(payload) {
   return enqueueRequest(async () => {
@@ -426,14 +463,6 @@ sonKontrolFoto: row.SonKontrolFotograf || "",
       address: "CUMHURİYET MAH. 676 SOK. NO:85 MURATPAŞA / ANTALYA"
     },
     form: emptyForm(),
-  };
-
-  // Montaj kontrol modülü durum değişkenleri
-  let kontrolMode = false;
-  let kontrolRecord = null;
-  let kontrolState = {
-    answers: {},
-    foto: ""
   };
   function calculateOperationsTotal(operations = []) {
     return (operations || []).reduce((sum, op) => {
@@ -1262,9 +1291,12 @@ async function updateRecordStatus(id, status) {
       const uniqueCustomers = new Set(rows.map((r) => (r.customerName || "").trim()).filter(Boolean)).size;
       const uniquePlates = new Set(rows.map((r) => normalizePlate(r.plaka)).filter(Boolean)).size;
 
-      const tabs = state.tabletMode
-        ? [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }]
-        : [{ key: "kayit", label: "Yeni Kayıt" }, { key: "liste", label: "Kayıtlar" }, { key: "kurulum", label: "Sonraki Adım" }];
+      const tabs = [
+        { key: "kayit", label: "Yeni Kayıt" },
+        { key: "liste", label: "Kayıtlar" },
+        { key: "kontrol", label: "Montaj Kontrol" },
+        ...(!state.tabletMode ? [{ key: "kurulum", label: "Sonraki Adım" }] : [])
+      ];
 
       const statCards = [
         { label: "Toplam Kayıt", value: s.total, icon: "📄" },
@@ -1931,42 +1963,81 @@ Kontrol Et
             </div>
           ` : ""}
         </div>
-        ${kontrolMode ? `
-<div style="position:fixed;inset:0;background:#000a;z-index:9999;padding:20px;overflow:auto;">
-  <div style="max-width:600px;margin:auto;background:#111;padding:20px;border-radius:12px;">
-    
-    <h2>Montaj Kontrol</h2>
 
-    ${[
-      "Montaj düzgün mü?",
-      "Bağlantılar sağlam mı?",
-      "Elektrik çalışıyor mu?"
-    ].map((q,i)=>`
-      <div style="margin-top:10px;">
-        <b>${q}</b>
-        <div>
-          <button onclick="setKontrol(${i},'Evet')">Evet</button>
-          <button onclick="setKontrol(${i},'Hayır')">Hayır</button>
+            ${state.activeTab === "kontrol" ? `
+              <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
+                <div class="flex flex-col gap-3 border-b border-white/10 p-6 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 class="text-xl font-bold">Montaj Kontrol Formu</h2>
+                    <p class="mt-1 text-sm text-zinc-400">
+                      ${kontrolRecord ? `${kontrolRecord.customerName || "-"} · ${kontrolRecord.plaka || "-"} · ${kontrolRecord.brand || ""} ${kontrolRecord.model || ""}` : "Kayıtlar sayfasından bir kayıt seçip Kontrol Et butonuna bas."}
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <button onclick="state.activeTab='liste'; render();" class="rounded-2xl border border-white/10 bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Kayıtlara Dön</button>
+                    ${kontrolRecord ? `<button onclick="saveKontrol()" class="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400">Kontrolü Kaydet</button>` : ""}
+                  </div>
+                </div>
+
+                ${!kontrolRecord ? `
+                  <div class="p-6">
+                    <div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">
+                      Henüz kontrol yapılacak kayıt seçilmedi.
+                    </div>
+                  </div>
+                ` : `
+                  <div class="grid gap-4 p-6 lg:grid-cols-[1fr_320px]">
+                    <div class="space-y-3">
+                      ${MONTAJ_KONTROL_ITEMS.map((question, index) => `
+                        <div class="rounded-2xl border border-white/10 bg-black/25 p-4">
+                          <div class="mb-3 font-semibold text-white">${index + 1}. ${question}</div>
+                          <div class="mb-3 grid grid-cols-2 gap-2">
+                            <button onclick="setKontrol(${index}, 'Evet')" class="rounded-2xl px-4 py-2 text-sm font-semibold transition ${kontrolState.answers[index] === "Evet" ? "bg-green-500 text-black" : "bg-zinc-800 text-white hover:bg-zinc-700"}">Evet</button>
+                            <button onclick="setKontrol(${index}, 'Hayır')" class="rounded-2xl px-4 py-2 text-sm font-semibold transition ${kontrolState.answers[index] === "Hayır" ? "bg-red-500 text-white" : "bg-zinc-800 text-white hover:bg-zinc-700"}">Hayır</button>
+                          </div>
+                          <textarea data-kontrol-note="${index}" class="min-h-[72px] w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" placeholder="Açıklama / not">${kontrolState.notes[index] || ""}</textarea>
+                        </div>
+                      `).join("")}
+                    </div>
+
+                    <div class="space-y-4">
+                      <div class="rounded-2xl border border-white/10 bg-black/25 p-4">
+                        <h3 class="mb-3 font-semibold">Son Kontrol Fotoğrafı</h3>
+                        <label class="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-zinc-950 px-4 py-5 text-sm text-zinc-300 hover:bg-white/5">
+                          <span class="text-lg">📷</span>
+                          <span>Fotoğraf Çek / Seç</span>
+                          <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handleKontrolFoto(this.files[0])" />
+                        </label>
+                        ${kontrolState.foto ? `<img src="${kontrolState.foto}" class="mt-4 max-h-[360px] w-full rounded-2xl border border-white/10 object-cover" />` : `<div class="mt-4 rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-zinc-500">Son kontrol fotoğrafı yok.</div>`}
+                      </div>
+
+                      <div class="rounded-2xl border border-white/10 bg-black/25 p-4 text-sm text-zinc-300">
+                        <div><b class="text-white">Kayıt No:</b> ${kontrolRecord.recordNo || "-"}</div>
+                        <div><b class="text-white">Usta:</b> ${kontrolRecord.technician || "-"}</div>
+                        <div><b class="text-white">İlk Foto:</b> ${kontrolRecord.vehicleImage ? "Var" : "Yok"}</div>
+                        <div><b class="text-white">Müşteri İmzası:</b> ${kontrolRecord.signature ? "Var" : "Yok"}</div>
+                        <div><b class="text-white">Usta İmzası:</b> ${kontrolRecord.technicianSignature ? "Var" : "Yok"}</div>
+                      </div>
+
+                      <button onclick="saveKontrol()" class="w-full rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black hover:bg-emerald-400">Kontrolü Kaydet ve Montaj Bitti Yap</button>
+                    </div>
+                  </div>
+                `}
+              </div>
+            ` : ""}
         </div>
-      </div>
-    `).join("")}
-
-    <input type="file" onchange="handleKontrolFoto(this.files[0])">
-
-    ${kontrolState.foto ? `<img src="${kontrolState.foto}" style="width:100%;margin-top:10px;">` : ""}
-
-    <button onclick="saveKontrol()" style="margin-top:15px;">Kaydet</button>
-    <button onclick="kontrolMode=false;render()">Kapat</button>
-
-  </div>
-</div>
-` : ""}
       `;
 document.querySelectorAll('input[type="checkbox"][data-form]').forEach((el) => {
   el.onchange = (e) => {
     updateForm(el.getAttribute("data-form"), e.target.checked);
   };
 });      
+document.querySelectorAll('[data-kontrol-note]').forEach((el) => {
+  el.oninput = (e) => {
+    kontrolState.notes[el.getAttribute('data-kontrol-note')] = e.target.value || '';
+  };
+});
+
       document.getElementById("toggleTablet")?.addEventListener("click", () => {
         state.tabletMode = !state.tabletMode;
         render();
@@ -2234,35 +2305,76 @@ searchEl.addEventListener("keydown", (e) => {
      
       setupSignaturePad();
     }
-function setKontrol(i,val){
+function setKontrol(i, val) {
   kontrolState.answers[i] = val;
+  render();
 }
 
-function handleKontrolFoto(file){
+function handleKontrolFoto(file) {
+  if (!file) return;
+
   const reader = new FileReader();
   reader.onload = () => {
-    kontrolState.foto = reader.result;
-    render();
+    const img = new Image();
+    img.onload = () => {
+      const maxWidth = 900;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      kontrolState.foto = canvas.toDataURL("image/jpeg", 0.65);
+      render();
+    };
+    img.src = reader.result;
   };
   reader.readAsDataURL(file);
 }
-  async function saveKontrol() {
+
+async function saveKontrol() {
   if (!kontrolRecord) return;
+
+  document.querySelectorAll("[data-kontrol-note]").forEach((el) => {
+    kontrolState.notes[el.getAttribute("data-kontrol-note")] = el.value || "";
+  });
+
+  const checklist = MONTAJ_KONTROL_ITEMS.map((label, index) => ({
+    label,
+    answer: kontrolState.answers[index] || "",
+    note: kontrolState.notes[index] || ""
+  }));
+
+  const boslar = checklist.filter(item => !item.answer).length;
+  if (boslar > 0) {
+    const devam = confirm(`${boslar} adet kontrol sorusu boş. Yine de kaydedilsin mi?`);
+    if (!devam) return;
+  }
 
   try {
     await kayitGuncelle({
       ID: kontrolRecord.id,
-      MontajKontrolJSON: kontrolState.answers,
+      MontajKontrolJSON: checklist,
       SonKontrolFotograf: kontrolState.foto,
       MontajKontrolTarih: new Date().toISOString(),
       Durum: "Montaj Bitti"
     });
 
-    kontrolMode = false;
+    kontrolRecord = null;
+    kontrolState = { answers: {}, notes: {}, foto: "" };
+    state.activeTab = "liste";
     await listeyiYenile();
-
-  } catch(e){
-    alert("Kontrol kaydedilemedi");
+    alert("Montaj kontrol kaydedildi ✅");
+  } catch(e) {
+    console.error("Kontrol kaydedilemedi:", e);
+    alert("Kontrol kaydedilemedi: " + (e.message || "Bilinmeyen hata"));
   }
 }
     function setupSignatureCanvas(config) {
