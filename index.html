@@ -1260,10 +1260,27 @@ async function updateRecordStatus(id, status) {
             </div>
 
             <div class="box">
-              <h3>Araç Görseli</h3>
-              ${record.vehicleImage ? `<img src="${record.vehicleImage}" class="vehicle-image" />` : `<p class="muted">Görsel eklenmedi.</p>`}
+  <h3>Araç Fotoğrafları</h3>
 
-              <div class="two-col" style="margin-top:7px;">
+  <div style="display:flex; gap:8px;">
+    
+    ${record.vehicleImage ? `
+      <div style="flex:1;">
+        <div style="font-size:10px; margin-bottom:3px;">İlk Foto</div>
+        <img src="${record.vehicleImage}" class="vehicle-image" />
+      </div>
+    ` : ""}
+
+    ${record.sonKontrolFoto ? `
+      <div style="flex:1;">
+        <div style="font-size:10px; margin-bottom:3px;">Son Kontrol</div>
+        <img src="${record.sonKontrolFoto}" class="vehicle-image" />
+      </div>
+    ` : ""}
+
+  </div>
+
+  <div class="two-col" style="margin-top:7px;">
                 <div>
                   <h3 style="margin-bottom:5px;">Müşteri İmzası</h3>
                   ${record.signature ? `<img src="${record.signature}" class="sign-image" />` : `<p class="muted">İmza alınmadı.</p>`}
