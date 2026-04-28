@@ -1266,7 +1266,7 @@ async function updateRecordStatus(id, status) {
     
     ${record.vehicleImage ? `
       <div style="flex:1;">
-        <div style="font-size:10px; margin-bottom:3px;">İlk Foto</div>
+        <div style="font-size:10px; margin-bottom:3px;">Öncesi</div>
         <img src="${record.vehicleImage}" class="vehicle-image" />
       </div>
     ` : ""}
@@ -2042,7 +2042,7 @@ Kontrol Et
                       <div class="rounded-2xl border border-white/10 bg-black/25 p-4 text-sm text-zinc-300">
                         <div><b class="text-white">Kayıt No:</b> ${kontrolRecord.recordNo || "-"}</div>
                         <div><b class="text-white">Usta:</b> ${kontrolRecord.technician || "-"}</div>
-                        <div><b class="text-white">İlk Foto:</b> ${kontrolRecord.vehicleImage ? "Var" : "Yok"}</div>
+                        <div><b class="text-white">Öncesi:</b> ${kontrolRecord.vehicleImage ? "Var" : "Yok"}</div>
                         <div><b class="text-white">Müşteri İmzası:</b> ${kontrolRecord.signature ? "Var" : "Yok"}</div>
                         <div><b class="text-white">Usta İmzası:</b> ${kontrolRecord.technicianSignature ? "Var" : "Yok"}</div>
                       </div>
