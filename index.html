@@ -24,6 +24,7 @@
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div id="app"></div>
@@ -31,6 +32,10 @@
 <script>
 
  const API_URL = "/api/kayit";
+  const SUPABASE_URL = "https://dmsovrbkoeivkvmlzals.supabase.co";
+const SUPABASE_KEY = "BURAYA_SB_PUBLISHABLE_KEY";
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const MONTAJ_KONTROL_ITEMS = [
   "İş emri ile araç plakası uyumlu mu?",
@@ -96,6 +101,33 @@ async function veriCek(dateValue = state.selectedDate) {
   }
 
   return data.records || [];
+}
+  async function uploadDataUrlToSupabase(dataUrl, bucket, folder = "general") {
+  if (!dataUrl) return "";
+
+  if (String(dataUrl).startsWith("http")) {
+    return dataUrl;
+  }
+
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+
+  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+
+  const { error } = await supabaseClient.storage
+    .from(bucket)
+    .upload(fileName, blob, {
+      contentType: blob.type || "image/jpeg",
+      upsert: true
+    });
+
+  if (error) throw new Error("Supabase yükleme hatası: " + error.message);
+
+  const { data } = supabaseClient.storage
+    .from(bucket)
+    .getPublicUrl(fileName);
+
+  return data.publicUrl;
 }
   function openKontrol(id) {
   const record = state.records.find(record => record.id === id);
@@ -775,7 +807,9 @@ console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
   try {
     state.saving = true;
     render();
-
+form.vehicleImage = await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first");
+form.signature = await uploadDataUrlToSupabase(form.signature, "signatures", "customer");
+form.technicianSignature = await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician");
     const payload = buildPayloadFromForm({
       ...form,
       operations: validOperations
@@ -832,7 +866,9 @@ console.log("GÜNCELLEME ÖNCESİ OPERATIONS:", JSON.stringify(validOperations))
   try {
     state.saving = true;
     render();
-
+form.vehicleImage = await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first");
+form.signature = await uploadDataUrlToSupabase(form.signature, "signatures", "customer");
+form.technicianSignature = await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician");
     const payload = buildPayloadFromForm(
       { ...form, operations: validOperations },
       { ID: currentRecord.id }
@@ -2440,7 +2476,7 @@ async function saveKontrol() {
     await kayitGuncelle({
       ID: kontrolRecord.id,
       MontajKontrolJSON: checklist,
-      SonKontrolFotograf: kontrolState.foto && kontrolState.foto.length < 49000 ? kontrolState.foto : "",
+      SonKontrolFotograf: await uploadDataUrlToSupabase(kontrolState.foto, "vehicle-photos", "final"),
       MontajKontrolTarih: new Date().toLocaleString("tr-TR", {
         timeZone: "Europe/Istanbul"
       }),
