@@ -2331,10 +2331,12 @@ function handleKontrolFoto(file) {
   if (!file) return;
 
   const reader = new FileReader();
+
   reader.onload = () => {
     const img = new Image();
+
     img.onload = () => {
-      const maxWidth = 900;
+      const maxWidth = 700;
       let width = img.width;
       let height = img.height;
 
@@ -2346,13 +2348,19 @@ function handleKontrolFoto(file) {
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
+
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, width, height);
-      kontrolState.foto = canvas.toDataURL("image/jpeg", 0.65);
+
+      // kaliteyi düşük tuttuk ki Sheets hücre sınırına takılmasın
+      kontrolState.foto = canvas.toDataURL("image/jpeg", 0.35);
+
       render();
     };
+
     img.src = reader.result;
   };
+
   reader.readAsDataURL(file);
 }
   function showToast(message, type = "success") {
@@ -2415,7 +2423,7 @@ async function saveKontrol() {
     await kayitGuncelle({
       ID: kontrolRecord.id,
       MontajKontrolJSON: checklist,
-      SonKontrolFotograf: kontrolState.foto,
+      SonKontrolFotograf: kontrolState.foto && kontrolState.foto.length < 49000 ? kontrolState.foto : "",
       MontajKontrolTarih: new Date().toLocaleString("tr-TR", {
         timeZone: "Europe/Istanbul"
       }),
