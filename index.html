@@ -71,6 +71,20 @@ async function veriCek(dateValue = state.selectedDate) {
 
   return data.records || [];
 }
+  function openKontrol(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record) return;
+
+  kontrolRecord = record;
+  kontrolMode = true;
+
+  kontrolState = {
+    answers: record.montajKontrol || {},
+    foto: record.sonKontrolFoto || ""
+  };
+
+  render();
+}
 async function kayitEkle(payload) {
   return enqueueRequest(async () => {
     const res = await fetch(API_URL, {
@@ -275,6 +289,14 @@ operations: (() => {
     vehicleDefects: row.AracKusurlari || row.vehicleDefects || "",
     signature: row.Imza || row.signature || "",
     technicianSignature: row.UstaImza || row.technicianSignature || "",
+    montajKontrol: (() => {
+  try {
+    return row.MontajKontrolJSON ? JSON.parse(row.MontajKontrolJSON) : null;
+  } catch {
+    return null;
+  }
+})(),
+sonKontrolFoto: row.SonKontrolFotograf || "",
     kvkkOnay: String(row.KvkkOnay || "").toLowerCase() === "true" || row.KvkkOnay === true,
     musteriOnay: String(row.MusteriOnay || "").toLowerCase() === "true" || row.MusteriOnay === true
   };
@@ -1761,6 +1783,10 @@ async function updateRecordStatus(id, status) {
     >
       Sil
     </button>
+    <button onclick="openKontrol('${r.id}')" 
+class="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-300 hover:bg-blue-500/20">
+Kontrol Et
+</button>
   </div>
 </div>
                       </div>
@@ -1897,6 +1923,36 @@ async function updateRecordStatus(id, status) {
             </div>
           ` : ""}
         </div>
+        ${kontrolMode ? `
+<div style="position:fixed;inset:0;background:#000a;z-index:9999;padding:20px;overflow:auto;">
+  <div style="max-width:600px;margin:auto;background:#111;padding:20px;border-radius:12px;">
+    
+    <h2>Montaj Kontrol</h2>
+
+    ${[
+      "Montaj düzgün mü?",
+      "Bağlantılar sağlam mı?",
+      "Elektrik çalışıyor mu?"
+    ].map((q,i)=>`
+      <div style="margin-top:10px;">
+        <b>${q}</b>
+        <div>
+          <button onclick="setKontrol(${i},'Evet')">Evet</button>
+          <button onclick="setKontrol(${i},'Hayır')">Hayır</button>
+        </div>
+      </div>
+    `).join("")}
+
+    <input type="file" onchange="handleKontrolFoto(this.files[0])">
+
+    ${kontrolState.foto ? `<img src="${kontrolState.foto}" style="width:100%;margin-top:10px;">` : ""}
+
+    <button onclick="saveKontrol()" style="margin-top:15px;">Kaydet</button>
+    <button onclick="kontrolMode=false;render()">Kapat</button>
+
+  </div>
+</div>
+` : ""}
       `;
 document.querySelectorAll('input[type="checkbox"][data-form]').forEach((el) => {
   el.onchange = (e) => {
@@ -2170,7 +2226,37 @@ searchEl.addEventListener("keydown", (e) => {
      
       setupSignaturePad();
     }
+function setKontrol(i,val){
+  kontrolState.answers[i] = val;
+}
 
+function handleKontrolFoto(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    kontrolState.foto = reader.result;
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+  async function saveKontrol() {
+  if (!kontrolRecord) return;
+
+  try {
+    await kayitGuncelle({
+      ID: kontrolRecord.id,
+      MontajKontrolJSON: kontrolState.answers,
+      SonKontrolFotograf: kontrolState.foto,
+      MontajKontrolTarih: new Date().toISOString(),
+      Durum: "Montaj Bitti"
+    });
+
+    kontrolMode = false;
+    await listeyiYenile();
+
+  } catch(e){
+    alert("Kontrol kaydedilemedi");
+  }
+}
     function setupSignatureCanvas(config) {
       if (state.activeTab !== "kayit") return;
 
@@ -2965,6 +3051,12 @@ searchEl.addEventListener("keydown", (e) => {
       state.searchDraft = state.search;
       await listeyiYenile();
     })();
+  let kontrolMode = false;
+let kontrolRecord = null;
+let kontrolState = {
+  answers: {},
+  foto: ""
+};
 
   </script>
 </body>
