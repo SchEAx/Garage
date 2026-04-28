@@ -252,10 +252,24 @@ async function deleteRecord(id) {
   const ok = confirm("Bu kaydı silmek istediğine emin misin?");
   if (!ok) return;
 
+  const record = state.records.find(r => String(r.id) === String(id));
+
   try {
+    // Önce Supabase Storage dosyalarını silmeye çalışıyoruz.
+    // Hata olsa bile kayıt silme işlemini engellemesin diye deleteFromSupabase kendi içinde güvenli çalışıyor.
+    if (record) {
+      await deleteFromSupabase(record.vehicleImage || "", "vehicle-photos");
+      await deleteFromSupabase(record.sonKontrolFoto || "", "vehicle-photos");
+      await deleteFromSupabase(record.signature || "", "signatures");
+      await deleteFromSupabase(record.technicianSignature || "", "signatures");
+    } else {
+      console.warn("Silinecek kayıt state içinde bulunamadı, sadece Sheets kaydı silinecek:", id);
+    }
+
+    // Sonra Sheets tarafındaki kaydı siliyoruz.
     await kayitSil(id);
 
-    state.records = state.records.filter(r => r.id !== id);
+    state.records = state.records.filter(r => String(r.id) !== String(id));
 
     if (state.selectedId === id) {
       state.selectedId = null;
@@ -265,20 +279,13 @@ async function deleteRecord(id) {
       state.editId = null;
       state.form = emptyForm();
     }
-    const record = state.records.find(r => r.id === id);
-
-// ilk foto
-await deleteFromSupabase(record.vehicleImage, "vehicle-photos");
-
-// son foto
-await deleteFromSupabase(record.sonKontrolFoto, "vehicle-photos");
-
-// imzalar
-await deleteFromSupabase(record.signature, "signatures");
-await deleteFromSupabase(record.technicianSignature, "signatures");
 
     render();
     await listeyiYenile();
+
+    if (typeof showToast === "function") {
+      showToast("Kayıt silindi ✅");
+    }
   } catch (e) {
     console.error("Silme hata:", e);
     alert("Kayıt silinemedi: " + (e.message || "Bilinmeyen hata"));
