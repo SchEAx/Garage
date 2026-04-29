@@ -2649,13 +2649,16 @@ async function saveKontrol() {
     };
 
     assertNoBase64InPayload(kontrolPayload);
-    await kayitGuncelle(kontrolPayload);
+   const result = await supabaseKayitGuncelle(kontrolPayload);
+
+state.records = state.records.map(r =>
+  String(r.id) === String(kontrolRecord.id) ? mapSheetRecord(result) : r
+);
 
     kontrolRecord = null;
     kontrolState = { answers: {}, notes: {}, foto: "" };
     state.activeTab = "liste";
 
-    await listeyiYenile();
 
     showToast("Montaj kontrol kaydedildi ✅");
   } catch(e) {
