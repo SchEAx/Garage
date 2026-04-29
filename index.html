@@ -2613,8 +2613,11 @@ function handleKontrolFoto(file) {
 async function saveKontrol() {
   if (!kontrolRecord) return;
 
-  const btn = document.getElementById("kontrolSaveBtn");
-  const oldText = btn ? btn.textContent : "";
+  const btns = document.querySelectorAll("#kontrolSaveBtn, button[onclick='saveKontrol()']");
+  btns.forEach(btn => {
+    btn.disabled = true;
+    btn.textContent = "Kaydediliyor...";
+  });
 
   document.querySelectorAll("[data-kontrol-note]").forEach((el) => {
     kontrolState.notes[el.getAttribute("data-kontrol-note")] = el.value || "";
@@ -2629,46 +2632,53 @@ async function saveKontrol() {
   const boslar = checklist.filter(item => !item.answer).length;
   if (boslar > 0) {
     const devam = confirm(`${boslar} adet kontrol sorusu boş. Yine de kaydedilsin mi?`);
-    if (!devam) return;
+    if (!devam) {
+      btns.forEach(btn => {
+        btn.disabled = false;
+        btn.textContent = "Kontrolü Kaydet ve Montaj Bitti Yap";
+      });
+      return;
+    }
   }
 
   try {
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "Kaydediliyor...";
-    }
-
     const kontrolPayload = {
       ID: kontrolRecord.id,
       MontajKontrolJSON: checklist,
       SonKontrolFotograf: await uploadDataUrlToSupabase(kontrolState.foto, "vehicle-photos", "final"),
-      MontajKontrolTarih: new Date().toLocaleString("tr-TR", {
-        timeZone: "Europe/Istanbul"
-      }),
+      MontajKontrolTarih: new Date().toISOString(),
       Durum: "Montaj Bitti"
     };
 
     assertNoBase64InPayload(kontrolPayload);
-   const result = await supabaseKayitGuncelle(kontrolPayload);
 
-state.records = state.records.map(r =>
-  String(r.id) === String(kontrolRecord.id) ? mapSheetRecord(result) : r
-);
+    const result = await supabaseKayitGuncelle(kontrolPayload);
+    const updatedRecord = mapSheetRecord(result);
+
+    state.records = state.records.map(r =>
+      String(r.id) === String(kontrolRecord.id) ? updatedRecord : r
+    );
 
     kontrolRecord = null;
     kontrolState = { answers: {}, notes: {}, foto: "" };
     state.activeTab = "liste";
+    state.selectedId = null;
 
-
+    render();
     showToast("Montaj kontrol kaydedildi ✅");
+
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 100);
+
   } catch(e) {
     console.error("Kontrol kaydedilemedi:", e);
     showToast("Kontrol kaydedilemedi: " + (e.message || "Bilinmeyen hata"), "error");
 
-    if (btn) {
+    btns.forEach(btn => {
       btn.disabled = false;
-      btn.textContent = oldText || "Kontrolü Kaydet ve Montaj Bitti Yap";
-    }
+      btn.textContent = "Kontrolü Kaydet ve Montaj Bitti Yap";
+    });
   }
 }
     function setupSignatureCanvas(config) {
