@@ -305,7 +305,7 @@ async function deleteRecord(id) {
     }
 
     // Sonra Sheets tarafındaki kaydı siliyoruz.
-    await kayitSil(id);
+    await supabaseKayitSil(id);
 
     state.records = state.records.filter(r => String(r.id) !== String(id));
 
@@ -341,16 +341,98 @@ async function deleteFromSupabase(url, bucket) {
     console.warn("Supabase silme hatası:", e);
   }
 }
+  function supabasePayload(payload) {
+  const fixed = { ...payload };
+
+  if (typeof fixed.YapilacakIslem === "string") {
+    try {
+      fixed.YapilacakIslem = JSON.parse(fixed.YapilacakIslem);
+    } catch {
+      fixed.YapilacakIslem = [];
+    }
+  }
+
+  return fixed;
+}
+
+function syncSheetsInBackground(action, payload) {
+  fetch(API_URL, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      action,
+      ...payload
+    })
+  }).catch((e) => {
+    console.warn("Sheets arka plan aktarım hatası:", e);
+  });
+}
+
+async function supabaseKayitEkle(payload) {
+  const fixedPayload = supabasePayload(payload);
+
+  const { data, error } = await supabaseClient
+    .from("records")
+    .insert([fixedPayload])
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  syncSheetsInBackground("add", payload);
+
+  return data;
+}
+
+async function supabaseKayitGuncelle(payload) {
+  const { ID, ...rest } = payload;
+  const fixedPayload = supabasePayload(rest);
+
+  const { data, error } = await supabaseClient
+    .from("records")
+    .update(fixedPayload)
+    .eq("id", ID)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  syncSheetsInBackground("update", payload);
+
+  return data;
+}
+
+async function supabaseKayitSil(id) {
+  const { error } = await supabaseClient
+    .from("records")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+
+  syncSheetsInBackground("delete", { ID: id });
+}
 async function listeyiYenile() {
   try {
     state.loading = true;
     render();
 
-    const data = await veriCek(state.selectedDate);
+    const { data, error } = await supabaseClient
+      .from("records")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
     state.records = (data || []).map(mapSheetRecord);
     state.totalRemoteCount = state.records.length;
   } catch (e) {
-    console.error("listeyiYenile hata:", e);
+    console.error("listeyiYenile Supabase hata:", e);
+    alert("Kayıtlar Supabase'den çekilemedi: " + (e.message || "Bilinmeyen hata"));
   } finally {
     state.loading = false;
     render();
@@ -359,11 +441,15 @@ async function listeyiYenile() {
   async function refreshTodayRevenue() {
   await listeyiYenile();
 }
-  function mapSheetRecord(row) {
+function mapSheetRecord(row) {
+  const rawOps = row.YapilacakIslem;
+  const toplamUcret = Number(row.Ucret || 0);
+
   return {
-    id: String(row.ID || ""),
-    recordNo: row.ID || "-",
-    createdAt: row.TarihSaat || "",
+    id: String(row.id || row.ID || ""),
+    recordNo: row.ID || row.id || "-",
+    createdAt: row.created_at || row.TarihSaat || "",
+
     customerName: row.MusteriAdi || "",
     phone: row.Telefon || "",
     brand: row.AracMarka || "",
@@ -371,70 +457,55 @@ async function listeyiYenile() {
     type: row.AracTip || "",
     plaka: row.Plaka || "",
     sasiNo: row.SasiNo || "",
-operations: (() => {
-  const raw = row.YapilacakIslem;
-  const toplamUcret = Number(row.Ucret || 0);
 
-  if (Array.isArray(raw)) {
-    return raw.map(op => ({
-      name: op?.name || "",
-      fee: Number(op?.fee || 0)
-    }));
-  }
-
-  if (typeof raw === "string" && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw);
-
-      if (Array.isArray(parsed)) {
-        return parsed.map(op => ({
+    operations: (() => {
+      if (Array.isArray(rawOps)) {
+        return rawOps.map(op => ({
           name: op?.name || "",
           fee: Number(op?.fee || 0)
         }));
       }
-    } catch (e) {
-      // eski bozuk kayıtlar için aşağıdaki fallback çalışacak
-    }
 
-    const names = raw
-      .split(",")
-      .map(x => x.trim())
-      .filter(Boolean);
+      if (typeof rawOps === "string" && rawOps.trim()) {
+        try {
+          const parsed = JSON.parse(rawOps);
+          if (Array.isArray(parsed)) {
+            return parsed.map(op => ({
+              name: op?.name || "",
+              fee: Number(op?.fee || 0)
+            }));
+          }
+        } catch {}
 
-    if (names.length === 1) {
-      return [{
-        name: names[0],
-        fee: toplamUcret
-      }];
-    }
+        return rawOps.split(",").map(name => ({
+          name: name.trim(),
+          fee: ""
+        })).filter(op => op.name);
+      }
 
-    if (names.length > 1) {
-      return names.map(name => ({
-        name,
-        fee: ""
-      }));
-    }
-  }
+      return [{ name: "", fee: toplamUcret || "" }];
+    })(),
 
-  return [{ name: "", fee: toplamUcret || "" }];
-})(),
     status: row.Durum || "Beklemede",
-    vehicleImage: row.Fotograf || row.vehicleImage || "",
+    vehicleImage: row.Fotograf || "",
     noteText: row.Notlar || "",
-    technician: row.Teknisyen || row.technician || "",
-    vehicleDefects: row.AracKusurlari || row.vehicleDefects || "",
-    signature: row.Imza || row.signature || "",
-    technicianSignature: row.UstaImza || row.technicianSignature || "",
+    technician: row.Teknisyen || "",
+    vehicleDefects: row.AracKusurlari || "",
+    signature: row.Imza || "",
+    technicianSignature: row.UstaImza || "",
+
     montajKontrol: (() => {
-  try {
-    return row.MontajKontrolJSON ? JSON.parse(row.MontajKontrolJSON) : null;
-  } catch {
-    return null;
-  }
-})(),
-sonKontrolFoto: row.SonKontrolFotograf || "",
-    kvkkOnay: String(row.KvkkOnay || "").toLowerCase() === "true" || row.KvkkOnay === true,
-    musteriOnay: String(row.MusteriOnay || "").toLowerCase() === "true" || row.MusteriOnay === true
+      try {
+        if (Array.isArray(row.MontajKontrolJSON)) return row.MontajKontrolJSON;
+        return row.MontajKontrolJSON ? JSON.parse(row.MontajKontrolJSON) : null;
+      } catch {
+        return null;
+      }
+    })(),
+
+    sonKontrolFoto: row.SonKontrolFotograf || "",
+    kvkkOnay: row.KvkkOnay === true || String(row.KvkkOnay || "").toLowerCase() === "true",
+    musteriOnay: row.MusteriOnay === true || String(row.MusteriOnay || "").toLowerCase() === "true"
   };
 }
   const STATUS_OPTIONS = [
@@ -680,7 +751,7 @@ function handleVehicleImage(file) {
     const img = new Image();
 
     img.onload = () => {
-      const maxWidth = 800;
+      const maxWidth = 600;
       let width = img.width;
       let height = img.height;
 
@@ -696,7 +767,7 @@ function handleVehicleImage(file) {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, width, height);
 
-      const compressedBase64 = canvas.toDataURL("image/jpeg", 0.6);
+      const compressedBase64 = canvas.toDataURL("image/jpeg", 0.45);
       state.form.vehicleImage = compressedBase64;
       render();
     };
@@ -874,13 +945,18 @@ console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
   try {
     state.saving = true;
     render();
-const uploadedForm = {
-      ...form,
-      vehicleImage: await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
-      signature: await uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
-      technicianSignature: await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
-    };
+const [vehicleImageUrl, signatureUrl, technicianSignatureUrl] = await Promise.all([
+  uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
+  uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
+  uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
+]);
 
+const uploadedForm = {
+  ...form,
+  vehicleImage: vehicleImageUrl,
+  signature: signatureUrl,
+  technicianSignature: technicianSignatureUrl
+};
     const payload = buildPayloadFromForm({
       ...uploadedForm,
       operations: validOperations
@@ -890,7 +966,10 @@ const uploadedForm = {
 
     console.log("GIDEN PAYLOAD:", payload);
 
-    const result = await kayitEkle(payload);
+   const result = await supabaseKayitEkle(payload);
+
+state.records.unshift(mapSheetRecord(result));
+state.totalRemoteCount = state.records.length;
 
 state.form = emptyForm();
 state.editId = null;
@@ -898,9 +977,7 @@ state.activeTab = "liste";
 signatureHandlersBound = false;
 state.visibleCount = PAGE_SIZE;
 
-setTimeout(() => {
-  listeyiYenile();
-}, 300);
+
   } catch (e) {
     console.error("saveRecord hata:", e);
     alert("Kayıt eklenemedi: " + (e.message || "Bilinmeyen hata"));
@@ -939,12 +1016,18 @@ console.log("GÜNCELLEME ÖNCESİ OPERATIONS:", JSON.stringify(validOperations))
   try {
     state.saving = true;
     render();
+const [vehicleImageUrl, signatureUrl, technicianSignatureUrl] = await Promise.all([
+  uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
+  uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
+  uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
+]);
+
 const uploadedForm = {
-      ...form,
-      vehicleImage: await uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
-      signature: await uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
-      technicianSignature: await uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
-    };
+  ...form,
+  vehicleImage: vehicleImageUrl,
+  signature: signatureUrl,
+  technicianSignature: technicianSignatureUrl
+};
 
     const payload = buildPayloadFromForm(
       { ...uploadedForm, operations: validOperations },
@@ -966,7 +1049,11 @@ const uploadedForm = {
 
     assertNoBase64InPayload(payload);
 
-    const result = await kayitGuncelle(payload);
+    const result = await supabaseKayitGuncelle(payload);
+
+state.records = state.records.map(r =>
+  String(r.id) === String(currentRecord.id) ? mapSheetRecord(result) : r
+);
 
 state.form = emptyForm();
 state.editId = null;
@@ -974,9 +1061,7 @@ state.activeTab = "liste";
 signatureHandlersBound = false;
 state.visibleCount = PAGE_SIZE;
 
-setTimeout(() => {
-  listeyiYenile();
-}, 300);
+
   } catch (e) {
     console.error("updateCurrentRecord hata:", e);
     alert("Kayıt güncellenemedi: " + (e.message || "Bilinmeyen hata"));
@@ -998,11 +1083,10 @@ async function updateRecordTechnician(id, technician) {
   if (!record) return false;
 
   try {
-    await kayitGuncelle({
-      ID: record.id,
-      Teknisyen: technician,
-      onlyTechnician: true
-    });
+    await supabaseKayitGuncelle({
+  ID: record.id,
+  Teknisyen: technician
+});
 
     record.technician = technician;
     render();
@@ -1050,7 +1134,7 @@ async function updateRecordStatus(id, status) {
     delete payload.Imza;
     delete payload.UstaImza;
 
-    await kayitGuncelle(payload);
+  await supabaseKayitGuncelle(payload);
 
   } catch (e) {
     console.error("Durum güncelleme hata:", e);
