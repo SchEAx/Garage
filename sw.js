@@ -1,19 +1,41 @@
-const CACHE_NAME = "garage-pwa-v2";
-const urlsToCache = [
-  "/",
-  "/index.html",
-  "/manifest.json",
-  "/logo.png"
-];
+const CACHE_NAME = "garage-pwa-v4";
+const urlsToCache = ["/", "/index.html", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache)));
+});
+
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => response || fetch(event.request))
-  );
+  const request = event.request;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+
+  if (url.pathname.startsWith("/api/") || url.hostname.includes("supabase.co")) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  if (request.mode === "navigate" || request.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put("/index.html", clone));
+          return response;
+        })
+        .catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
+
+  event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
 });
