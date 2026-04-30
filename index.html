@@ -402,7 +402,8 @@ async function supabaseKayitEkle(payload) {
 
 syncSheetsInBackground("add", {
   ...payload,
-  ID: data.id
+  ID: data.id,
+  TarihSaat: data.created_at || new Date().toISOString()
 });
 
 return data;
@@ -411,7 +412,8 @@ return data;
 async function supabaseKayitGuncelle(payload) {
   const { ID, ...rest } = payload;
   const fixedPayload = supabasePayload(rest);
-
+delete fixedPayload.TarihSaat;
+  
   const { data, error } = await supabaseClient
     .from("records")
     .update(fixedPayload)
@@ -707,7 +709,6 @@ function isToday(value) {
 }
 function buildPayloadFromForm(form, override = {}) {
   const ops = temizOperations(form.operations);
-const now = new Date().toISOString();
   return {
     MusteriAdi: form.customerName || "",
     Telefon: form.phone || "",
@@ -727,7 +728,6 @@ const now = new Date().toISOString();
     UstaImza: form.technicianSignature || "",
     KvkkOnay: !!form.kvkkOnay,
     MusteriOnay: !!form.musteriOnay,
-    TarihSaat: now,
     ...override
   };
 }
