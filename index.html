@@ -469,7 +469,8 @@ function mapSheetRecord(row) {
   return {
     id: String(row.id || row.ID || ""),
     recordNo: row.ID || row.id || "-",
-    createdAt: row.created_at || row.TarihSaat || "",
+    createdAt: new Date(row.created_at || row.TarihSaat || "").toISOString(),
+    
 
     customerName: row.MusteriAdi || "",
     phone: row.Telefon || "",
@@ -528,6 +529,15 @@ function mapSheetRecord(row) {
     kvkkOnay: row.KvkkOnay === true || String(row.KvkkOnay || "").toLowerCase() === "true",
     musteriOnay: row.MusteriOnay === true || String(row.MusteriOnay || "").toLowerCase() === "true"
   };
+}
+  function formatDateTimeFix(value) {
+  if (!value) return "";
+
+  const d = new Date(value);
+
+  if (isNaN(d.getTime())) return value;
+
+  return new Date(d.getTime() + (3 * 60 * 60 * 1000)); // TR düzeltme
 }
   const STATUS_OPTIONS = [
     "Beklemede",
@@ -589,17 +599,18 @@ function mapSheetRecord(row) {
       .trim();
   }
 
-  function isToday(value) {
-    if (!value) return false;
-    const d = new Date(value);
-    const now = new Date();
-    return (
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate()
-    );
-  }
+function isToday(value) {
+  if (!value) return false;
 
+  const d = new Date(value);
+  const now = new Date();
+
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
   function todayTotal(records) {
     return (records || [])
       .filter((r) => isToday(r.createdAt) && r.status === "Montaj Bitti")
@@ -696,7 +707,7 @@ function mapSheetRecord(row) {
 }
 function buildPayloadFromForm(form, override = {}) {
   const ops = temizOperations(form.operations);
-
+const now = new Date().toISOString();
   return {
     MusteriAdi: form.customerName || "",
     Telefon: form.phone || "",
@@ -716,6 +727,7 @@ function buildPayloadFromForm(form, override = {}) {
     UstaImza: form.technicianSignature || "",
     KvkkOnay: !!form.kvkkOnay,
     MusteriOnay: !!form.musteriOnay,
+    TarihSaat: now,
     ...override
   };
 }
