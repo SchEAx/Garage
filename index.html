@@ -356,7 +356,8 @@ async function deleteFromSupabase(url, bucket) {
 }
 
 function syncSheetsInBackground(action, payload) {
-  fetch(API_URL, {
+  // Sheets yedekleme amaçlıdır; hata Supabase işlemini bozmaz.
+  return fetch(API_URL, {
     method: "POST",
     cache: "no-store",
     headers: {
@@ -1084,9 +1085,10 @@ async function updateRecordTechnician(id, technician) {
 
   try {
     await supabaseKayitGuncelle({
-  ID: record.id,
-  Teknisyen: technician
-});
+      ID: record.id,
+      Teknisyen: technician,
+      onlyTechnician: true
+    });
 
     record.technician = technician;
     render();
@@ -1134,12 +1136,22 @@ async function updateRecordStatus(id, status) {
     delete payload.Imza;
     delete payload.UstaImza;
 
-  await supabaseKayitGuncelle(payload);
+    assertNoBase64InPayload(payload);
+
+    const result = await supabaseKayitGuncelle(payload);
+    const updatedRecord = mapSheetRecord(result);
+    state.records = state.records.map(r =>
+      String(r.id) === String(record.id) ? updatedRecord : r
+    );
+
+    if (typeof showToast === "function") {
+      showToast("Durum güncellendi: " + status + " ✅");
+    }
 
   } catch (e) {
     console.error("Durum güncelleme hata:", e);
     record.status = oldStatus;
-    alert("Durum güncellenemedi.");
+    alert("Durum güncellenemedi: " + (e.message || "Bilinmeyen hata"));
   } finally {
     state.statusUpdatingId = null;
     render();
@@ -2642,6 +2654,9 @@ async function saveKontrol() {
   }
 
   try {
+    state.statusUpdatingId = kontrolRecord.id;
+    render();
+
     const kontrolPayload = {
       ID: kontrolRecord.id,
       MontajKontrolJSON: checklist,
@@ -2679,6 +2694,9 @@ async function saveKontrol() {
       btn.disabled = false;
       btn.textContent = "Kontrolü Kaydet ve Montaj Bitti Yap";
     });
+  } finally {
+    state.statusUpdatingId = null;
+    render();
   }
 }
     function setupSignatureCanvas(config) {
@@ -2801,7 +2819,9 @@ async function saveKontrol() {
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch((err) => {
+        navigator.serviceWorker.register("/sw.js?v=4").then((reg) => {
+          reg.update && reg.update();
+        }).catch((err) => {
           console.error("Service worker kayıt hatası:", err);
         });
       });
