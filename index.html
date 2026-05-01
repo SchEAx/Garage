@@ -378,11 +378,19 @@ async function deleteRecord(id) {
     }
 
     // Sonra Sheets tarafındaki kaydı siliyoruz.
-    await supabaseKayitSil(id);
+    // Önce rezerv varsa iptal et
+await supabaseClient.rpc("cancel_stock_reservation", {
+  p_request_id: id
+}).catch(() => {});
+
+// Sonra depo talebini sil
 await supabaseClient
   .from("stock_requests")
   .delete()
   .eq("kabul_record_id", String(id));
+
+// Sonra kayıt sil
+await supabaseKayitSil(id);
     state.records = state.records.filter(r => String(r.id) !== String(id));
 
     if (state.selectedId === id) {
