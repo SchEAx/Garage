@@ -552,6 +552,7 @@ function mapSheetRecord(row) {
     brand: row.AracMarka || "",
     model: row.AracModel || "",
     type: row.AracTip || "",
+    modelYear: row.AracYil || row.AracModelYil || row.ModelYil || "",
     plaka: row.Plaka || "",
     sasiNo: row.SasiNo || "",
 
@@ -712,6 +713,7 @@ function isToday(value) {
       brand: "",
       model: "",
       type: "",
+      modelYear: "",
       plaka: "",
       sasiNo: "",
       operations: [{ name: "", fee: "" }],
@@ -788,6 +790,7 @@ function buildPayloadFromForm(form, override = {}) {
     AracMarka: form.brand || "",
     AracModel: form.model || "",
     AracTip: form.type || "",
+    AracYil: form.modelYear || "",
     Plaka: form.plaka || "",
     SasiNo: form.sasiNo || "",
     YapilacakIslem: JSON.stringify(ops), // ESKİSİ: ops.map(op => op.name).join(", ")
@@ -1007,6 +1010,7 @@ function visibleRows() {
       brand: record.brand || "",
       model: record.model || "",
       type: record.type || "",
+      modelYear: record.modelYear || "",
       operations: (record.operations || []).length
         ? record.operations.map(op => ({ name: op.name || "", fee: op.fee || "" }))
         : [{ name: "", fee: "" }],
@@ -1227,6 +1231,7 @@ async function updateRecordStatus(id, status) {
       brand: record.brand,
       model: record.model,
       type: record.type,
+      modelYear: record.modelYear,
       plaka: record.plaka,
       sasiNo: record.sasiNo,
       operations: record.operations,
@@ -1347,7 +1352,10 @@ async function updateRecordStatus(id, status) {
   `).join("");
 
   const win = window.open("", "_blank", "width=800,height=1100");
-  if (!win) return;
+  if (!win) {
+    alert("Fiş penceresi açılamadı. Tarayıcı popup engelini kapatıp tekrar dene.");
+    return;
+  }
 
   win.document.write(`
     <html>
@@ -1638,6 +1646,9 @@ async function updateRecordStatus(id, status) {
   `);
 
   win.document.close();
+  setTimeout(() => {
+    try { win.focus(); } catch (e) {}
+  }, 300);
 }
     function render() {
       const app = document.getElementById("app");
@@ -1849,10 +1860,12 @@ async function updateRecordStatus(id, status) {
                         <label class="text-sm text-zinc-300">Model Yılı</label>
                         <input
                           id="yearInput"
+                          data-form="modelYear"
                           type="text"
                           inputmode="numeric"
                           placeholder="2020"
                           maxlength="4"
+                          value="${state.form.modelYear || ""}"
                           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4)"
                           class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
                         />
@@ -2175,6 +2188,7 @@ async function updateRecordStatus(id, status) {
 
     <button
       data-print="${record.id}"
+      onclick="printReceipt('${record.id}')"
       class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600"
     >
       Fiş
@@ -2587,7 +2601,9 @@ searchEl.addEventListener("keydown", (e) => {
       });
 
       document.querySelectorAll("[data-print]").forEach((btn) => {
-        btn.addEventListener("click", () => printReceipt(btn.dataset.print));
+        if (!btn.getAttribute("onclick")) {
+          btn.addEventListener("click", () => printReceipt(btn.dataset.print));
+        }
       });
 
       document.querySelectorAll("[data-inline-status]").forEach((el) => {
