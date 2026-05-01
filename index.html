@@ -58,9 +58,28 @@ async function createStockRequestFromRecord(record) {
       plate: String(record.Plaka || record.plaka || ""),
       customer_name: String(record.MusteriAdi || record.customerName || ""),
       technician_name: String(record.Teknisyen || record.technician || ""),
-      requested_text: typeof requestedText === "string"
-        ? requestedText
-        : JSON.stringify(requestedText),
+    requested_text: (() => {
+  let value = requestedText;
+
+  // string ise JSON olabilir, parse etmeye çalış
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  // array ise sadece isimleri al
+  if (Array.isArray(value)) {
+    return value
+      .map(op => op?.name || "")
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return String(value || "");
+})(),
       note: String(record.Notlar || record.noteText || "")
     };
 
