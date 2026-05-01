@@ -379,7 +379,10 @@ async function deleteRecord(id) {
 
     // Sonra Sheets tarafındaki kaydı siliyoruz.
     await supabaseKayitSil(id);
-
+await supabaseClient
+  .from("stock_requests")
+  .delete()
+  .eq("kabul_record_id", String(id));
     state.records = state.records.filter(r => String(r.id) !== String(id));
 
     if (state.selectedId === id) {
