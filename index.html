@@ -36,7 +36,50 @@
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtc292cmJrb2Vpdmt2bWx6YWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTg3NTMsImV4cCI6MjA5MjkzNDc1M30.Tf_8-AEkON4hvKsWiljiDV5z_LJW7KUebIkU-0R8x_A";
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ====================== DEPO TALEP SİSTEMİ ======================
 
+async function createStockRequestFromRecord(record) {
+  try {
+    const requestedText =
+      record.YapilacakIslem ||
+      record.yapilacakIslem ||
+      record.operationsText ||
+      record.operations ||
+      "";
+
+    if (!requestedText || String(requestedText).trim() === "") {
+      console.warn("Depo talebi oluşturulmadı: yapılacak işlem boş.");
+      return null;
+    }
+
+    const payload = {
+      kabul_record_id: String(record.ID || record.id || ""),
+      record_no: String(record.recordNo || record.ID || record.id || ""),
+      plate: String(record.Plaka || record.plaka || ""),
+      customer_name: String(record.MusteriAdi || record.customerName || ""),
+      technician_name: String(record.Teknisyen || record.technician || ""),
+      requested_text: typeof requestedText === "string"
+        ? requestedText
+        : JSON.stringify(requestedText),
+      note: String(record.Notlar || record.noteText || "")
+    };
+
+    const { data, error } = await supabaseClient
+      .from("stock_requests")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log("Depo talebi oluşturuldu:", data);
+    return data;
+
+  } catch (err) {
+    console.error("Depo talebi hatası:", err);
+    return null;
+  }
+}
 const MONTAJ_KONTROL_ITEMS = [
   "İş emri ile araç plakası uyumlu mu?",
   "Müşteri şikayetleri ve özel istekler not edilmiş mi?",
@@ -1000,7 +1043,9 @@ const uploadedForm = {
     console.log("GIDEN PAYLOAD:", payload);
 
    const result = await supabaseKayitEkle(payload);
-
+    
+await createStockRequestFromRecord(result);
+    
 state.records.unshift(mapSheetRecord(result));
 state.totalRemoteCount = state.records.length;
 
