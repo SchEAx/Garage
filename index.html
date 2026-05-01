@@ -58,6 +58,9 @@ async function createStockRequestFromRecord(record) {
       plate: String(record.Plaka || record.plaka || ""),
       customer_name: String(record.MusteriAdi || record.customerName || ""),
       technician_name: String(record.Teknisyen || record.technician || ""),
+      vehicle_brand: String(record.AracMarka || record.brand || ""),
+vehicle_model: String(record.AracModel || record.model || ""),
+vehicle_type: String(record.AracTip || record.type || ""),
     requested_text: (() => {
   let value = requestedText;
 
