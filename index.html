@@ -378,15 +378,47 @@ async function deleteRecord(id) {
     const requestIds = (requests || []).map(r => r.id);
 
     // 2) Rezerve varsa önce stokları geri aç
-    for (const req of requests || []) {
-      if (req.status === "rezerve_edildi" || req.status === "teslim_edildi") {
-        const { error: cancelError } = await supabaseClient.rpc("cancel_stock_reservation", {
-          p_request_id: req.id
-        });
+    // 2) Rezerve veya montaj bitti stoklarını geri aç
+for (const req of requests || []) {
+  // Rezerve duruyorsa normal rezerv iptal
+  if (req.status === "rezerve_edildi" || req.status === "teslim_edildi") {
+    const { error: cancelError } = await supabaseClient.rpc("cancel_stock_reservation", {
+      p_request_id: req.id
+    });
 
-        if (cancelError) throw cancelError;
-      }
+    if (cancelError) throw cancelError;
+  }
+
+  // Montaj bitti ise stoktan düşmüş ürünleri geri ekle
+  if (req.status === "montaj_bitti") {
+    const { data: movements, error: movReadError } = await supabaseClient
+      .from("stock_movements")
+      .select("product_id, quantity")
+      .eq("stock_request_id", req.id)
+      .eq("movement_type", "cikis");
+
+    if (movReadError) throw movReadError;
+
+    for (const mov of movements || []) {
+      const { data: product, error: productReadError } = await supabaseClient
+        .from("stock_products")
+        .select("quantity")
+        .eq("id", mov.product_id)
+        .single();
+
+      if (productReadError) throw productReadError;
+
+      const newQuantity = Number(product.quantity || 0) + Number(mov.quantity || 0);
+
+      const { error: productUpdateError } = await supabaseClient
+        .from("stock_products")
+        .update({ quantity: newQuantity })
+        .eq("id", mov.product_id);
+
+      if (productUpdateError) throw productUpdateError;
     }
+  }
+}
 
     if (requestIds.length > 0) {
       // 3) Hareketleri sil
