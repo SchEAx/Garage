@@ -61,6 +61,14 @@ async function createStockRequestFromRecord(record) {
       vehicle_brand: String(record.AracMarka || record.brand || ""),
 vehicle_model: String(record.AracModel || record.model || ""),
 vehicle_type: String(record.AracTip || record.type || ""),
+      vehicle_year: String(
+  record.AracModelYil ||
+  record.ModelYil ||
+  record.AracYil ||
+  record.year ||
+  record.modelYear ||
+  ""
+),
     requested_text: (() => {
   let value = requestedText;
 
