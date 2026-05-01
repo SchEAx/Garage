@@ -1148,6 +1148,8 @@ const uploadedForm = {
 
     const result = await supabaseKayitGuncelle(payload);
 
+    
+
 state.records = state.records.map(r =>
   String(r.id) === String(currentRecord.id) ? mapSheetRecord(result) : r
 );
@@ -1234,6 +1236,20 @@ async function updateRecordStatus(id, status) {
     assertNoBase64InPayload(payload);
 
     const result = await supabaseKayitGuncelle(payload);
+
+    if (status === "Montaj Bitti") {
+  const { data, error } = await supabaseClient.rpc("complete_stock_request", {
+    p_kabul_record_id: String(record.id)
+  });
+
+  if (error) {
+    console.error("Stok düşme hatası:", error);
+    alert("Durum Montaj Bitti oldu ama stok düşürülemedi: " + error.message);
+  } else {
+    console.log("Stok kesin çıkış sonucu:", data);
+  }
+}
+    
     const updatedRecord = mapSheetRecord(result);
     state.records = state.records.map(r =>
       String(r.id) === String(record.id) ? updatedRecord : r
