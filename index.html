@@ -358,59 +358,53 @@ async function kayitSil(id) {
   });
 }
 async function deleteRecord(id) {
-  if (!id) return;
-
-  const ok = confirm("Bu kaydı silmek istediğine emin misin?");
-  if (!ok) return;
-
-  const record = state.records.find(r => String(r.id) === String(id));
+  if (!confirm("Bu kaydı silmek istediğine emin misin?")) return;
 
   try {
-    // Önce Supabase Storage dosyalarını silmeye çalışıyoruz.
-    // Hata olsa bile kayıt silme işlemini engellemesin diye deleteFromSupabase kendi içinde güvenli çalışıyor.
-    if (record) {
-      await deleteFromSupabase(record.vehicleImage || "", "vehicle-photos");
-      await deleteFromSupabase(record.sonKontrolFoto || "", "vehicle-photos");
-      await deleteFromSupabase(record.signature || "", "signatures");
-      await deleteFromSupabase(record.technicianSignature || "", "signatures");
-    } else {
-      console.warn("Silinecek kayıt state içinde bulunamadı, sadece Sheets kaydı silinecek:", id);
+    // 1️⃣ Bu kayda bağlı depo taleplerini bul
+    const { data: requests, error: reqError } = await supabaseClient
+      .from("stock_requests")
+      .select("id")
+      .eq("kabul_record_id", String(id));
+
+    if (reqError) throw reqError;
+
+    if (requests && requests.length > 0) {
+      const requestIds = requests.map(r => r.id);
+
+      // 2️⃣ Stok hareketlerini sil
+      const { error: movErr } = await supabaseClient
+        .from("stock_movements")
+        .delete()
+        .in("stock_request_id", requestIds);
+
+      if (movErr) throw movErr;
+
+      // 3️⃣ Rezervleri sil
+      const { error: resErr } = await supabaseClient
+        .from("stock_reservations")
+        .delete()
+        .in("stock_request_id", requestIds);
+
+      if (resErr) throw resErr;
+
+      // 4️⃣ Depo taleplerini sil
+      const { error: reqDelErr } = await supabaseClient
+        .from("stock_requests")
+        .delete()
+        .in("id", requestIds);
+
+      if (reqDelErr) throw reqDelErr;
     }
 
-    // Sonra Sheets tarafındaki kaydı siliyoruz.
-    // Önce rezerv varsa iptal et
-await supabaseClient.rpc("cancel_stock_reservation", {
-  p_request_id: id
-}).catch(() => {});
+    // 5️⃣ En son araç kabul kaydını sil
+    await supabaseKayitSil(id);
 
-// Sonra depo talebini sil
-await supabaseClient
-  .from("stock_requests")
-  .delete()
-  .eq("kabul_record_id", String(id));
+    alert("Kayıt ve bağlı stok verileri silindi ✅");
 
-// Sonra kayıt sil
-await supabaseKayitSil(id);
-    state.records = state.records.filter(r => String(r.id) !== String(id));
-
-    if (state.selectedId === id) {
-      state.selectedId = null;
-    }
-
-    if (state.editId === id) {
-      state.editId = null;
-      state.form = emptyForm();
-    }
-
-    render();
-    await listeyiYenile();
-
-    if (typeof showToast === "function") {
-      showToast("Kayıt silindi ✅");
-    }
-  } catch (e) {
-    console.error("Silme hata:", e);
-    alert("Kayıt silinemedi: " + (e.message || "Bilinmeyen hata"));
+  } catch (err) {
+    console.error(err);
+    alert("Silme sırasında hata oluştu: " + err.message);
   }
 }
 async function deleteFromSupabase(url, bucket) {
