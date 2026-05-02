@@ -103,7 +103,16 @@ vehicle_type: String(record.AracTip || record.type || ""),
     if (error) throw error;
 
     console.log("Depo talebi oluşturuldu:", data);
-    return data;
+
+fetch("https://test-mzr2h9t0b-scheaxs-projects.vercel.app/", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(data)
+}).catch(err => {
+  console.warn("Push bildirimi gönderilemedi:", err);
+});
+
+return data;
 
   } catch (err) {
     console.error("Depo talebi hatası:", err);
