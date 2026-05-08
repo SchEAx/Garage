@@ -119,6 +119,102 @@ return data;
     return null;
   }
 }
+
+  async function updateStockRequestFromRecord(record) {
+  try {
+    const requestedText =
+      record.YapilacakIslem ||
+      record.yapilacakIslem ||
+      record.operationsText ||
+      record.operations ||
+      "";
+
+    if (!requestedText || String(requestedText).trim() === "") {
+      console.warn("Depo talebi güncellenmedi: yapılacak işlem boş.");
+      return null;
+    }
+
+    const payload = {
+      record_no: String(record.recordNo || record.ID || record.id || ""),
+      plate: String(record.Plaka || record.plaka || ""),
+      customer_name: String(record.MusteriAdi || record.customerName || ""),
+      technician_name: String(record.Teknisyen || record.technician || ""),
+
+      vehicle_brand: String(record.AracMarka || record.brand || ""),
+      vehicle_model: String(record.AracModel || record.model || ""),
+      vehicle_type: String(record.AracTip || record.type || ""),
+
+      vehicle_year: String(
+        record.AracModelYil ||
+        record.ModelYil ||
+        record.AracYil ||
+        record.year ||
+        record.modelYear ||
+        ""
+      ),
+
+      requested_text: (() => {
+        let value = requestedText;
+
+        if (typeof value === "string") {
+          try {
+            value = JSON.parse(value);
+          } catch {
+            return value;
+          }
+        }
+
+        if (Array.isArray(value)) {
+          return value
+            .map(op => op?.name || "")
+            .filter(Boolean)
+            .join(", ");
+        }
+
+        return String(value || "");
+      })(),
+
+      note: String(record.Notlar || record.noteText || ""),
+      updated_at: new Date().toISOString()
+    };
+
+    // mevcut talebi bul
+    const { data: existing, error: findError } = await supabaseClient
+      .from("stock_requests")
+      .select("id,status")
+      .eq("kabul_record_id", String(record.ID || record.id || ""))
+      .maybeSingle();
+
+    if (findError) throw findError;
+
+    // yoksa oluştur
+    if (!existing) {
+      return await createStockRequestFromRecord(record);
+    }
+
+    // rezerv durumunu koru
+    if (existing.status) {
+      payload.status = existing.status;
+    }
+
+    const { data, error } = await supabaseClient
+      .from("stock_requests")
+      .update(payload)
+      .eq("id", existing.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log("Depo talebi güncellendi:", data);
+
+    return data;
+
+  } catch (err) {
+    console.error("Depo talebi güncelleme hatası:", err);
+    return null;
+  }
+}
 const MONTAJ_KONTROL_ITEMS = [
   "İş emri ile araç plakası uyumlu mu?",
   "Müşteri şikayetleri ve özel istekler not edilmiş mi?",
@@ -1248,6 +1344,7 @@ const uploadedForm = {
     assertNoBase64InPayload(payload);
 
     const result = await supabaseKayitGuncelle(payload);
+    await updateStockRequestFromRecord(result);
 
     
 
