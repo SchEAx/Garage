@@ -812,6 +812,87 @@ function mapSheetRecord(row) {
   let searchTimer = null;
   let signatureHandlersBound = false;
 
+
+  const TECH_SIGNATURE_STORE_KEY = "garage_technician_signatures_v1";
+
+  function normalizeTechnicianName(value) {
+    return String(value || "")
+      .toLocaleLowerCase("tr-TR")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function readTechnicianSignatureStore() {
+    try {
+      return JSON.parse(localStorage.getItem(TECH_SIGNATURE_STORE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function writeTechnicianSignatureStore(store) {
+    try {
+      localStorage.setItem(TECH_SIGNATURE_STORE_KEY, JSON.stringify(store || {}));
+    } catch (e) {
+      console.warn("Usta imza hafızası kaydedilemedi:", e);
+    }
+  }
+
+  function rememberTechnicianSignature(name, signature) {
+    const key = normalizeTechnicianName(name);
+    if (!key || !signature) return false;
+
+    const store = readTechnicianSignatureStore();
+    store[key] = {
+      name: String(name || "").trim(),
+      signature,
+      savedAt: new Date().toISOString()
+    };
+    writeTechnicianSignatureStore(store);
+    return true;
+  }
+
+  function getTechnicianSignature(name) {
+    const key = normalizeTechnicianName(name);
+    if (!key) return "";
+
+    const fromRecords = (state.records || [])
+      .filter(r => normalizeTechnicianName(r.technician) === key && r.technicianSignature)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+
+    if (fromRecords?.technicianSignature) return fromRecords.technicianSignature;
+
+    const store = readTechnicianSignatureStore();
+    return store[key]?.signature || "";
+  }
+
+  function technicianNameOptions() {
+    const names = new Set();
+
+    (state.records || []).forEach(r => {
+      if (String(r.technician || "").trim()) names.add(String(r.technician).trim());
+    });
+
+    Object.values(readTechnicianSignatureStore()).forEach(item => {
+      if (String(item?.name || "").trim()) names.add(String(item.name).trim());
+    });
+
+    return [...names].sort((a, b) => a.localeCompare(b, "tr"));
+  }
+
+  function applyTechnicianSignatureToForm(force = false) {
+    const name = state.form.technician || "";
+    const signature = getTechnicianSignature(name);
+
+    if (!name || !signature) return false;
+    if (!force && state.form.technicianSignature) return false;
+
+    state.form.technicianSignature = signature;
+    signatureHandlersBound = false;
+    render();
+    return true;
+  }
+
  function formatDateTime(value) {
   if (!value) return "-";
 
@@ -1240,14 +1321,23 @@ console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
   try {
     state.saving = true;
     render();
+const formForUpload = {
+  ...form,
+  technicianSignature: form.technicianSignature || getTechnicianSignature(form.technician) || ""
+};
+
 const [vehicleImageUrl, signatureUrl, technicianSignatureUrl] = await Promise.all([
-  uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
-  uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
-  uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
+  uploadDataUrlToSupabase(formForUpload.vehicleImage, "vehicle-photos", "first"),
+  uploadDataUrlToSupabase(formForUpload.signature, "signatures", "customer"),
+  uploadDataUrlToSupabase(formForUpload.technicianSignature, "signatures", "technician")
 ]);
 
+if (formForUpload.technician && technicianSignatureUrl) {
+  rememberTechnicianSignature(formForUpload.technician, technicianSignatureUrl);
+}
+
 const uploadedForm = {
-  ...form,
+  ...formForUpload,
   vehicleImage: vehicleImageUrl,
   signature: signatureUrl,
   technicianSignature: technicianSignatureUrl
@@ -1313,14 +1403,23 @@ console.log("GÜNCELLEME ÖNCESİ OPERATIONS:", JSON.stringify(validOperations))
   try {
     state.saving = true;
     render();
+const formForUpload = {
+  ...form,
+  technicianSignature: form.technicianSignature || getTechnicianSignature(form.technician) || ""
+};
+
 const [vehicleImageUrl, signatureUrl, technicianSignatureUrl] = await Promise.all([
-  uploadDataUrlToSupabase(form.vehicleImage, "vehicle-photos", "first"),
-  uploadDataUrlToSupabase(form.signature, "signatures", "customer"),
-  uploadDataUrlToSupabase(form.technicianSignature, "signatures", "technician")
+  uploadDataUrlToSupabase(formForUpload.vehicleImage, "vehicle-photos", "first"),
+  uploadDataUrlToSupabase(formForUpload.signature, "signatures", "customer"),
+  uploadDataUrlToSupabase(formForUpload.technicianSignature, "signatures", "technician")
 ]);
 
+if (formForUpload.technician && technicianSignatureUrl) {
+  rememberTechnicianSignature(formForUpload.technician, technicianSignatureUrl);
+}
+
 const uploadedForm = {
-  ...form,
+  ...formForUpload,
   vehicleImage: vehicleImageUrl,
   signature: signatureUrl,
   technicianSignature: technicianSignatureUrl
@@ -1383,12 +1482,47 @@ async function updateRecordTechnician(id, technician) {
   if (!record) return false;
 
   try {
-    await supabaseKayitGuncelle({
-  ID: record.id,
-  Teknisyen: technician
-});
+    let autoSignature = record.technicianSignature || getTechnicianSignature(technician) || "";
+
+    if (autoSignature && isDataUrl(autoSignature)) {
+      autoSignature = await uploadDataUrlToSupabase(autoSignature, "signatures", "technician");
+    }
+
+    const payload = {
+      ID: record.id,
+      Teknisyen: technician
+    };
+
+    if (autoSignature) {
+      payload.UstaImza = autoSignature;
+    }
+
+    await supabaseKayitGuncelle(payload);
 
     record.technician = technician;
+    if (autoSignature) {
+      record.technicianSignature = autoSignature;
+      rememberTechnicianSignature(technician, autoSignature);
+    }
+
+    try {
+      await updateStockRequestFromRecord({
+        id: record.id,
+        ID: record.id,
+        Plaka: record.plaka,
+        MusteriAdi: record.customerName,
+        Teknisyen: technician,
+        AracMarka: record.brand,
+        AracModel: record.model,
+        AracTip: record.type,
+        AracYil: record.modelYear,
+        YapilacakIslem: JSON.stringify(record.operations || []),
+        Notlar: record.noteText || ""
+      });
+    } catch (stockErr) {
+      console.warn("Depo talebi usta bilgisi güncellenemedi:", stockErr);
+    }
+
     render();
     return true;
   } catch (e) {
@@ -2130,6 +2264,23 @@ async function updateRecordStatus(id, status) {
     <span>Kişisel verilerin işlenmesine ilişkin açık rıza metnini okudum ve kabul ediyorum.</span>
   </label>
 </div>
+                      <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm text-zinc-300">Usta Adı</label>
+                        <input
+                          id="technicianInput"
+                          data-form="technician"
+                          list="technicianNameList"
+                          maxlength="40"
+                          placeholder="Usta adını yaz / seç"
+                          value="${state.form.technician || ""}"
+                          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+                        />
+                        <datalist id="technicianNameList">
+                          ${technicianNameOptions().map(name => `<option value="${name}"></option>`).join("")}
+                        </datalist>
+                        <div class="text-xs text-zinc-500">Bu ustanın kayıtlı imzası varsa otomatik yüklenecek.</div>
+                      </div>
+
                       <div class="grid gap-4 md:grid-cols-2">
                         <div>
                           <label class="mb-2 block text-sm text-zinc-300">Müşteri İmzası</label>
@@ -2145,7 +2296,9 @@ async function updateRecordStatus(id, status) {
                           <label class="mb-2 block text-sm text-zinc-300">Usta İmzası</label>
                           <div class="rounded-2xl border border-white/10 bg-zinc-950 p-3">
                             <canvas id="technicianSignaturePad" class="block w-full h-[180px] rounded-xl bg-black/30"></canvas>
-                            <div class="mt-3 flex justify-end">
+                            <div class="mt-3 flex flex-wrap justify-end gap-2">
+                              <button id="useSavedTechnicianSignature" type="button" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-blue-500/15 text-blue-300 hover:bg-blue-500/25">Kayıtlı İmzayı Getir</button>
+                              <button id="saveTechnicianSignatureTemplate" type="button" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">Bu İmzayı Ustaya Kaydet</button>
                               <button id="clearTechnicianSignature" type="button" class="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition bg-zinc-800 text-white hover:bg-zinc-700">Usta İmzasını Temizle</button>
                             </div>
                           </div>
@@ -2622,6 +2775,39 @@ document.querySelectorAll('[data-kontrol-note]').forEach((el) => {
       document.querySelectorAll("[data-form]").forEach((el) => {
         el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value));
         el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value));
+      });
+
+      const technicianInput = document.getElementById("technicianInput");
+      if (technicianInput) {
+        const applyFromInput = () => {
+          state.form.technician = technicianInput.value || "";
+          applyTechnicianSignatureToForm(false);
+        };
+        technicianInput.addEventListener("change", applyFromInput);
+        technicianInput.addEventListener("blur", applyFromInput);
+      }
+
+      document.getElementById("useSavedTechnicianSignature")?.addEventListener("click", () => {
+        if (!String(state.form.technician || "").trim()) {
+          alert("Önce usta adı yaz / seç.");
+          return;
+        }
+        if (!applyTechnicianSignatureToForm(true)) {
+          alert("Bu usta için kayıtlı imza bulunamadı.");
+        }
+      });
+
+      document.getElementById("saveTechnicianSignatureTemplate")?.addEventListener("click", () => {
+        if (!String(state.form.technician || "").trim()) {
+          alert("Önce usta adı yaz / seç.");
+          return;
+        }
+        if (!state.form.technicianSignature) {
+          alert("Önce usta imzasını çiz.");
+          return;
+        }
+        rememberTechnicianSignature(state.form.technician, state.form.technicianSignature);
+        alert("Usta imzası hafızaya alındı ✅");
       });
 document.getElementById("brandSelect")?.addEventListener("change", (e) => {
   state.form.brand = e.target.value;
