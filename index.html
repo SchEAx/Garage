@@ -1074,6 +1074,155 @@ function buildPayloadFromForm(form, override = {}) {
   };
 }
 
+
+// ====================== OFFLINE KAYIT KUYRUĞU ======================
+const OFFLINE_RECORD_QUEUE_KEY = "garage_offline_record_queue_v1";
+
+function cloneForOffline(value) {
+  try {
+    return JSON.parse(JSON.stringify(value || {}));
+  } catch {
+    return value || {};
+  }
+}
+
+function readOfflineRecordQueue() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_RECORD_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn("Offline kayıt kuyruğu okunamadı:", err);
+    return [];
+  }
+}
+
+function writeOfflineRecordQueue(queue) {
+  localStorage.setItem(OFFLINE_RECORD_QUEUE_KEY, JSON.stringify(queue || []));
+}
+
+function offlineQueueCount() {
+  return readOfflineRecordQueue().length;
+}
+
+function isNetworkLikeError(err) {
+  const msg = String(err?.message || err || "").toLocaleLowerCase("tr-TR");
+  return !navigator.onLine || err?.name === "TypeError" || msg.includes("failed to fetch") || msg.includes("network") || msg.includes("internet");
+}
+
+function queueOfflineRecord(formSnapshot, validOperations) {
+  const item = {
+    id: "offline_" + Date.now() + "_" + Math.random().toString(16).slice(2),
+    queuedAt: new Date().toISOString(),
+    form: cloneForOffline({ ...formSnapshot, operations: validOperations }),
+    validOperations: cloneForOffline(validOperations || [])
+  };
+
+  const queue = readOfflineRecordQueue();
+  queue.push(item);
+  writeOfflineRecordQueue(queue);
+  return item;
+}
+
+async function submitNewRecordFromSnapshot(formSnapshot, validOperations) {
+  const formForUpload = {
+    ...formSnapshot,
+    operations: validOperations,
+    technicianSignature: formSnapshot.technicianSignature || getTechnicianSignature(formSnapshot.technician) || ""
+  };
+
+  const [vehicleImageUrl, signatureUrl, technicianSignatureUrl] = await Promise.all([
+    uploadDataUrlToSupabase(formForUpload.vehicleImage, "vehicle-photos", "first"),
+    uploadDataUrlToSupabase(formForUpload.signature, "signatures", "customer"),
+    uploadDataUrlToSupabase(formForUpload.technicianSignature, "signatures", "technician")
+  ]);
+
+  if (formForUpload.technician && technicianSignatureUrl) {
+    rememberTechnicianSignature(formForUpload.technician, technicianSignatureUrl);
+  }
+
+  const uploadedForm = {
+    ...formForUpload,
+    vehicleImage: vehicleImageUrl,
+    signature: signatureUrl,
+    technicianSignature: technicianSignatureUrl
+  };
+
+  const payload = buildPayloadFromForm({
+    ...uploadedForm,
+    operations: validOperations
+  });
+
+  assertNoBase64InPayload(payload);
+  console.log("GIDEN PAYLOAD:", payload);
+
+  const result = await supabaseKayitEkle(payload);
+  await createStockRequestFromRecord(result);
+  return result;
+}
+
+async function processOfflineRecordQueue() {
+  if (!navigator.onLine) return;
+  if (state.processingOfflineQueue) return;
+
+  const queue = readOfflineRecordQueue();
+  if (!queue.length) return;
+
+  state.processingOfflineQueue = true;
+  if (typeof showToast === "function") {
+    showToast(`${queue.length} bekleyen kayıt gönderiliyor...`);
+  }
+
+  let sentCount = 0;
+
+  try {
+    while (readOfflineRecordQueue().length && navigator.onLine) {
+      const currentQueue = readOfflineRecordQueue();
+      const item = currentQueue[0];
+
+      const result = await submitNewRecordFromSnapshot(item.form, item.validOperations);
+      state.records.unshift(mapSheetRecord(result));
+      sentCount++;
+
+      currentQueue.shift();
+      writeOfflineRecordQueue(currentQueue);
+    }
+
+    if (sentCount > 0) {
+      state.totalRemoteCount = state.records.length;
+      state.activeTab = "liste";
+      state.visibleCount = PAGE_SIZE;
+      if (typeof showToast === "function") {
+        showToast(`${sentCount} offline kayıt başarıyla gönderildi ✅`);
+      }
+    }
+  } catch (err) {
+    console.error("Offline kayıt gönderim hatası:", err);
+    if (typeof showToast === "function") {
+      showToast("Bekleyen kayıt gönderilemedi, internet gelince tekrar denenecek", true);
+    }
+  } finally {
+    state.processingOfflineQueue = false;
+    render();
+  }
+}
+
+function showOfflineQueueBadge() {
+  const count = offlineQueueCount();
+  const old = document.getElementById("offlineQueueBadge");
+  if (old) old.remove();
+  if (!count) return;
+
+  const box = document.createElement("div");
+  box.id = "offlineQueueBadge";
+  box.innerHTML = `
+    <div style="position:fixed;left:12px;bottom:76px;z-index:999999;background:#92400e;color:white;border:1px solid rgba(251,191,36,.45);border-radius:16px;padding:10px 12px;font:700 13px Arial;box-shadow:0 10px 30px rgba(0,0,0,.35)">
+      📡 ${count} kayıt beklemede
+    </div>
+  `;
+  document.body.appendChild(box);
+}
+
   function formToPayload(form, existingRecordNo = null) {
     const cleanedOperations = (form.operations || []).filter(
       op => op.name && op.name.trim() && op.fee !== ""
@@ -1301,12 +1450,12 @@ function visibleRows() {
 async function saveRecord() {
   if (state.saving) return;
 
- syncOperationsFromDom();
+  syncOperationsFromDom();
 
-const form = state.form;
-const validOperations = temizOperations(form.operations);
+  const form = state.form;
+  const validOperations = temizOperations(form.operations);
 
-console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
+  console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
 
   if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
     alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, en az 1 işlem ve ücret.");
@@ -1318,56 +1467,61 @@ console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
     return;
   }
 
+  const formSnapshot = cloneForOffline(form);
+
+  if (!navigator.onLine) {
+    try {
+      queueOfflineRecord(formSnapshot, validOperations);
+      state.form = emptyForm();
+      state.editId = null;
+      state.activeTab = "liste";
+      signatureHandlersBound = false;
+      state.visibleCount = PAGE_SIZE;
+      showOfflineQueueBadge();
+      alert("İnternet yok. Kayıt cihazda beklemeye alındı, internet gelince otomatik gönderilecek ✅");
+      render();
+    } catch (err) {
+      console.error("Offline kayıt kuyruğa alınamadı:", err);
+      alert("Kayıt cihazda saklanamadı: " + (err.message || "Bilinmeyen hata"));
+    }
+    return;
+  }
+
   try {
     state.saving = true;
     render();
-const formForUpload = {
-  ...form,
-  technicianSignature: form.technicianSignature || getTechnicianSignature(form.technician) || ""
-};
 
-const [vehicleImageUrl, signatureUrl, technicianSignatureUrl] = await Promise.all([
-  uploadDataUrlToSupabase(formForUpload.vehicleImage, "vehicle-photos", "first"),
-  uploadDataUrlToSupabase(formForUpload.signature, "signatures", "customer"),
-  uploadDataUrlToSupabase(formForUpload.technicianSignature, "signatures", "technician")
-]);
+    const result = await submitNewRecordFromSnapshot(formSnapshot, validOperations);
 
-if (formForUpload.technician && technicianSignatureUrl) {
-  rememberTechnicianSignature(formForUpload.technician, technicianSignatureUrl);
-}
+    state.records.unshift(mapSheetRecord(result));
+    state.totalRemoteCount = state.records.length;
 
-const uploadedForm = {
-  ...formForUpload,
-  vehicleImage: vehicleImageUrl,
-  signature: signatureUrl,
-  technicianSignature: technicianSignatureUrl
-};
-    const payload = buildPayloadFromForm({
-      ...uploadedForm,
-      operations: validOperations
-    });
-
-    assertNoBase64InPayload(payload);
-
-    console.log("GIDEN PAYLOAD:", payload);
-
-   const result = await supabaseKayitEkle(payload);
-    
-await createStockRequestFromRecord(result);
-    
-state.records.unshift(mapSheetRecord(result));
-state.totalRemoteCount = state.records.length;
-
-state.form = emptyForm();
-state.editId = null;
-state.activeTab = "liste";
-signatureHandlersBound = false;
-state.visibleCount = PAGE_SIZE;
-
+    state.form = emptyForm();
+    state.editId = null;
+    state.activeTab = "liste";
+    signatureHandlersBound = false;
+    state.visibleCount = PAGE_SIZE;
 
   } catch (e) {
     console.error("saveRecord hata:", e);
-    alert("Kayıt eklenemedi: " + (e.message || "Bilinmeyen hata"));
+
+    if (isNetworkLikeError(e)) {
+      try {
+        queueOfflineRecord(formSnapshot, validOperations);
+        state.form = emptyForm();
+        state.editId = null;
+        state.activeTab = "liste";
+        signatureHandlersBound = false;
+        state.visibleCount = PAGE_SIZE;
+        showOfflineQueueBadge();
+        alert("Bağlantı koptu. Kayıt cihazda beklemeye alındı, internet gelince otomatik gönderilecek ✅");
+      } catch (queueErr) {
+        console.error("Offline kayıt kuyruğa alınamadı:", queueErr);
+        alert("Kayıt eklenemedi ve cihazda saklanamadı: " + (queueErr.message || "Bilinmeyen hata"));
+      }
+    } else {
+      alert("Kayıt eklenemedi: " + (e.message || "Bilinmeyen hata"));
+    }
   } finally {
     state.saving = false;
     render();
@@ -4096,6 +4250,20 @@ async function applyUpdate(latestVersion) {
 }
 
 window.addEventListener("load", checkForUpdate);
+window.addEventListener("load", () => {
+  showOfflineQueueBadge();
+  setTimeout(processOfflineRecordQueue, 1500);
+});
+window.addEventListener("online", () => {
+  showOfflineQueueBadge();
+  processOfflineRecordQueue();
+});
+window.addEventListener("offline", () => {
+  showOfflineQueueBadge();
+  if (typeof showToast === "function") {
+    showToast("İnternet bağlantısı yok. Yeni kayıtlar cihazda bekletilecek.", true);
+  }
+});
   </script>
 </body>
 </html>
