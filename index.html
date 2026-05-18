@@ -2384,18 +2384,12 @@ async function updateRecordStatus(id, status) {
 
                     <div class="space-y-2">
                       <label class="text-sm text-zinc-300">Araç Marka *</label>
-                      <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white">
-                        <option value="">Marka Seç</option>
-                        ${Object.keys(vehicleData || {}).sort((a,b)=>a.localeCompare(b,"tr")).map(brand => `<option value="${brand}" ${state.form.brand === brand ? "selected" : ""}>${brand}</option>`).join("")}
-                      </select>
+                      <input data-form="brand" placeholder="Örn: Renault" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.brand || ""}" />
                     </div>
 
                     <div class="space-y-2">
                       <label class="text-sm text-zinc-300">Araç Model *</label>
-                      <select id="modelSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" ${!state.form.brand ? "disabled" : ""}>
-                        <option value="">Model Seç</option>
-                        ${Object.keys((vehicleData || {})[state.form.brand] || {}).sort((a,b)=>a.localeCompare(b,"tr")).map(model => `<option value="${model}" ${state.form.model === model ? "selected" : ""}>${model}</option>`).join("")}
-                      </select>
+                      <input data-form="model" placeholder="Örn: Megane" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.model || ""}" />
                     </div>
 
                     <div class="space-y-2 md:col-span-2">
