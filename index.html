@@ -2391,6 +2391,43 @@ async function updateRecordStatus(id, status) {
                       <label class="text-sm text-zinc-300">Araç Model *</label>
                       <input data-form="model" placeholder="Örn: Megane" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.model || ""}" />
                     </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  
+  <div>
+    <label class="mb-2 block text-sm font-semibold text-zinc-300">
+      Araç Tipi *
+    </label>
+
+    <select
+      onchange="updateForm('type', this.value)"
+      class="w-full rounded-2xl border border-white/10 bg-black px-4 py-4 text-white"
+    >
+      <option value="">Seçiniz</option>
+      <option value="Sedan">Sedan</option>
+      <option value="Hatchback">Hatchback</option>
+      <option value="SUV">SUV</option>
+      <option value="SW">SW</option>
+      <option value="Coupe">Coupe</option>
+      <option value="Pick-Up">Pick-Up</option>
+      <option value="Van">Van</option>
+    </select>
+  </div>
+
+  <div>
+    <label class="mb-2 block text-sm font-semibold text-zinc-300">
+      Model Yılı *
+    </label>
+
+    <input
+      type="number"
+      placeholder="Örn: 2021"
+      value="${state.form.modelYear || ""}"
+      oninput="updateForm('modelYear', this.value)"
+      class="w-full rounded-2xl border border-white/10 bg-black px-4 py-4 text-white"
+    />
+  </div>
+
+</div>
 
                     <div class="space-y-2 md:col-span-2">
                       <div class="mb-2 flex items-center justify-between gap-3">
