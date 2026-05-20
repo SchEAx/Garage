@@ -2836,7 +2836,7 @@ async function updateRecordStatus(id, status) {
   .map(op => op.name || "-")
   .filter(Boolean)
   .join(", ")}
-                          <div class="grid gap-4 xl:grid-cols-[1fr_390px] xl:items-start">
+                          <div class="grid gap-4 xl:grid-cols-[1fr_390px] xl:items-start xl:justify-items-stretch">
 
   <div class="space-y-2">
     <div class="text-sm font-semibold text-emerald-300">
@@ -2852,9 +2852,9 @@ async function updateRecordStatus(id, status) {
     </div>
   </div>
 
-  <div class="flex w-full flex-col gap-3">
+  <div class="ml-auto flex w-full max-w-[390px] flex-col gap-3">
 
-    <div class="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-2">
+    <div class="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-1.5">
       <div class="flex items-center justify-between gap-2">
         <div class="text-xs font-bold text-white">Ödeme</div>
 
