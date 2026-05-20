@@ -2856,166 +2856,161 @@ async function updateRecordStatus(id, status) {
                           </div>
                         </div>
 
-                        <!-- SAĞ İŞLEM ALANI -->
-                        <div class="ml-auto grid w-full max-w-[760px] grid-cols-[370px_1fr] gap-3 items-start">
+                        <div class="ml-auto flex w-full max-w-[760px] items-start gap-4">
 
-                          <div class="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-1.5">
-                            <div class="flex items-center justify-between gap-2">
-                              <div class="text-xs font-bold text-white">Ödeme</div>
+  <!-- ÖDEME BLOĞU -->
+  <div class="w-[370px] shrink-0 rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <div class="text-xs font-bold text-white">Ödeme</div>
 
-                              <div class="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onclick="
-                                    updateForm('paymentCash', '');
-                                    updateForm('paymentCard', '');
-                                    updateForm('paymentTransfer', '');
-                                    render();
-                                    setTimeout(updatePaymentRemaining, 50);
-                                  "
-                                  class="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-300 hover:bg-red-500/20"
-                                >
-                                  Temizle
-                                </button>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          onclick="
+            updateForm('paymentCash', '');
+            updateForm('paymentCard', '');
+            updateForm('paymentTransfer', '');
+            render();
+            setTimeout(updatePaymentRemaining, 50);
+          "
+          class="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-300 hover:bg-red-500/20"
+        >
+          Temizle
+        </button>
 
-                                <div
-                                  id="paymentRemainingBox"
-                                  class="rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400"
-                                >
-                                  Kalan: 0₺ ✅
-                                </div>
-                              </div>
-                            </div>
+        <div
+          id="paymentRemainingBox"
+          class="rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400"
+        >
+          Kalan: 0₺ ✅
+        </div>
+      </div>
+    </div>
 
-                            <div class="flex items-center gap-2">
-                              <div class="w-12 text-xs text-zinc-300">Nakit</div>
-                              <input
-                                type="number"
-                                value="${state.form.paymentCash || ""}"
-                                oninput="updateForm('paymentCash', this.value); updatePaymentRemaining();"
-                                placeholder="0"
-                                class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
-                              />
-                              <button type="button" onclick="setFullPayment('cash')" class="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-500">N</button>
-                            </div>
+    <div class="flex items-center gap-2">
+      <div class="w-12 text-xs text-zinc-300">Nakit</div>
+      <input
+        type="number"
+        value="${state.form.paymentCash || ""}"
+        oninput="updateForm('paymentCash', this.value); updatePaymentRemaining();"
+        placeholder="0"
+        class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
+      />
+      <button type="button" onclick="setFullPayment('cash')" class="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-500">N</button>
+    </div>
 
-                            <div class="flex items-center gap-2">
-                              <div class="w-12 text-xs text-zinc-300">Kart</div>
-                              <input
-                                type="number"
-                                value="${state.form.paymentCard || ""}"
-                                oninput="updateForm('paymentCard', this.value); updatePaymentRemaining();"
-                                placeholder="0"
-                                class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
-                              />
-                              <button type="button" onclick="setFullPayment('card')" class="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-blue-500">K</button>
-                            </div>
+    <div class="flex items-center gap-2">
+      <div class="w-12 text-xs text-zinc-300">Kart</div>
+      <input
+        type="number"
+        value="${state.form.paymentCard || ""}"
+        oninput="updateForm('paymentCard', this.value); updatePaymentRemaining();"
+        placeholder="0"
+        class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
+      />
+      <button type="button" onclick="setFullPayment('card')" class="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-blue-500">K</button>
+    </div>
 
-                            <div class="flex items-center gap-2">
-                              <div class="w-12 text-xs text-zinc-300">Havale</div>
-                              <input
-                                type="number"
-                                value="${state.form.paymentTransfer || ""}"
-                                oninput="updateForm('paymentTransfer', this.value); updatePaymentRemaining();"
-                                placeholder="0"
-                                class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
-                              />
-                              <button type="button" onclick="setFullPayment('transfer')" class="rounded-lg bg-amber-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-amber-500">H</button>
-                            </div>
-                          </div>
-<div class="flex flex-col gap-3">
-                          <div>
-                            <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
-                            <div class="flex gap-2">
-                              <input
-                                data-inline-tech="${record.id}"
-                                maxlength="40"
-                                value="${record.technician || ""}"
-                                placeholder="Usta Ad Soyad"
-                                class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
-                              />
-                              <button
-                                data-save-tech="${record.id}"
-                                class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700 whitespace-nowrap"
-                              >
-                                Ekle
-                              </button>
-                            </div>
-                          </div>
+    <div class="flex items-center gap-2">
+      <div class="w-12 text-xs text-zinc-300">Havale</div>
+      <input
+        type="number"
+        value="${state.form.paymentTransfer || ""}"
+        oninput="updateForm('paymentTransfer', this.value); updatePaymentRemaining();"
+        placeholder="0"
+        class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
+      />
+      <button type="button" onclick="setFullPayment('transfer')" class="rounded-lg bg-amber-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-amber-500">H</button>
+    </div>
+  </div>
 
-                          <div class="flex flex-wrap gap-2">
-                            <button
-                              data-detail="${record.id}"
-                              class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700"
-                            >
-                              Detay
-                            </button>
+  <!-- USTA + BUTONLAR BLOĞU -->
+  <div class="flex min-w-[360px] flex-1 flex-col gap-3">
+    <div>
+      <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
+      <div class="flex gap-2">
+        <input
+          data-inline-tech="${record.id}"
+          maxlength="40"
+          value="${record.technician || ""}"
+          placeholder="Usta Ad Soyad"
+          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+        />
+        <button
+          data-save-tech="${record.id}"
+          class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700 whitespace-nowrap"
+        >
+          Ekle
+        </button>
+      </div>
+    </div>
 
-                            <button
-                              data-edit="${record.id}"
-                              class="rounded-2xl bg-yellow-500 px-4 py-2 text-sm text-black font-semibold hover:bg-yellow-400"
-                            >
-                              Forma Al
-                            </button>
+    <div class="flex flex-wrap gap-2">
+      <button data-detail="${record.id}" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">
+        Detay
+      </button>
 
-                            <button
-                              onclick="updateRecordStatus('${record.id}', 'Montaj Sürecinde')"
-                              ${state.statusUpdatingId === record.id ? "disabled" : ""}
-                              class="rounded-2xl px-4 py-2 text-sm transition ${
-                                record.status === "Montaj Sürecinde"
-                                  ? "bg-amber-500 text-black font-semibold"
-                                  : "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
-                              } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
-                            >
-                              ${
-                                state.statusUpdatingId === record.id && record.status === "Montaj Sürecinde"
-                                  ? "Kaydediliyor..."
-                                  : "İşlemde"
-                              }
-                            </button>
+      <button data-edit="${record.id}" class="rounded-2xl bg-yellow-500 px-4 py-2 text-sm text-black font-semibold hover:bg-yellow-400">
+        Forma Al
+      </button>
 
-                            <button
-                              onclick="updateRecordStatus('${record.id}', 'Montaj Bitti')"
-                              ${state.statusUpdatingId === record.id ? "disabled" : ""}
-                              class="rounded-2xl px-4 py-2 text-sm transition ${
-                                record.status === "Montaj Bitti"
-                                  ? "bg-green-500 text-black font-semibold"
-                                  : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
-                              } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
-                            >
-                              ${
-                                state.statusUpdatingId === record.id && record.status === "Montaj Bitti"
-                                  ? "Kaydediliyor..."
-                                  : "Montaj Bitti"
-                              }
-                            </button>
+      <button
+        onclick="updateRecordStatus('${record.id}', 'Montaj Sürecinde')"
+        ${state.statusUpdatingId === record.id ? "disabled" : ""}
+        class="rounded-2xl px-4 py-2 text-sm transition ${
+          record.status === "Montaj Sürecinde"
+            ? "bg-amber-500 text-black font-semibold"
+            : "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+        } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
+      >
+        ${
+          state.statusUpdatingId === record.id && record.status === "Montaj Sürecinde"
+            ? "Kaydediliyor..."
+            : "İşlemde"
+        }
+      </button>
 
-                            <button
-                              data-print="${record.id}"
-                              onclick="printReceipt('${record.id}')"
-                              class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600"
-                            >
-                              Fiş
-                            </button>
+      <button
+        onclick="updateRecordStatus('${record.id}', 'Montaj Bitti')"
+        ${state.statusUpdatingId === record.id ? "disabled" : ""}
+        class="rounded-2xl px-4 py-2 text-sm transition ${
+          record.status === "Montaj Bitti"
+            ? "bg-green-500 text-black font-semibold"
+            : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
+        } ${state.statusUpdatingId === record.id ? "opacity-60 cursor-not-allowed" : ""}"
+      >
+        ${
+          state.statusUpdatingId === record.id && record.status === "Montaj Bitti"
+            ? "Kaydediliyor..."
+            : "Montaj Bitti"
+        }
+      </button>
 
-                            <button
-                              data-delete="${record.id}"
-                              class="rounded-2xl bg-red-500/15 px-4 py-2 text-sm text-red-300 hover:bg-red-500/25"
-                            >
-                              Sil
-                            </button>
+      <button
+        data-print="${record.id}"
+        onclick="printReceipt('${record.id}')"
+        class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600"
+      >
+        Fiş
+      </button>
 
-                            <button
-                              onclick="openKontrol('${record.id}')"
-                              class="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-300 hover:bg-blue-500/20"
-                            >
-                              Kontrol Et
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    </div>
+      <button
+        data-delete="${record.id}"
+        class="rounded-2xl bg-red-500/15 px-4 py-2 text-sm text-red-300 hover:bg-red-500/25"
+      >
+        Sil
+      </button>
+
+      <button
+        onclick="openKontrol('${record.id}')"
+        class="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-300 hover:bg-blue-500/20"
+      >
+        Kontrol Et
+      </button>
+    </div>
+  </div>
+
+</div>
                   `).join("")}
 
                   ${canShowMore ? `<button id="showMoreBtn" class="mt-2 rounded-2xl border border-white/10 bg-zinc-800 px-4 py-3 text-sm text-white hover:bg-zinc-700">Daha Fazla Göster</button>` : ""}
