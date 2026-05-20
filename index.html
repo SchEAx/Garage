@@ -2857,7 +2857,7 @@ async function updateRecordStatus(id, status) {
                         </div>
 
                         <!-- SAĞ İŞLEM ALANI -->
-                        <div class="ml-auto flex w-full max-w-[390px] flex-col gap-3">
+                        <div class="ml-auto grid w-full max-w-[760px] grid-cols-[370px_1fr] gap-3 items-start">
 
                           <div class="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-1.5">
                             <div class="flex items-center justify-between gap-2">
@@ -2923,7 +2923,7 @@ async function updateRecordStatus(id, status) {
                               <button type="button" onclick="setFullPayment('transfer')" class="rounded-lg bg-amber-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-amber-500">H</button>
                             </div>
                           </div>
-
+<div class="flex flex-col gap-3">
                           <div>
                             <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
                             <div class="flex gap-2">
@@ -3014,6 +3014,7 @@ async function updateRecordStatus(id, status) {
                           </div>
                         </div>
                       </div>
+                    </div>
                     </div>
                   `).join("")}
 
