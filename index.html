@@ -348,6 +348,29 @@ async function uploadDataUrlToSupabase(value, bucket, folder = "general") {
 
   return data.publicUrl;
 }
+
+  function updatePaymentRemainingForRecord(recordId) {
+  const record = state.records.find(r => String(r.id) === String(recordId));
+  if (!record) return;
+
+  const total = recordTotal(record);
+  const paid =
+    Number(state.form.paymentCash || 0) +
+    Number(state.form.paymentCard || 0) +
+    Number(state.form.paymentTransfer || 0);
+
+  const remaining = total - paid;
+  const box = document.getElementById("paymentRemainingBox-" + recordId);
+  if (!box) return;
+
+  if (remaining === 0) {
+    box.innerHTML = "Kalan: 0₺ ✅";
+  } else if (remaining > 0) {
+    box.innerHTML = "Kalan: " + formatMoney(remaining);
+  } else {
+    box.innerHTML = "Fazla: " + formatMoney(Math.abs(remaining));
+  }
+}
   function openKontrol(id) {
   const record = state.records.find(record => record.id === id);
   if (!record) return;
@@ -2880,7 +2903,7 @@ async function updateRecordStatus(id, status) {
                                 </button>
 
                                 <div
-                                  id="paymentRemainingBox"
+                                 id="paymentRemainingBox-${record.id}"
                                   class="rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400"
                                 >
                                   Kalan: 0₺ ✅
@@ -2893,7 +2916,7 @@ async function updateRecordStatus(id, status) {
                               <input
                                 type="number"
                                 value="${state.form.paymentCash || ""}"
-                                oninput="updateForm('paymentCash', this.value); updatePaymentRemaining();"
+                                oninput="updateForm('paymentCash', this.value); updatePaymentRemainingForRecord('${record.id}');"
                                 placeholder="0"
                                 class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
                               />
@@ -2905,7 +2928,7 @@ async function updateRecordStatus(id, status) {
                               <input
                                 type="number"
                                 value="${state.form.paymentCard || ""}"
-                                oninput="updateForm('paymentCard', this.value); updatePaymentRemaining();"
+                                oninput="updateForm('paymentCash', this.value); updatePaymentRemainingForRecord('${record.id}');"
                                 placeholder="0"
                                 class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
                               />
@@ -2917,7 +2940,7 @@ async function updateRecordStatus(id, status) {
                               <input
                                 type="number"
                                 value="${state.form.paymentTransfer || ""}"
-                                oninput="updateForm('paymentTransfer', this.value); updatePaymentRemaining();"
+                                oninput="updateForm('paymentCash', this.value); updatePaymentRemainingForRecord('${record.id}');"
                                 placeholder="0"
                                 class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
                               />
@@ -3731,7 +3754,7 @@ function updatePaymentRemaining() {
     box.className =
       "rounded-xl bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-400";
 
-    box.innerHTML = `Kalan: 0₺ ✅`;
+    box.innerHTML = `Kalan: ${formatMoney(recordTotal(record))} `;
   } else if (remaining > 0) {
     box.className =
       "rounded-xl bg-amber-500/20 px-3 py-2 text-xs font-bold text-amber-300";
