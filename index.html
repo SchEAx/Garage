@@ -349,27 +349,72 @@ async function uploadDataUrlToSupabase(value, bucket, folder = "general") {
   return data.publicUrl;
 }
 
-  function updatePaymentRemainingForRecord(recordId) {
+  function getPaymentInputsForRecord(recordId) {
+  return {
+    cash: document.querySelector(`[data-payment-cash="${recordId}"]`),
+    card: document.querySelector(`[data-payment-card="${recordId}"]`),
+    transfer: document.querySelector(`[data-payment-transfer="${recordId}"]`)
+  };
+}
+
+function getRecordPaymentValues(recordId, fallbackRecord = null) {
+  const inputs = getPaymentInputsForRecord(recordId);
+
+  return {
+    cash: Number(inputs.cash?.value ?? fallbackRecord?.paymentCash ?? 0),
+    card: Number(inputs.card?.value ?? fallbackRecord?.paymentCard ?? 0),
+    transfer: Number(inputs.transfer?.value ?? fallbackRecord?.paymentTransfer ?? 0)
+  };
+}
+
+function updatePaymentRemainingForRecord(recordId) {
   const record = state.records.find(r => String(r.id) === String(recordId));
   if (!record) return;
 
   const total = recordTotal(record);
-  const paid =
-    Number(state.form.paymentCash || 0) +
-    Number(state.form.paymentCard || 0) +
-    Number(state.form.paymentTransfer || 0);
-
+  const payments = getRecordPaymentValues(recordId, record);
+  const paid = payments.cash + payments.card + payments.transfer;
   const remaining = total - paid;
+
   const box = document.getElementById("paymentRemainingBox-" + recordId);
   if (!box) return;
 
   if (remaining === 0) {
+    box.className = "rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400";
     box.innerHTML = "Kalan: 0₺ ✅";
   } else if (remaining > 0) {
+    box.className = "rounded-lg bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300";
     box.innerHTML = "Kalan: " + formatMoney(remaining);
   } else {
+    box.className = "rounded-lg bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-300";
     box.innerHTML = "Fazla: " + formatMoney(Math.abs(remaining));
   }
+}
+
+function clearPaymentForRecord(recordId) {
+  const inputs = getPaymentInputsForRecord(recordId);
+  if (inputs.cash) inputs.cash.value = "";
+  if (inputs.card) inputs.card.value = "";
+  if (inputs.transfer) inputs.transfer.value = "";
+  updatePaymentRemainingForRecord(recordId);
+}
+
+function setFullPaymentForRecord(recordId, type) {
+  const record = state.records.find(r => String(r.id) === String(recordId));
+  if (!record) return;
+
+  const total = recordTotal(record);
+  const inputs = getPaymentInputsForRecord(recordId);
+
+  if (inputs.cash) inputs.cash.value = "";
+  if (inputs.card) inputs.card.value = "";
+  if (inputs.transfer) inputs.transfer.value = "";
+
+  if (type === "cash" && inputs.cash) inputs.cash.value = total;
+  if (type === "card" && inputs.card) inputs.card.value = total;
+  if (type === "transfer" && inputs.transfer) inputs.transfer.value = total;
+
+  updatePaymentRemainingForRecord(recordId);
 }
   function openKontrol(id) {
   const record = state.records.find(record => record.id === id);
@@ -811,7 +856,10 @@ function mapSheetRecord(row) {
 
     sonKontrolFoto: row.SonKontrolFotograf || "",
     kvkkOnay: row.KvkkOnay === true || String(row.KvkkOnay || "").toLowerCase() === "true",
-    musteriOnay: row.MusteriOnay === true || String(row.MusteriOnay || "").toLowerCase() === "true"
+    musteriOnay: row.MusteriOnay === true || String(row.MusteriOnay || "").toLowerCase() === "true",
+    paymentCash: Number(row.odeme_nakit || row.OdemeNakit || 0),
+    paymentCard: Number(row.odeme_kart || row.OdemeKart || 0),
+    paymentTransfer: Number(row.odeme_havale || row.OdemeHavale || 0)
   };
 }
   function formatDateTimeFix(value) {
@@ -1469,6 +1517,9 @@ function visibleRows() {
       technicianSignature: record.technicianSignature || "",
       kvkkOnay: record.kvkkOnay || false,
       musteriOnay: record.musteriOnay || false,
+      paymentCash: record.paymentCash || "",
+      paymentCard: record.paymentCard || "",
+      paymentTransfer: record.paymentTransfer || "",
     };
 
     state.editId = id;
@@ -1836,7 +1887,10 @@ async function updateRecordStatus(id, status) {
       technician: record.technician,
       vehicleDefects: record.vehicleDefects,
       kvkkOnay: record.kvkkOnay,
-      musteriOnay: record.musteriOnay
+      musteriOnay: record.musteriOnay,
+      paymentCash: getRecordPaymentValues(record.id, record).cash,
+      paymentCard: getRecordPaymentValues(record.id, record).card,
+      paymentTransfer: getRecordPaymentValues(record.id, record).transfer
     }, {
       ID: record.id
     });
@@ -2890,13 +2944,7 @@ async function updateRecordStatus(id, status) {
                               <div class="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onclick="
-                                    updateForm('paymentCash', '');
-                                    updateForm('paymentCard', '');
-                                    updateForm('paymentTransfer', '');
-                                    render();
-                                    setTimeout(updatePaymentRemaining, 50);
-                                  "
+                                  onclick="clearPaymentForRecord('${record.id}')"
                                   class="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-300 hover:bg-red-500/20"
                                 >
                                   Temizle
@@ -2906,7 +2954,7 @@ async function updateRecordStatus(id, status) {
                                  id="paymentRemainingBox-${record.id}"
                                   class="rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400"
                                 >
-                                  Kalan: 0₺ ✅
+                                  Kalan: ${formatMoney(Math.max(recordTotal(record) - (Number(record.paymentCash || 0) + Number(record.paymentCard || 0) + Number(record.paymentTransfer || 0)), 0))}${(Number(record.paymentCash || 0) + Number(record.paymentCard || 0) + Number(record.paymentTransfer || 0)) === recordTotal(record) ? " ✅" : ""}
                                 </div>
                               </div>
                             </div>
@@ -2915,36 +2963,39 @@ async function updateRecordStatus(id, status) {
                               <div class="w-12 text-xs text-zinc-300">Nakit</div>
                               <input
                                 type="number"
-                                value="${state.form.paymentCash || ""}"
-                                oninput="updateForm('paymentCash', this.value); updatePaymentRemainingForRecord('${record.id}');"
+                                data-payment-cash="${record.id}"
+                                value="${record.paymentCash || ""}"
+                                oninput="updatePaymentRemainingForRecord('${record.id}')"
                                 placeholder="0"
                                 class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
                               />
-                              <button type="button" onclick="setFullPayment('cash')" class="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-500">N</button>
+                              <button type="button" onclick="setFullPaymentForRecord('${record.id}', 'cash')" class="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-500">N</button>
                             </div>
 
                             <div class="flex items-center gap-2">
                               <div class="w-12 text-xs text-zinc-300">Kart</div>
                               <input
                                 type="number"
-                                value="${state.form.paymentCard || ""}"
-                                oninput="updateForm('paymentCash', this.value); updatePaymentRemainingForRecord('${record.id}');"
+                                data-payment-card="${record.id}"
+                                value="${record.paymentCard || ""}"
+                                oninput="updatePaymentRemainingForRecord('${record.id}')"
                                 placeholder="0"
                                 class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
                               />
-                              <button type="button" onclick="setFullPayment('card')" class="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-blue-500">K</button>
+                              <button type="button" onclick="setFullPaymentForRecord('${record.id}', 'card')" class="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-blue-500">K</button>
                             </div>
 
                             <div class="flex items-center gap-2">
                               <div class="w-12 text-xs text-zinc-300">Havale</div>
                               <input
                                 type="number"
-                                value="${state.form.paymentTransfer || ""}"
-                                oninput="updateForm('paymentCash', this.value); updatePaymentRemainingForRecord('${record.id}');"
+                                data-payment-transfer="${record.id}"
+                                value="${record.paymentTransfer || ""}"
+                                oninput="updatePaymentRemainingForRecord('${record.id}')"
                                 placeholder="0"
                                 class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
                               />
-                              <button type="button" onclick="setFullPayment('transfer')" class="rounded-lg bg-amber-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-amber-500">H</button>
+                              <button type="button" onclick="setFullPaymentForRecord('${record.id}', 'transfer')" class="rounded-lg bg-amber-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-amber-500">H</button>
                             </div>
                           </div>
 
