@@ -992,6 +992,10 @@ function isToday(value) {
       technicianSignature: "",
       kvkkOnay: false,
       musteriOnay: false,
+
+      paymentCash: "",
+paymentCard: "",
+paymentTransfer: "",
     };
   }
 
@@ -1070,6 +1074,10 @@ function buildPayloadFromForm(form, override = {}) {
     UstaImza: form.technicianSignature || "",
     KvkkOnay: !!form.kvkkOnay,
     MusteriOnay: !!form.musteriOnay,
+
+    odeme_nakit: Number(form.paymentCash || 0),
+odeme_kart: Number(form.paymentCard || 0),
+odeme_havale: Number(form.paymentTransfer || 0),
     ...override
   };
 }
@@ -2833,7 +2841,114 @@ async function updateRecordStatus(id, status) {
 
                           <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
                         </div>
-                  
+                  <div class="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3">
+  <div class="flex items-center justify-between">
+    <h3 class="text-sm font-bold text-white">Ödeme Bilgileri</h3>
+
+    <div id="paymentRemainingBox"
+      class="rounded-xl bg-zinc-900 px-3 py-2 text-xs font-bold text-emerald-400">
+      Kalan: 0₺ ✅
+    </div>
+  </div>
+
+  <!-- Nakit -->
+  <div class="grid grid-cols-[1fr_auto] gap-2">
+    <div class="flex items-center gap-2">
+      <span class="w-20 text-sm text-zinc-300">Nakit</span>
+
+      <input
+        type="number"
+        value="${state.form.paymentCash || ""}"
+        oninput="
+          updateForm('paymentCash', this.value);
+          updatePaymentRemaining();
+        "
+        placeholder="0"
+        class="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-white"
+      />
+    </div>
+
+    <button
+      type="button"
+      onclick="
+        setFullPayment('cash');
+      "
+      class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500"
+    >
+      Tamamı
+    </button>
+  </div>
+
+  <!-- Kart -->
+  <div class="grid grid-cols-[1fr_auto] gap-2">
+    <div class="flex items-center gap-2">
+      <span class="w-20 text-sm text-zinc-300">Kart</span>
+
+      <input
+        type="number"
+        value="${state.form.paymentCard || ""}"
+        oninput="
+          updateForm('paymentCard', this.value);
+          updatePaymentRemaining();
+        "
+        placeholder="0"
+        class="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-white"
+      />
+    </div>
+
+    <button
+      type="button"
+      onclick="
+        setFullPayment('card');
+      "
+      class="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500"
+    >
+      Tamamı
+    </button>
+  </div>
+
+  <!-- Havale -->
+  <div class="grid grid-cols-[1fr_auto] gap-2">
+    <div class="flex items-center gap-2">
+      <span class="w-20 text-sm text-zinc-300">Havale</span>
+
+      <input
+        type="number"
+        value="${state.form.paymentTransfer || ""}"
+        oninput="
+          updateForm('paymentTransfer', this.value);
+          updatePaymentRemaining();
+        "
+        placeholder="0"
+        class="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-white"
+      />
+    </div>
+
+    <button
+      type="button"
+      onclick="
+        setFullPayment('transfer');
+      "
+      class="rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-500"
+    >
+      Tamamı
+    </button>
+  </div>
+
+  <button
+    type="button"
+    onclick="
+      updateForm('paymentCash', '');
+      updateForm('paymentCard', '');
+      updateForm('paymentTransfer', '');
+      render();
+      setTimeout(updatePaymentRemaining, 50);
+    "
+    class="w-full rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-300 hover:bg-red-500/20"
+  >
+    Temizle
+  </button>
+</div>
                          <div class="flex w-full flex-col gap-3 xl:w-[430px]">
   <div>
     <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
@@ -3610,7 +3725,70 @@ async function saveKontrol() {
 
         repaint(oldSignature);
       }
+function paymentTotal() {
+  return (
+    Number(state.form.paymentCash || 0) +
+    Number(state.form.paymentCard || 0) +
+    Number(state.form.paymentTransfer || 0)
+  );
+}
 
+function currentFormTotal() {
+  return calculateOperationsTotal(state.form.operations || []);
+}
+
+function updatePaymentRemaining() {
+  const total = currentFormTotal();
+  const paid = paymentTotal();
+  const remaining = total - paid;
+
+  const box = document.getElementById("paymentRemainingBox");
+
+  if (!box) return;
+
+  if (remaining === 0) {
+    box.className =
+      "rounded-xl bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-400";
+
+    box.innerHTML = `Kalan: 0₺ ✅`;
+  } else if (remaining > 0) {
+    box.className =
+      "rounded-xl bg-amber-500/20 px-3 py-2 text-xs font-bold text-amber-300";
+
+    box.innerHTML = `Eksik: ${formatMoney(remaining)}`;
+  } else {
+    box.className =
+      "rounded-xl bg-red-500/20 px-3 py-2 text-xs font-bold text-red-300";
+
+    box.innerHTML = `Fazla: ${formatMoney(Math.abs(remaining))}`;
+  }
+}
+
+function setFullPayment(type) {
+  const total = currentFormTotal();
+
+  state.form.paymentCash = "";
+  state.form.paymentCard = "";
+  state.form.paymentTransfer = "";
+
+  if (type === "cash") {
+    state.form.paymentCash = total;
+  }
+
+  if (type === "card") {
+    state.form.paymentCard = total;
+  }
+
+  if (type === "transfer") {
+    state.form.paymentTransfer = total;
+  }
+
+  render();
+
+  setTimeout(() => {
+    updatePaymentRemaining();
+  }, 50);
+}
       function repaint(signatureData = state.form[config.formKey]) {
         const rect = canvas.getBoundingClientRect();
         ctx.clearRect(0, 0, rect.width, rect.height);
