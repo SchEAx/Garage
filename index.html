@@ -2856,7 +2856,7 @@ async function updateRecordStatus(id, status) {
                           </div>
                         </div>
 
-                       <div class="ml-auto flex w-full max-w-[620px] items-center gap-3">
+                       <div class="flex w-full max-w-[560px] items-center gap-3">
 
   <!-- ÖDEME BLOĞU -->
   <div class="w-[300px] shrink-0 rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-1">
@@ -2925,7 +2925,7 @@ async function updateRecordStatus(id, status) {
   </div>
 
   <!-- USTA + BUTONLAR BLOĞU -->
-  <div class="flex min-w-[360px] flex-1 flex-col gap-3">
+ <div class="flex min-w-0 flex-1 flex-col gap-3">
     <div>
       <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
       <div class="flex gap-2">
@@ -2934,7 +2934,7 @@ async function updateRecordStatus(id, status) {
           maxlength="40"
           value="${record.technician || ""}"
           placeholder="Usta Ad Soyad"
-          class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white"
+         class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-1.5 text-sm text-white"
         />
         <button
           data-save-tech="${record.id}"
