@@ -2856,10 +2856,10 @@ async function updateRecordStatus(id, status) {
                           </div>
                         </div>
 
-                       <div class="ml-auto flex w-full max-w-[760px] items-start gap-4 overflow-hidden">
+                       <div class="ml-auto flex w-full max-w-[620px] items-start gap-3">
 
   <!-- ÖDEME BLOĞU -->
-  <div class="w-[370px] shrink-0 rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-1.5">
+  <div class="w-[320px] shrink-0 rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-1">
     <div class="flex items-center justify-between gap-2">
       <div class="text-xs font-bold text-white">Ödeme</div>
 
@@ -2894,7 +2894,7 @@ async function updateRecordStatus(id, status) {
         value="${state.form.paymentCash || ""}"
         oninput="updateForm('paymentCash', this.value); updatePaymentRemaining();"
         placeholder="0"
-        class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-white"
+        class="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-[3px] text-[11px] text-white"
       />
       <button type="button" onclick="setFullPayment('cash')" class="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-500">N</button>
     </div>
