@@ -2840,7 +2840,7 @@ async function updateRecordStatus(id, status) {
                           <div class="text-sm text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
 
                           <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
-                        </div>
+                       
                         <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-2">
 
  <div class="flex items-center justify-between gap-2">
@@ -2948,7 +2948,8 @@ async function updateRecordStatus(id, status) {
     </button>
 
 </div>
-                  
+ </div>
+ 
                          <div class="flex w-full flex-col gap-3 xl:w-[300px]">
   <div>
     <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
