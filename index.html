@@ -2821,7 +2821,7 @@ async function updateRecordStatus(id, status) {
                     <div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Henüz kayıt yok.</div>
                   ` : rows.map((record) => `
                     <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
-                      <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                     <div class="grid gap-4 xl:grid-cols-[1fr_320px]">
                         <div class="space-y-2 flex-1">
                           <div class="flex flex-wrap items-center gap-2">
                             <span class="text-lg font-semibold">${record.customerName}</span>
@@ -2841,7 +2841,7 @@ async function updateRecordStatus(id, status) {
 
                           <div class="text-sm text-zinc-500">Kusurlar: ${record.vehicleDefects || "-"}</div>
                        
-                        <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-2">
+                       <div class="mt-3 max-w-[420px] rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-2">
 
  <div class="flex items-center justify-between gap-2">
   <div class="text-xs font-bold text-white">Ödeme</div>
@@ -2950,7 +2950,7 @@ async function updateRecordStatus(id, status) {
 </div>
  </div>
  
-                         <div class="flex w-full flex-col gap-3 xl:w-[300px]">
+                         <div class="flex w-full flex-col gap-3">
   <div>
     <label class="mb-1 block text-xs text-zinc-400">Ustanın Adı Soyadı</label>
     <div class="flex gap-2">
