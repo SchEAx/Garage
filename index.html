@@ -2843,18 +2843,32 @@ async function updateRecordStatus(id, status) {
                         </div>
                   <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 space-y-2">
 
-  <div class="flex items-center justify-between">
-    <div class="text-xs font-bold text-white">
-      Ödeme
-    </div>
+ <div class="flex items-center justify-between gap-2">
+  <div class="text-xs font-bold text-white">Ödeme</div>
 
+  <div class="flex items-center gap-2">
     <div
       id="paymentRemainingBox"
       class="rounded-lg bg-emerald-500/10 px-2 py-1 text-[11px] font-bold text-emerald-400"
     >
       Kalan: 0₺ ✅
     </div>
+
+    <button
+      type="button"
+      onclick="
+        updateForm('paymentCash', '');
+        updateForm('paymentCard', '');
+        updateForm('paymentTransfer', '');
+        render();
+        setTimeout(updatePaymentRemaining, 50);
+      "
+      class="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/20"
+    >
+      Temizle
+    </button>
   </div>
+</div>
 
   <!-- Nakit -->
   <div class="flex items-center gap-2">
@@ -2932,20 +2946,6 @@ async function updateRecordStatus(id, status) {
     >
       H
     </button>
-    <button
-  type="button"
-  onclick="
-    updateForm('paymentCash', '');
-    updateForm('paymentCard', '');
-    updateForm('paymentTransfer', '');
-    render();
-    setTimeout(updatePaymentRemaining, 50);
-  "
-  class="w-full rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/20"
->
-  Temizle
-</button>
-  </div>
 
 </div>
                          <div class="flex w-full flex-col gap-3 xl:w-[430px]">
