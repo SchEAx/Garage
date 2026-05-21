@@ -1097,6 +1097,8 @@ paymentTransfer: "",
     reportRows: [],
     reportRowsDate: "",
     reportLoading: false,
+    expenseDescription: "",
+    expenseAmount: "",
   };
   function calculateOperationsTotal(operations = []) {
     return (operations || []).reduce((sum, op) => {
@@ -2364,12 +2366,20 @@ function reportSourceRows() {
     : (state.records || []);
 
   return rows
-    .filter(r => r.status === "Montaj Bitti" && isSameReportDay(r.createdAt, state.selectedDate))
+    .filter(r => {
+      if (r.isExpense) return isSameReportDay(r.createdAt, state.selectedDate);
+      return r.status === "Montaj Bitti" && isSameReportDay(r.createdAt, state.selectedDate);
+    })
     .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 }
 
 function dailyReportTotals(rows = reportSourceRows()) {
   const totals = rows.reduce((acc, r) => {
+    if (r.isExpense) {
+      acc.expense += Number(r.expenseAmount || 0);
+      return acc;
+    }
+
     const pay = reportPaymentValues(r);
     acc.cash += pay.cash;
     acc.card += pay.card;
@@ -2416,20 +2426,93 @@ function reportPaymentValues(record) {
   };
 }
 
-async function fetchDailyReportRows(dateValue = state.selectedDate) {
-  const { start, end } = trDateParts(dateValue);
+function mapExpenseRow(row) {
+  return {
+    isExpense: true,
+    id: String(row.id || ""),
+    createdAt: new Date(row.created_at || "").toISOString(),
+    expenseDate: row.expense_date || "",
+    expenseDescription: row.description || "",
+    expenseAmount: Number(row.amount || 0)
+  };
+}
 
+async function fetchDailyExpenseRows(dateValue = state.selectedDate) {
   const { data, error } = await supabaseClient
-    .from("records")
+    .from("cash_expenses")
     .select("*")
-    .eq("Durum", "Montaj Bitti")
-    .gte("created_at", start.toISOString())
-    .lt("created_at", end.toISOString())
+    .eq("expense_date", dateValue)
     .order("created_at", { ascending: true });
 
   if (error) throw error;
 
-  return (data || []).map(mapSheetRecord);
+  return (data || []).map(mapExpenseRow);
+}
+
+async function addDailyExpense() {
+  const description = String(state.expenseDescription || "").trim();
+  const amount = Number(state.expenseAmount || 0);
+
+  if (!description) {
+    alert("Gider açıklaması yazman lazım knk.");
+    return;
+  }
+
+  if (!amount || amount <= 0) {
+    alert("Gider tutarı 0'dan büyük olmalı knk.");
+    return;
+  }
+
+  try {
+    state.reportLoading = true;
+    render();
+
+    const { error } = await supabaseClient
+      .from("cash_expenses")
+      .insert({
+        expense_date: state.selectedDate,
+        description,
+        amount
+      });
+
+    if (error) throw error;
+
+    state.expenseDescription = "";
+    state.expenseAmount = "";
+
+    state.reportRows = await fetchDailyReportRows(state.selectedDate);
+    state.reportRowsDate = state.selectedDate;
+
+    if (typeof showToast === "function") showToast("Gider eklendi ✅");
+  } catch (err) {
+    console.error("Gider ekleme hatası:", err);
+    alert("Gider eklenemedi: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
+async function fetchDailyReportRows(dateValue = state.selectedDate) {
+  const { start, end } = trDateParts(dateValue);
+
+  const [{ data, error }, expenseRows] = await Promise.all([
+    supabaseClient
+      .from("records")
+      .select("*")
+      .eq("Durum", "Montaj Bitti")
+      .gte("created_at", start.toISOString())
+      .lt("created_at", end.toISOString())
+      .order("created_at", { ascending: true }),
+    fetchDailyExpenseRows(dateValue)
+  ]);
+
+  if (error) throw error;
+
+  return [
+    ...(data || []).map(mapSheetRecord),
+    ...(expenseRows || [])
+  ].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 }
 
 async function refreshDailyReportPreview() {
@@ -2455,6 +2538,23 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
   const dateTitle = trReportDateLabel(state.selectedDate);
 
   const movementRows = rows.map((r, index) => {
+    if (r.isExpense) {
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+          <td></td>
+          <td></td>
+          <td>Gider</td>
+          <td class="num"></td>
+          <td class="num"></td>
+          <td class="num"></td>
+          <td class="num">${excelNumber(r.expenseAmount)}</td>
+          <td>${escapeHtml(r.expenseDescription || "")}</td>
+        </tr>
+      `;
+    }
+
     const operations = (r.operations || [])
       .map(op => `${op.name || "-"}${op.fee ? " (" + formatMoney(op.fee) + ")" : ""}`)
       .join(" / ");
@@ -3401,8 +3501,22 @@ async function printDailyReport() {
                   </div>
                 </div>
 
+                <div class="rounded-3xl border border-red-400/20 bg-red-500/10 p-5 text-white">
+                  <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
+                    <div class="flex-1">
+                      <div class="mb-2 text-sm font-bold text-red-200">💸 Gider Ekle</div>
+                      <input id="dailyExpenseDescription" value="${escapeHtml(state.expenseDescription || "")}" class="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white" placeholder="Açıklama: yakıt, kargo, yemek..." />
+                    </div>
+                    <div class="w-full lg:w-48">
+                      <div class="mb-2 text-xs font-bold text-red-200">Tutar</div>
+                      <input id="dailyExpenseAmount" value="${state.expenseAmount || ""}" type="number" min="0" step="0.01" class="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white" placeholder="0" />
+                    </div>
+                    <button id="addDailyExpense" class="rounded-2xl bg-red-500 px-5 py-3 text-sm font-bold text-white hover:bg-red-400">+ Gider Ekle</button>
+                  </div>
+                </div>
+
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-                  <div class="rounded-3xl border border-white/10 bg-zinc-900 p-5"><div class="text-xs text-zinc-400">Kayıt</div><div class="text-2xl font-bold">${reportRows.length}</div></div>
+                  <div class="rounded-3xl border border-white/10 bg-zinc-900 p-5"><div class="text-xs text-zinc-400">Hareket</div><div class="text-2xl font-bold">${reportRows.length}</div></div>
                   <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5"><div class="text-xs text-emerald-200">Nakit</div><div class="text-xl font-bold text-emerald-300">${formatMoney(reportTotals.cash)}</div></div>
                   <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5"><div class="text-xs text-sky-200">Kart</div><div class="text-xl font-bold text-sky-300">${formatMoney(reportTotals.card)}</div></div>
                   <div class="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5"><div class="text-xs text-amber-200">Havale</div><div class="text-xl font-bold text-amber-300">${formatMoney(reportTotals.transfer)}</div></div>
@@ -3431,6 +3545,21 @@ async function printDailyReport() {
                       </thead>
                       <tbody>
                         ${reportRows.length ? reportRows.map(r => {
+                          if (r.isExpense) {
+                            return `
+                            <tr class="bg-red-950/30">
+                              <td class="rounded-l-2xl px-3 py-3 text-zinc-300">${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+                              <td class="px-3 py-3 font-bold text-zinc-500">-</td>
+                              <td class="px-3 py-3 text-zinc-500">-</td>
+                              <td class="px-3 py-3 text-red-200">Gider: ${r.expenseDescription || "-"}</td>
+                              <td class="px-3 py-3 text-right text-emerald-300"></td>
+                              <td class="px-3 py-3 text-right text-sky-300"></td>
+                              <td class="px-3 py-3 text-right text-amber-300"></td>
+                              <td class="rounded-r-2xl px-3 py-3 text-right font-bold text-red-300">${formatMoney(r.expenseAmount)}</td>
+                            </tr>
+                            `;
+                          }
+
                           const pay = reportPaymentValues(r);
                           return `
                           <tr class="bg-black/30">
@@ -3804,6 +3933,13 @@ if (addOpBtn) {
       document.getElementById("refreshDailyReport")?.addEventListener("click", refreshDailyReportPreview);
       document.getElementById("exportDailyReportExcel")?.addEventListener("click", exportDailyReportExcel);
       document.getElementById("printDailyReport")?.addEventListener("click", printDailyReport);
+      document.getElementById("dailyExpenseDescription")?.addEventListener("input", (e) => {
+        state.expenseDescription = e.target.value;
+      });
+      document.getElementById("dailyExpenseAmount")?.addEventListener("input", (e) => {
+        state.expenseAmount = e.target.value;
+      });
+      document.getElementById("addDailyExpense")?.addEventListener("click", addDailyExpense);
       document.getElementById("resetForm")?.addEventListener("click", () => {
         state.form = emptyForm();
         state.editId = null;
