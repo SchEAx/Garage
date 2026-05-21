@@ -3487,66 +3487,47 @@ async function printDailyReport() {
 
             ${state.activeTab === "gunSonu" ? `
               <div class="space-y-4">
-                <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white">
-                  <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <h2 class="text-xl font-bold">📊 Gün Sonu Raporu</h2>
-                      <p class="mt-1 text-sm text-emerald-100">${trReportDateLabel(state.selectedDate)} G.S.R · Montaj Bitti olan kayıtlar listelenir.</p>
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_300px]">
+                  <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <h2 class="text-xl font-bold">📊 Gün Sonu Raporu</h2>
+                        <p class="mt-1 text-sm text-emerald-100">${trReportDateLabel(state.selectedDate)} G.S.R · Montaj Bitti olan kayıtlar listelenir.</p>
+                      </div>
+                      <div class="flex flex-wrap gap-2">
+                        <button id="refreshDailyReport" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🔄 Raporu Yenile</button>
+                        <button id="exportDailyReportExcel" class="rounded-2xl bg-white px-4 py-2 text-sm font-bold text-black hover:bg-zinc-200">📊 Excel İndir</button>
+                        <button id="printDailyReport" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🖨️ Yazdır</button>
+                      </div>
                     </div>
-                    <div class="flex flex-wrap items-start gap-3">
-
-  <!-- GİDER KARTI -->
-  <div class="rounded-2xl border border-red-500/20 bg-zinc-950/70 p-3 w-[260px]">
-    <div class="mb-2 text-sm font-bold text-red-300">
-      💸 Gider Ekle
-    </div>
-
-    <input
-      type="text"
-      placeholder="Açıklama"
-      value="${state.expenseDescription || ""}"
-      oninput="state.expenseDescription=this.value"
-      class="mb-2 w-full rounded-xl border border-zinc-800 bg-black/60 px-3 py-2 text-sm text-white"
-    />
-
-    <input
-      type="number"
-      placeholder="Tutar"
-      value="${state.expenseAmount || ""}"
-      oninput="state.expenseAmount=this.value"
-      class="mb-3 w-full rounded-xl border border-zinc-800 bg-black/60 px-3 py-2 text-sm text-white"
-    />
-
-    <button
-      onclick="saveExpense()"
-      class="w-full rounded-xl bg-red-500 px-3 py-2 text-sm font-bold text-white hover:bg-red-400"
-    >
-      + Gider Kaydet
-    </button>
-  </div>
-
-  <!-- RAPOR BUTONLARI -->
-  <div class="flex gap-3">
-    <button ...>Raporu Yenile</button>
-    <button ...>Excel İndir</button>
-    <button ...>Yazdır</button>
-  </div>
-
-</div>
                   </div>
-                </div>
 
-                <div class="rounded-3xl border border-red-400/20 bg-red-500/10 p-5 text-white">
-                  <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
-                    <div class="flex-1">
-                      <div class="mb-2 text-sm font-bold text-red-200">💸 Gider Ekle</div>
-                      <input id="dailyExpenseDescription" value="${escapeHtml(state.expenseDescription || "")}" class="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white" placeholder="Açıklama: yakıt, kargo, yemek..." />
-                    </div>
-                    <div class="w-full lg:w-48">
-                      <div class="mb-2 text-xs font-bold text-red-200">Tutar</div>
-                      <input id="dailyExpenseAmount" value="${state.expenseAmount || ""}" type="number" min="0" step="0.01" class="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white" placeholder="0" />
-                    </div>
-                    <button id="addDailyExpense" class="rounded-2xl bg-red-500 px-5 py-3 text-sm font-bold text-white hover:bg-red-400">+ Gider Ekle</button>
+                  <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl">
+                    <div class="mb-3 text-sm font-bold text-red-200">💸 Gider Ekle</div>
+
+                    <input
+                      id="dailyExpenseDescription"
+                      value="${escapeHtml(state.expenseDescription || "")}"
+                      class="mb-3 w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white"
+                      placeholder="Açıklama"
+                    />
+
+                    <input
+                      id="dailyExpenseAmount"
+                      value="${state.expenseAmount || ""}"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      class="mb-4 w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white"
+                      placeholder="Tutar"
+                    />
+
+                    <button
+                      id="addDailyExpense"
+                      class="w-full rounded-2xl bg-red-500 px-4 py-3 text-sm font-bold text-white hover:bg-red-400"
+                    >
+                      + Gider Kaydet
+                    </button>
                   </div>
                 </div>
 
@@ -4143,41 +4124,6 @@ searchEl.addEventListener("keydown", (e) => {
 function setKontrol(i, val) {
   kontrolState.answers[i] = val;
   render();
-}
-  async function saveExpense() {
-  try {
-    const description = String(state.expenseDescription || "").trim();
-    const amount = Number(state.expenseAmount || 0);
-
-    if (!description || amount <= 0) {
-      alert("Açıklama ve tutar gir knk");
-      return;
-    }
-
-    const { error } = await supabaseClient
-      .from("cash_expenses")
-      .insert({
-        description,
-        amount
-      });
-
-    if (error) throw error;
-
-    state.expenseDescription = "";
-    state.expenseAmount = "";
-
-    alert("Gider kaydedildi ✅");
-
-    if (typeof loadReport === "function") {
-      await loadReport();
-    }
-
-    render();
-
-  } catch (e) {
-    console.error(e);
-    alert("Gider kaydedilemedi: " + e.message);
-  }
 }
 
 function handleKontrolFoto(file) {
