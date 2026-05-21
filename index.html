@@ -3350,7 +3350,7 @@ async function printDailyReport() {
                   </div>
                 </div>
 
-                <div class="space-y-4">
+                <div class="contents">
                   <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
                     <div class="p-6 pb-3"><h2 class="text-lg font-semibold">Araç Görseli</h2></div>
                     <div class="p-6 pt-0 space-y-4">
@@ -3672,17 +3672,17 @@ async function printDailyReport() {
 
             ${state.activeTab === "gunSonu" ? `
               <div class="space-y-4">
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_300px]">
-                  <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white">
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px_300px]">
+                  <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white xl:min-h-[230px]">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div>
                         <h2 class="text-xl font-bold">📊 Gün Sonu Raporu</h2>
                         <p class="mt-1 text-sm text-emerald-100">${trReportDateLabel(state.selectedDate)} G.S.R · Montaj Bitti olan kayıtlar listelenir.</p>
                       </div>
-                      <div class="flex flex-wrap gap-2">
-                        <button id="refreshDailyReport" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🔄 Raporu Yenile</button>
-                        <button id="exportDailyReportExcel" class="rounded-2xl bg-white px-4 py-2 text-sm font-bold text-black hover:bg-zinc-200">📊 Excel İndir</button>
-                        <button id="printDailyReport" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🖨️ Yazdır</button>
+                      <div class="flex w-full flex-col gap-2 sm:w-[190px]">
+                        <button id="refreshDailyReport" class="w-full rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🔄 Raporu Yenile</button>
+                        <button id="exportDailyReportExcel" class="w-full rounded-2xl bg-white px-4 py-2 text-sm font-bold text-black hover:bg-zinc-200">📊 Excel İndir</button>
+                        <button id="printDailyReport" class="w-full rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🖨️ Yazdır</button>
                       </div>
                     </div>
                   </div>
