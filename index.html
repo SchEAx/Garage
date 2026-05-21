@@ -1869,6 +1869,10 @@ async function updateRecordStatus(id, status) {
 
   const oldStatus = record.status;
 
+  // ÖNEMLİ: Ödeme kutularındaki elle girilen değerleri render() yapmadan ÖNCE oku.
+  // Yoksa render ekranı yeniler ve henüz kaydedilmemiş ödeme değerleri 0 görünür.
+  const paymentValuesBeforeRender = getRecordPaymentValues(record.id, record);
+
   try {
     state.statusUpdatingId = id;
     record.status = status;
@@ -1891,9 +1895,9 @@ async function updateRecordStatus(id, status) {
       vehicleDefects: record.vehicleDefects,
       kvkkOnay: record.kvkkOnay,
       musteriOnay: record.musteriOnay,
-      paymentCash: getRecordPaymentValues(record.id, record).cash,
-      paymentCard: getRecordPaymentValues(record.id, record).card,
-      paymentTransfer: getRecordPaymentValues(record.id, record).transfer
+      paymentCash: paymentValuesBeforeRender.cash,
+      paymentCard: paymentValuesBeforeRender.card,
+      paymentTransfer: paymentValuesBeforeRender.transfer
     }, {
       ID: record.id
     });
