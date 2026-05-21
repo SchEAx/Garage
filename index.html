@@ -2493,6 +2493,37 @@ async function addDailyExpense() {
   }
 }
 
+
+async function deleteDailyExpense(id) {
+  if (!id) return;
+
+  const ok = confirm("Bu gider silinsin mi knk?");
+  if (!ok) return;
+
+  try {
+    state.reportLoading = true;
+    render();
+
+    const { error } = await supabaseClient
+      .from("cash_expenses")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    state.reportRows = await fetchDailyReportRows(state.selectedDate);
+    state.reportRowsDate = state.selectedDate;
+
+    if (typeof showToast === "function") showToast("Gider silindi ✅");
+  } catch (err) {
+    console.error("Gider silme hatası:", err);
+    alert("Gider silinemedi: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
 async function fetchDailyReportRows(dateValue = state.selectedDate) {
   const { start, end } = trDateParts(dateValue);
 
@@ -3546,7 +3577,7 @@ async function printDailyReport() {
                     <div class="text-xs text-zinc-400">Dosya adı: ${gsrFileName("xls")}</div>
                   </div>
                   <div class="overflow-x-auto p-6 pt-0">
-                    <table class="w-full min-w-[900px] border-separate border-spacing-y-2 text-sm">
+                    <table class="w-full min-w-[980px] border-separate border-spacing-y-2 text-sm">
                       <thead class="text-left text-xs text-zinc-400">
                         <tr>
                           <th class="px-3 py-2">Saat</th>
@@ -3557,6 +3588,7 @@ async function printDailyReport() {
                           <th class="px-3 py-2 text-right">Kart</th>
                           <th class="px-3 py-2 text-right">Havale</th>
                           <th class="px-3 py-2 text-right">Gider</th>
+                          <th class="px-3 py-2 text-right">İşlem</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3571,7 +3603,13 @@ async function printDailyReport() {
                               <td class="px-3 py-3 text-right text-emerald-300"></td>
                               <td class="px-3 py-3 text-right text-sky-300"></td>
                               <td class="px-3 py-3 text-right text-amber-300"></td>
-                              <td class="rounded-r-2xl px-3 py-3 text-right font-bold text-red-300">${formatMoney(r.expenseAmount)}</td>
+                              <td class="px-3 py-3 text-right font-bold text-red-300">${formatMoney(r.expenseAmount)}</td>
+                              <td class="rounded-r-2xl px-3 py-3 text-right">
+                                <button
+                                  data-delete-expense="${r.id}"
+                                  class="rounded-xl bg-red-500/20 px-3 py-1 text-xs font-bold text-red-200 hover:bg-red-500/30"
+                                >🗑 Sil</button>
+                              </td>
                             </tr>
                             `;
                           }
@@ -3586,10 +3624,11 @@ async function printDailyReport() {
                             <td class="px-3 py-3 text-right text-emerald-300">${pay.cash ? formatMoney(pay.cash) : ""}</td>
                             <td class="px-3 py-3 text-right text-sky-300">${pay.card ? formatMoney(pay.card) : ""}</td>
                             <td class="px-3 py-3 text-right text-amber-300">${pay.transfer ? formatMoney(pay.transfer) : ""}</td>
-                            <td class="rounded-r-2xl px-3 py-3 text-right text-red-300"></td>
+                            <td class="px-3 py-3 text-right text-red-300"></td>
+                            <td class="rounded-r-2xl px-3 py-3 text-right"></td>
                           </tr>
                         `}).join("") : `
-                          <tr><td colspan="8" class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Bu tarihte Montaj Bitti kaydı yok. Raporu Yenile butonuna da basabilirsin.</td></tr>
+                          <tr><td colspan="9" class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Bu tarihte Montaj Bitti kaydı yok. Raporu Yenile butonuna da basabilirsin.</td></tr>
                         `}
                       </tbody>
                     </table>
@@ -3956,6 +3995,11 @@ if (addOpBtn) {
         state.expenseAmount = e.target.value;
       });
       document.getElementById("addDailyExpense")?.addEventListener("click", addDailyExpense);
+      document.querySelectorAll("[data-delete-expense]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await deleteDailyExpense(btn.dataset.deleteExpense);
+        });
+      });
       document.getElementById("resetForm")?.addEventListener("click", () => {
         state.form = emptyForm();
         state.editId = null;
