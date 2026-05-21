@@ -1902,6 +1902,25 @@ async function updateRecordStatus(id, status) {
     delete payload.Imza;
     delete payload.UstaImza;
 
+    if (status === "Montaj Bitti") {
+      const paidTotal = Number(payload.odeme_nakit || 0) + Number(payload.odeme_kart || 0) + Number(payload.odeme_havale || 0);
+      const totalAmount = recordTotal(record);
+
+      if (totalAmount > 0 && paidTotal <= 0) {
+        alert("Montaj Bitti yapmadan önce ödeme girmen lazım knk. N / K / H butonlarından birine bas veya tutarı elle yaz.");
+        record.status = oldStatus;
+        return;
+      }
+
+      if (totalAmount > 0 && paidTotal !== totalAmount) {
+        const ok = confirm("Ödeme toplamı işlem toplamıyla eşleşmiyor.\n\nİşlem toplamı: " + formatMoney(totalAmount) + "\nGirilen ödeme: " + formatMoney(paidTotal) + "\n\nYine de Montaj Bitti yapılsın mı?");
+        if (!ok) {
+          record.status = oldStatus;
+          return;
+        }
+      }
+    }
+
     assertNoBase64InPayload(payload);
 
     const result = await supabaseKayitGuncelle(payload);
@@ -2347,10 +2366,11 @@ function reportSourceRows() {
 
 function dailyReportTotals(rows = reportSourceRows()) {
   const totals = rows.reduce((acc, r) => {
-    acc.cash += Number(r.paymentCash || 0);
-    acc.card += Number(r.paymentCard || 0);
-    acc.transfer += Number(r.paymentTransfer || 0);
-    acc.gross += Number(r.paymentCash || 0) + Number(r.paymentCard || 0) + Number(r.paymentTransfer || 0);
+    const pay = reportPaymentValues(r);
+    acc.cash += pay.cash;
+    acc.card += pay.card;
+    acc.transfer += pay.transfer;
+    acc.gross += pay.cash + pay.card + pay.transfer;
     acc.recordTotal += recordTotal(r);
     return acc;
   }, { cash: 0, card: 0, transfer: 0, gross: 0, recordTotal: 0, expense: 0 });
@@ -2371,6 +2391,25 @@ function escapeHtml(value) {
 function excelNumber(value) {
   const n = Number(value || 0);
   return n ? n : "";
+}
+
+function reportMoneyValue(record, keys = []) {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      const n = Number(value);
+      if (!Number.isNaN(n)) return n;
+    }
+  }
+  return 0;
+}
+
+function reportPaymentValues(record) {
+  return {
+    cash: reportMoneyValue(record, ["paymentCash", "odeme_nakit", "OdemeNakit"]),
+    card: reportMoneyValue(record, ["paymentCard", "odeme_kart", "OdemeKart"]),
+    transfer: reportMoneyValue(record, ["paymentTransfer", "odeme_havale", "OdemeHavale"])
+  };
 }
 
 async function fetchDailyReportRows(dateValue = state.selectedDate) {
@@ -2415,6 +2454,7 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
     const operations = (r.operations || [])
       .map(op => `${op.name || "-"}${op.fee ? " (" + formatMoney(op.fee) + ")" : ""}`)
       .join(" / ");
+    const pay = reportPaymentValues(r);
 
     return `
       <tr>
@@ -2423,9 +2463,9 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
         <td>${escapeHtml(r.plaka || "")}</td>
         <td>${escapeHtml(r.customerName || "")}</td>
         <td>${escapeHtml(operations || "-")}</td>
-        <td class="num">${excelNumber(r.paymentCash)}</td>
-        <td class="num">${excelNumber(r.paymentCard)}</td>
-        <td class="num">${excelNumber(r.paymentTransfer)}</td>
+        <td class="num">${excelNumber(pay.cash)}</td>
+        <td class="num">${excelNumber(pay.card)}</td>
+        <td class="num">${excelNumber(pay.transfer)}</td>
         <td class="num"></td>
         <td>${escapeHtml(r.noteText || "")}</td>
       </tr>
@@ -3386,18 +3426,20 @@ async function printDailyReport() {
                         </tr>
                       </thead>
                       <tbody>
-                        ${reportRows.length ? reportRows.map(r => `
+                        ${reportRows.length ? reportRows.map(r => {
+                          const pay = reportPaymentValues(r);
+                          return `
                           <tr class="bg-black/30">
                             <td class="rounded-l-2xl px-3 py-3 text-zinc-300">${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
                             <td class="px-3 py-3 font-bold text-emerald-300">${r.plaka || "-"}</td>
                             <td class="px-3 py-3">${r.customerName || "-"}</td>
                             <td class="px-3 py-3 text-zinc-300">${(r.operations || []).map(op => `${op.name || "-"} ${op.fee ? "(" + formatMoney(op.fee) + ")" : ""}`).join(" / ")}</td>
-                            <td class="px-3 py-3 text-right text-emerald-300">${Number(r.paymentCash || 0) ? formatMoney(r.paymentCash) : ""}</td>
-                            <td class="px-3 py-3 text-right text-sky-300">${Number(r.paymentCard || 0) ? formatMoney(r.paymentCard) : ""}</td>
-                            <td class="px-3 py-3 text-right text-amber-300">${Number(r.paymentTransfer || 0) ? formatMoney(r.paymentTransfer) : ""}</td>
+                            <td class="px-3 py-3 text-right text-emerald-300">${pay.cash ? formatMoney(pay.cash) : ""}</td>
+                            <td class="px-3 py-3 text-right text-sky-300">${pay.card ? formatMoney(pay.card) : ""}</td>
+                            <td class="px-3 py-3 text-right text-amber-300">${pay.transfer ? formatMoney(pay.transfer) : ""}</td>
                             <td class="rounded-r-2xl px-3 py-3 text-right text-red-300"></td>
                           </tr>
-                        `).join("") : `
+                        `}).join("") : `
                           <tr><td colspan="8" class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Bu tarihte Montaj Bitti kaydı yok. Raporu Yenile butonuna da basabilirsin.</td></tr>
                         `}
                       </tbody>
