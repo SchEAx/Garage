@@ -3672,7 +3672,7 @@ async function printDailyReport() {
 
             ${state.activeTab === "gunSonu" ? `
               <div class="space-y-4">
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px_300px]">
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px_300px]">
                   <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white xl:min-h-[230px]">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div>
@@ -3687,8 +3687,7 @@ async function printDailyReport() {
                     </div>
                   </div>
 
-                  <div class="space-y-4">
-                    <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl:w-[280px]">
+                  <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl xl:w-[280px]">
                       <div class="mb-3 text-sm font-bold text-red-200">💸 Gider Ekle</div>
 
                       <input
@@ -3716,7 +3715,7 @@ async function printDailyReport() {
                       </button>
                     </div>
 
-                    <div class="rounded-3xl border border-violet-400/20 bg-violet-500/10 p-4 text-white shadow-xl:w-[300px]">
+                  <div class="rounded-3xl border border-violet-400/20 bg-violet-500/10 p-4 text-white shadow-xl xl:w-[300px]">
                       <div class="mb-3 text-sm font-bold text-violet-200">🏬 Diğer Şube Ödemesi</div>
 
                       <input
@@ -3763,7 +3762,6 @@ async function printDailyReport() {
                         + Diğer Şube Ekle
                       </button>
                     </div>
-                  </div>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
