@@ -1099,6 +1099,10 @@ paymentTransfer: "",
     reportLoading: false,
     expenseDescription: "",
     expenseAmount: "",
+    branchPaymentNote: "",
+    branchPaymentCash: "",
+    branchPaymentCard: "",
+    branchPaymentTransfer: "",
   };
   function calculateOperationsTotal(operations = []) {
     return (operations || []).reduce((sum, op) => {
@@ -2380,6 +2384,24 @@ function dailyReportTotals(rows = reportSourceRows()) {
       return acc;
     }
 
+    if (r.isBranchPayment) {
+      const branchCash = Number(r.branchCash || 0);
+      const branchCard = Number(r.branchCard || 0);
+      const branchTransfer = Number(r.branchTransfer || 0);
+      const branchGross = branchCash + branchCard + branchTransfer;
+
+      acc.cash += branchCash;
+      acc.card += branchCard;
+      acc.transfer += branchTransfer;
+      acc.gross += branchGross;
+
+      acc.branchCash += branchCash;
+      acc.branchCard += branchCard;
+      acc.branchTransfer += branchTransfer;
+      acc.branchGross += branchGross;
+      return acc;
+    }
+
     const pay = reportPaymentValues(r);
     acc.cash += pay.cash;
     acc.card += pay.card;
@@ -2387,7 +2409,18 @@ function dailyReportTotals(rows = reportSourceRows()) {
     acc.gross += pay.cash + pay.card + pay.transfer;
     acc.recordTotal += recordTotal(r);
     return acc;
-  }, { cash: 0, card: 0, transfer: 0, gross: 0, recordTotal: 0, expense: 0 });
+  }, {
+    cash: 0,
+    card: 0,
+    transfer: 0,
+    gross: 0,
+    recordTotal: 0,
+    expense: 0,
+    branchCash: 0,
+    branchCard: 0,
+    branchTransfer: 0,
+    branchGross: 0
+  });
 
   totals.net = totals.gross - totals.expense;
   return totals;
@@ -2524,10 +2557,111 @@ async function deleteDailyExpense(id) {
   }
 }
 
+function mapBranchPaymentRow(row) {
+  return {
+    isBranchPayment: true,
+    id: String(row.id || ""),
+    createdAt: new Date(row.created_at || "").toISOString(),
+    branchDate: row.payment_date || "",
+    branchNote: row.note || "",
+    branchCash: Number(row.cash || 0),
+    branchCard: Number(row.card || 0),
+    branchTransfer: Number(row.transfer || 0)
+  };
+}
+
+async function fetchDailyBranchPaymentRows(dateValue = state.selectedDate) {
+  const { data, error } = await supabaseClient
+    .from("branch_payments")
+    .select("*")
+    .eq("payment_date", dateValue)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map(mapBranchPaymentRow);
+}
+
+async function addDailyBranchPayment() {
+  const note = String(state.branchPaymentNote || "").trim();
+  const cash = Number(state.branchPaymentCash || 0);
+  const card = Number(state.branchPaymentCard || 0);
+  const transfer = Number(state.branchPaymentTransfer || 0);
+  const total = cash + card + transfer;
+
+  if (total <= 0) {
+    alert("Diğer şube için en az bir ödeme tutarı girmen lazım knk.");
+    return;
+  }
+
+  try {
+    state.reportLoading = true;
+    render();
+
+    const { error } = await supabaseClient
+      .from("branch_payments")
+      .insert({
+        payment_date: state.selectedDate,
+        note,
+        cash,
+        card,
+        transfer
+      });
+
+    if (error) throw error;
+
+    state.branchPaymentNote = "";
+    state.branchPaymentCash = "";
+    state.branchPaymentCard = "";
+    state.branchPaymentTransfer = "";
+
+    state.reportRows = await fetchDailyReportRows(state.selectedDate);
+    state.reportRowsDate = state.selectedDate;
+
+    if (typeof showToast === "function") showToast("Diğer şube ödemesi eklendi ✅");
+  } catch (err) {
+    console.error("Diğer şube ödeme ekleme hatası:", err);
+    alert("Diğer şube ödemesi eklenemedi: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
+async function deleteDailyBranchPayment(id) {
+  if (!id) return;
+
+  const ok = confirm("Diğer şube ödemesi silinsin mi knk?");
+  if (!ok) return;
+
+  try {
+    state.reportLoading = true;
+    render();
+
+    const { error } = await supabaseClient
+      .from("branch_payments")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    state.reportRows = await fetchDailyReportRows(state.selectedDate);
+    state.reportRowsDate = state.selectedDate;
+
+    if (typeof showToast === "function") showToast("Diğer şube ödemesi silindi ✅");
+  } catch (err) {
+    console.error("Diğer şube ödeme silme hatası:", err);
+    alert("Diğer şube ödemesi silinemedi: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
 async function fetchDailyReportRows(dateValue = state.selectedDate) {
   const { start, end } = trDateParts(dateValue);
 
-  const [{ data, error }, expenseRows] = await Promise.all([
+  const [{ data, error }, expenseRows, branchRows] = await Promise.all([
     supabaseClient
       .from("records")
       .select("*")
@@ -2535,13 +2669,15 @@ async function fetchDailyReportRows(dateValue = state.selectedDate) {
       .gte("created_at", start.toISOString())
       .lt("created_at", end.toISOString())
       .order("created_at", { ascending: true }),
-    fetchDailyExpenseRows(dateValue)
+    fetchDailyExpenseRows(dateValue),
+    fetchDailyBranchPaymentRows(dateValue)
   ]);
 
   if (error) throw error;
 
   return [
     ...(data || []).map(mapSheetRecord),
+    ...(branchRows || []),
     ...(expenseRows || [])
   ].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 }
@@ -2582,6 +2718,23 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
           <td class="num"></td>
           <td class="num">${excelNumber(r.expenseAmount)}</td>
           <td>${escapeHtml(r.expenseDescription || "")}</td>
+        </tr>
+      `;
+    }
+
+    if (r.isBranchPayment) {
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+          <td></td>
+          <td>Diğer Şube</td>
+          <td>Diğer Şube Ödemesi</td>
+          <td class="num">${excelNumber(r.branchCash)}</td>
+          <td class="num">${excelNumber(r.branchCard)}</td>
+          <td class="num">${excelNumber(r.branchTransfer)}</td>
+          <td class="num"></td>
+          <td>${escapeHtml(r.branchNote || "")}</td>
         </tr>
       `;
     }
@@ -2659,6 +2812,7 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
           <tr><th>Toplam Kart</th><td>${formatMoney(totals.card)}</td></tr>
           <tr><th>Toplam Havale</th><td>${formatMoney(totals.transfer)}</td></tr>
           <tr><th>Toplam Gelir</th><td>${formatMoney(totals.gross)}</td></tr>
+          <tr><th>Diğer Şube Toplam</th><td>${formatMoney(totals.branchGross)}</td></tr>
           <tr><th>Toplam Gider</th><td>${formatMoney(totals.expense)}</td></tr>
           <tr class="net"><th>Gün Sonu Net</th><td>${formatMoney(totals.net)}</td></tr>
         </table>
@@ -3533,40 +3687,91 @@ async function printDailyReport() {
                     </div>
                   </div>
 
-                  <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl">
-                    <div class="mb-3 text-sm font-bold text-red-200">💸 Gider Ekle</div>
+                  <div class="space-y-4">
+                    <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl">
+                      <div class="mb-3 text-sm font-bold text-red-200">💸 Gider Ekle</div>
 
-                    <input
-                      id="dailyExpenseDescription"
-                      value="${escapeHtml(state.expenseDescription || "")}"
-                      class="mb-3 w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white"
-                      placeholder="Açıklama"
-                    />
+                      <input
+                        id="dailyExpenseDescription"
+                        value="${escapeHtml(state.expenseDescription || "")}"
+                        class="mb-3 w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white"
+                        placeholder="Açıklama"
+                      />
 
-                    <input
-                      id="dailyExpenseAmount"
-                      value="${state.expenseAmount || ""}"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      class="mb-4 w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white"
-                      placeholder="Tutar"
-                    />
+                      <input
+                        id="dailyExpenseAmount"
+                        value="${state.expenseAmount || ""}"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        class="mb-4 w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white"
+                        placeholder="Tutar"
+                      />
 
-                    <button
-                      id="addDailyExpense"
-                      class="w-full rounded-2xl bg-red-500 px-4 py-3 text-sm font-bold text-white hover:bg-red-400"
-                    >
-                      + Gider Kaydet
-                    </button>
+                      <button
+                        id="addDailyExpense"
+                        class="w-full rounded-2xl bg-red-500 px-4 py-3 text-sm font-bold text-white hover:bg-red-400"
+                      >
+                        + Gider Kaydet
+                      </button>
+                    </div>
+
+                    <div class="rounded-3xl border border-violet-400/20 bg-violet-500/10 p-4 text-white shadow-xl">
+                      <div class="mb-3 text-sm font-bold text-violet-200">🏬 Diğer Şube Ödemesi</div>
+
+                      <input
+                        id="branchPaymentNote"
+                        value="${escapeHtml(state.branchPaymentNote || "")}"
+                        class="mb-3 w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white"
+                        placeholder="Not / şube adı"
+                      />
+
+                      <div class="grid grid-cols-3 gap-2">
+                        <input
+                          id="branchPaymentCash"
+                          value="${state.branchPaymentCash || ""}"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          class="w-full rounded-2xl border border-white/10 bg-black/50 px-3 py-3 text-sm text-white"
+                          placeholder="Nakit"
+                        />
+                        <input
+                          id="branchPaymentCard"
+                          value="${state.branchPaymentCard || ""}"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          class="w-full rounded-2xl border border-white/10 bg-black/50 px-3 py-3 text-sm text-white"
+                          placeholder="Kart"
+                        />
+                        <input
+                          id="branchPaymentTransfer"
+                          value="${state.branchPaymentTransfer || ""}"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          class="w-full rounded-2xl border border-white/10 bg-black/50 px-3 py-3 text-sm text-white"
+                          placeholder="Havale"
+                        />
+                      </div>
+
+                      <button
+                        id="addDailyBranchPayment"
+                        class="mt-4 w-full rounded-2xl bg-violet-500 px-4 py-3 text-sm font-bold text-white hover:bg-violet-400"
+                      >
+                        + Diğer Şube Ekle
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
                   <div class="rounded-3xl border border-white/10 bg-zinc-900 p-5"><div class="text-xs text-zinc-400">Hareket</div><div class="text-2xl font-bold">${reportRows.length}</div></div>
                   <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5"><div class="text-xs text-emerald-200">Nakit</div><div class="text-xl font-bold text-emerald-300">${formatMoney(reportTotals.cash)}</div></div>
                   <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5"><div class="text-xs text-sky-200">Kart</div><div class="text-xl font-bold text-sky-300">${formatMoney(reportTotals.card)}</div></div>
                   <div class="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5"><div class="text-xs text-amber-200">Havale</div><div class="text-xl font-bold text-amber-300">${formatMoney(reportTotals.transfer)}</div></div>
+                  <div class="rounded-3xl border border-violet-400/20 bg-violet-500/10 p-5"><div class="text-xs text-violet-200">Diğer Şube</div><div class="text-xl font-bold text-violet-300">${formatMoney(reportTotals.branchGross)}</div></div>
                   <div class="rounded-3xl border border-red-400/20 bg-red-500/10 p-5"><div class="text-xs text-red-200">Gider</div><div class="text-xl font-bold text-red-300">${formatMoney(reportTotals.expense)}</div></div>
                   <div class="rounded-3xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-5"><div class="text-xs text-fuchsia-200">Net</div><div class="text-xl font-bold text-fuchsia-300">${formatMoney(reportTotals.net)}</div></div>
                 </div>
@@ -3608,6 +3813,27 @@ async function printDailyReport() {
                                 <button
                                   data-delete-expense="${r.id}"
                                   class="rounded-xl bg-red-500/20 px-3 py-1 text-xs font-bold text-red-200 hover:bg-red-500/30"
+                                >🗑 Sil</button>
+                              </td>
+                            </tr>
+                            `;
+                          }
+
+                          if (r.isBranchPayment) {
+                            return `
+                            <tr class="bg-violet-950/30">
+                              <td class="rounded-l-2xl px-3 py-3 text-zinc-300">${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+                              <td class="px-3 py-3 font-bold text-violet-200">Diğer Şube</td>
+                              <td class="px-3 py-3 text-violet-200">-</td>
+                              <td class="px-3 py-3 text-violet-200">Diğer Şube Ödemesi ${r.branchNote ? "· " + escapeHtml(r.branchNote) : ""}</td>
+                              <td class="px-3 py-3 text-right font-bold text-emerald-300">${r.branchCash ? formatMoney(r.branchCash) : ""}</td>
+                              <td class="px-3 py-3 text-right font-bold text-sky-300">${r.branchCard ? formatMoney(r.branchCard) : ""}</td>
+                              <td class="px-3 py-3 text-right font-bold text-amber-300">${r.branchTransfer ? formatMoney(r.branchTransfer) : ""}</td>
+                              <td class="px-3 py-3 text-right text-red-300"></td>
+                              <td class="rounded-r-2xl px-3 py-3 text-right">
+                                <button
+                                  data-delete-branch-payment="${r.id}"
+                                  class="rounded-xl bg-violet-500/20 px-3 py-1 text-xs font-bold text-violet-200 hover:bg-violet-500/30"
                                 >🗑 Sil</button>
                               </td>
                             </tr>
@@ -3995,9 +4221,27 @@ if (addOpBtn) {
         state.expenseAmount = e.target.value;
       });
       document.getElementById("addDailyExpense")?.addEventListener("click", addDailyExpense);
+      document.getElementById("branchPaymentNote")?.addEventListener("input", (e) => {
+        state.branchPaymentNote = e.target.value;
+      });
+      document.getElementById("branchPaymentCash")?.addEventListener("input", (e) => {
+        state.branchPaymentCash = e.target.value;
+      });
+      document.getElementById("branchPaymentCard")?.addEventListener("input", (e) => {
+        state.branchPaymentCard = e.target.value;
+      });
+      document.getElementById("branchPaymentTransfer")?.addEventListener("input", (e) => {
+        state.branchPaymentTransfer = e.target.value;
+      });
+      document.getElementById("addDailyBranchPayment")?.addEventListener("click", addDailyBranchPayment);
       document.querySelectorAll("[data-delete-expense]").forEach((btn) => {
         btn.addEventListener("click", async () => {
           await deleteDailyExpense(btn.dataset.deleteExpense);
+        });
+      });
+      document.querySelectorAll("[data-delete-branch-payment]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await deleteDailyBranchPayment(btn.dataset.deleteBranchPayment);
         });
       });
       document.getElementById("resetForm")?.addEventListener("click", () => {
