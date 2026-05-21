@@ -3672,7 +3672,7 @@ async function printDailyReport() {
 
             ${state.activeTab === "gunSonu" ? `
               <div class="space-y-4">
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px_300px]">
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px_300px]">
                   <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white xl:min-h-[230px]">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div>
@@ -3687,7 +3687,8 @@ async function printDailyReport() {
                     </div>
                   </div>
 
-                  <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl xl:w-[280px]">
+                  <div class="space-y-4">
+                    <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl xl:w-[280px]">
                       <div class="mb-3 text-sm font-bold text-red-200">💸 Gider Ekle</div>
 
                       <input
@@ -3715,7 +3716,7 @@ async function printDailyReport() {
                       </button>
                     </div>
 
-                  <div class="rounded-3xl border border-violet-400/20 bg-violet-500/10 p-4 text-white shadow-xl xl:w-[300px]">
+                    <div class="rounded-3xl border border-violet-400/20 bg-violet-500/10 p-4 text-white shadow-xl xl:w-[300px]">
                       <div class="mb-3 text-sm font-bold text-violet-200">🏬 Diğer Şube Ödemesi</div>
 
                       <input
@@ -3761,7 +3762,36 @@ async function printDailyReport() {
                       >
                         + Diğer Şube Ekle
                       </button>
+
+                      <div class="mt-4 border-t border-violet-300/10 pt-3">
+                        <div class="mb-2 text-xs font-bold text-violet-200">Bugünkü Diğer Şube Girişleri</div>
+                        ${
+                          reportSourceRows().filter(r => r.isBranchPayment).length
+                            ? reportSourceRows().filter(r => r.isBranchPayment).map(r => `
+                              <div class="mb-2 rounded-2xl border border-violet-300/10 bg-black/30 p-2">
+                                <div class="flex items-start justify-between gap-2">
+                                  <div class="min-w-0">
+                                    <div class="truncate text-xs font-bold text-white">${escapeHtml(r.branchNote || "Diğer Şube")}</div>
+                                    <div class="mt-1 text-[11px] text-zinc-400">
+                                      ${r.branchCash ? "Nakit: " + formatMoney(r.branchCash) + " " : ""}
+                                      ${r.branchCard ? "Kart: " + formatMoney(r.branchCard) + " " : ""}
+                                      ${r.branchTransfer ? "Havale: " + formatMoney(r.branchTransfer) : ""}
+                                    </div>
+                                  </div>
+                                  <button
+                                    data-delete-branch-payment="${r.id}"
+                                    class="shrink-0 rounded-xl bg-red-500/15 px-2 py-1 text-[11px] font-bold text-red-200 hover:bg-red-500/25"
+                                  >
+                                    🗑 Sil
+                                  </button>
+                                </div>
+                              </div>
+                            `).join("")
+                            : `<div class="rounded-2xl border border-white/10 bg-black/20 p-2 text-[11px] text-zinc-400">Henüz giriş yok.</div>`
+                        }
+                      </div>
                     </div>
+                  </div>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
