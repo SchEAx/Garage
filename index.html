@@ -1094,6 +1094,9 @@ paymentTransfer: "",
       address: "CUMHURİYET MAH. 676 SOK. NO:85 MURATPAŞA / ANTALYA"
     },
     form: emptyForm(),
+    reportRows: [],
+    reportRowsDate: "",
+    reportLoading: false,
   };
   function calculateOperationsTotal(operations = []) {
     return (operations || []).reduce((sum, op) => {
@@ -2300,6 +2303,240 @@ async function updateRecordStatus(id, status) {
     try { win.focus(); } catch (e) {}
   }, 300);
 }
+
+
+// ====================== GÜN SONU RAPORU ======================
+function trDateParts(dateValue = state.selectedDate) {
+  const base = dateValue || new Date().toISOString().slice(0, 10);
+  const start = new Date(`${base}T00:00:00+03:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { base, start, end };
+}
+
+function trReportDateLabel(dateValue = state.selectedDate) {
+  const { start } = trDateParts(dateValue);
+  return start.toLocaleDateString("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    weekday: "long"
+  });
+}
+
+function gsrFileName(ext = "xls") {
+  return `${trReportDateLabel(state.selectedDate)} G.S.R.${ext}`;
+}
+
+function isSameReportDay(value, dateValue = state.selectedDate) {
+  if (!value) return false;
+  const { start, end } = trDateParts(dateValue);
+  const d = new Date(value);
+  return d >= start && d < end;
+}
+
+function reportSourceRows() {
+  const rows = Array.isArray(state.reportRows) && state.reportRowsDate === state.selectedDate
+    ? state.reportRows
+    : (state.records || []);
+
+  return rows
+    .filter(r => r.status === "Montaj Bitti" && isSameReportDay(r.createdAt, state.selectedDate))
+    .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+}
+
+function dailyReportTotals(rows = reportSourceRows()) {
+  const totals = rows.reduce((acc, r) => {
+    acc.cash += Number(r.paymentCash || 0);
+    acc.card += Number(r.paymentCard || 0);
+    acc.transfer += Number(r.paymentTransfer || 0);
+    acc.gross += Number(r.paymentCash || 0) + Number(r.paymentCard || 0) + Number(r.paymentTransfer || 0);
+    acc.recordTotal += recordTotal(r);
+    return acc;
+  }, { cash: 0, card: 0, transfer: 0, gross: 0, recordTotal: 0, expense: 0 });
+
+  totals.net = totals.gross - totals.expense;
+  return totals;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function excelNumber(value) {
+  const n = Number(value || 0);
+  return n ? n : "";
+}
+
+async function fetchDailyReportRows(dateValue = state.selectedDate) {
+  const { start, end } = trDateParts(dateValue);
+
+  const { data, error } = await supabaseClient
+    .from("records")
+    .select("*")
+    .eq("Durum", "Montaj Bitti")
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString())
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map(mapSheetRecord);
+}
+
+async function refreshDailyReportPreview() {
+  try {
+    state.reportLoading = true;
+    render();
+
+    state.reportRows = await fetchDailyReportRows(state.selectedDate);
+    state.reportRowsDate = state.selectedDate;
+
+    if (typeof showToast === "function") showToast("Gün sonu raporu yenilendi ✅");
+  } catch (err) {
+    console.error("Gün sonu raporu yenileme hatası:", err);
+    alert("Gün sonu raporu alınamadı: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
+function buildDailyReportTableHtml(rows, forPrint = false) {
+  const totals = dailyReportTotals(rows);
+  const dateTitle = trReportDateLabel(state.selectedDate);
+
+  const movementRows = rows.map((r, index) => {
+    const operations = (r.operations || [])
+      .map(op => `${op.name || "-"}${op.fee ? " (" + formatMoney(op.fee) + ")" : ""}`)
+      .join(" / ");
+
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+        <td>${escapeHtml(r.plaka || "")}</td>
+        <td>${escapeHtml(r.customerName || "")}</td>
+        <td>${escapeHtml(operations || "-")}</td>
+        <td class="num">${excelNumber(r.paymentCash)}</td>
+        <td class="num">${excelNumber(r.paymentCard)}</td>
+        <td class="num">${excelNumber(r.paymentTransfer)}</td>
+        <td class="num"></td>
+        <td>${escapeHtml(r.noteText || "")}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <style>
+          body { font-family: Arial, sans-serif; color:#111; }
+          h1 { margin:0 0 4px 0; font-size:20px; }
+          .sub { margin:0 0 14px 0; color:#555; font-size:12px; }
+          table { border-collapse: collapse; width:100%; }
+          th, td { border:1px solid #ccc; padding:7px; font-size:12px; vertical-align:top; }
+          th { background:#111827; color:white; }
+          .num { text-align:right; mso-number-format:"#,##0.00"; }
+          .summary { margin-top:16px; width:360px; margin-left:auto; }
+          .summary th { text-align:left; }
+          .summary td { text-align:right; font-weight:bold; }
+          .net td { background:#dcfce7; font-size:14px; }
+          @media print {
+            @page { size: A4 portrait; margin: 8mm; }
+            .no-print { display:none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        ${forPrint ? `<div class="no-print" style="margin-bottom:12px"><button onclick="window.print()" style="padding:10px 16px;border-radius:10px;border:1px solid #ccc;background:#111827;color:white;font-weight:bold">Yazdır</button></div>` : ""}
+        <h1>${escapeHtml(state.company.name)} - Gün Sonu Raporu</h1>
+        <p class="sub">${escapeHtml(dateTitle)} · G.S.R</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Saat</th>
+              <th>Plaka</th>
+              <th>Müşteri</th>
+              <th>İşlem / Açıklama</th>
+              <th>Nakit</th>
+              <th>Kart</th>
+              <th>Havale</th>
+              <th>Gider</th>
+              <th>Not</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${movementRows || `<tr><td colspan="10" style="text-align:center;color:#777;padding:20px">Bu tarihte Montaj Bitti kaydı yok.</td></tr>`}
+          </tbody>
+        </table>
+
+        <table class="summary">
+          <tr><th>Toplam Nakit</th><td>${formatMoney(totals.cash)}</td></tr>
+          <tr><th>Toplam Kart</th><td>${formatMoney(totals.card)}</td></tr>
+          <tr><th>Toplam Havale</th><td>${formatMoney(totals.transfer)}</td></tr>
+          <tr><th>Toplam Gelir</th><td>${formatMoney(totals.gross)}</td></tr>
+          <tr><th>Toplam Gider</th><td>${formatMoney(totals.expense)}</td></tr>
+          <tr class="net"><th>Gün Sonu Net</th><td>${formatMoney(totals.net)}</td></tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+async function exportDailyReportExcel() {
+  try {
+    state.reportLoading = true;
+    render();
+    const rows = await fetchDailyReportRows(state.selectedDate);
+    state.reportRows = rows;
+    state.reportRowsDate = state.selectedDate;
+
+    const html = buildDailyReportTableHtml(rows, false);
+    downloadFile(gsrFileName("xls"), html, "application/vnd.ms-excel;charset=utf-8;");
+  } catch (err) {
+    console.error("Excel raporu hatası:", err);
+    alert("Excel raporu oluşturulamadı: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
+async function printDailyReport() {
+  try {
+    state.reportLoading = true;
+    render();
+    const rows = await fetchDailyReportRows(state.selectedDate);
+    state.reportRows = rows;
+    state.reportRowsDate = state.selectedDate;
+
+    const win = window.open("", "_blank", "width=1000,height=900");
+    if (!win) {
+      alert("Rapor penceresi açılamadı. Tarayıcı popup engelini kapatıp tekrar dene.");
+      return;
+    }
+
+    win.document.write(buildDailyReportTableHtml(rows, true));
+    win.document.close();
+    setTimeout(() => { try { win.focus(); } catch (e) {} }, 300);
+  } catch (err) {
+    console.error("Yazdırma raporu hatası:", err);
+    alert("Rapor yazdırılamadı: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
     function render() {
       const app = document.getElementById("app");
       const s = stats();
@@ -2314,11 +2551,14 @@ async function updateRecordStatus(id, status) {
       const selectedPlateHistory = selected ? plateHistory(selected.plaka, selected.id) : [];
       const uniqueCustomers = new Set(rows.map((r) => (r.customerName || "").trim()).filter(Boolean)).size;
       const uniquePlates = new Set(rows.map((r) => normalizePlate(r.plaka)).filter(Boolean)).size;
+      const reportRows = reportSourceRows();
+      const reportTotals = dailyReportTotals(reportRows);
 
       const tabs = [
         { key: "hizliKayit", label: "Hızlı Kayıt" },
         { key: "kayit", label: "Detaylı Kayıt" },
         { key: "liste", label: "Kayıtlar" },
+        { key: "gunSonu", label: "Gün Sonu Raporu" },
         { key: "kontrol", label: "Montaj Kontrol" },
         ...(!state.tabletMode ? [{ key: "kurulum", label: "Sonraki Adım" }] : [])
       ];
@@ -3100,6 +3340,73 @@ async function updateRecordStatus(id, status) {
               </div>
             ` : ""}
 
+
+            ${state.activeTab === "gunSonu" ? `
+              <div class="space-y-4">
+                <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white">
+                  <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h2 class="text-xl font-bold">📊 Gün Sonu Raporu</h2>
+                      <p class="mt-1 text-sm text-emerald-100">${trReportDateLabel(state.selectedDate)} G.S.R · Montaj Bitti olan kayıtlar listelenir.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <button id="refreshDailyReport" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🔄 Raporu Yenile</button>
+                      <button id="exportDailyReportExcel" class="rounded-2xl bg-white px-4 py-2 text-sm font-bold text-black hover:bg-zinc-200">📊 Excel İndir</button>
+                      <button id="printDailyReport" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🖨️ Yazdır</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+                  <div class="rounded-3xl border border-white/10 bg-zinc-900 p-5"><div class="text-xs text-zinc-400">Kayıt</div><div class="text-2xl font-bold">${reportRows.length}</div></div>
+                  <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5"><div class="text-xs text-emerald-200">Nakit</div><div class="text-xl font-bold text-emerald-300">${formatMoney(reportTotals.cash)}</div></div>
+                  <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5"><div class="text-xs text-sky-200">Kart</div><div class="text-xl font-bold text-sky-300">${formatMoney(reportTotals.card)}</div></div>
+                  <div class="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5"><div class="text-xs text-amber-200">Havale</div><div class="text-xl font-bold text-amber-300">${formatMoney(reportTotals.transfer)}</div></div>
+                  <div class="rounded-3xl border border-red-400/20 bg-red-500/10 p-5"><div class="text-xs text-red-200">Gider</div><div class="text-xl font-bold text-red-300">${formatMoney(reportTotals.expense)}</div></div>
+                  <div class="rounded-3xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-5"><div class="text-xs text-fuchsia-200">Net</div><div class="text-xl font-bold text-fuchsia-300">${formatMoney(reportTotals.net)}</div></div>
+                </div>
+
+                <div class="rounded-3xl border border-white/10 bg-zinc-900/90 text-white overflow-hidden">
+                  <div class="p-6 pb-3 flex items-center justify-between gap-3">
+                    <h2 class="text-lg font-semibold">Hareket Listesi</h2>
+                    <div class="text-xs text-zinc-400">Dosya adı: ${gsrFileName("xls")}</div>
+                  </div>
+                  <div class="overflow-x-auto p-6 pt-0">
+                    <table class="w-full min-w-[900px] border-separate border-spacing-y-2 text-sm">
+                      <thead class="text-left text-xs text-zinc-400">
+                        <tr>
+                          <th class="px-3 py-2">Saat</th>
+                          <th class="px-3 py-2">Plaka</th>
+                          <th class="px-3 py-2">Müşteri</th>
+                          <th class="px-3 py-2">İşlem</th>
+                          <th class="px-3 py-2 text-right">Nakit</th>
+                          <th class="px-3 py-2 text-right">Kart</th>
+                          <th class="px-3 py-2 text-right">Havale</th>
+                          <th class="px-3 py-2 text-right">Gider</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${reportRows.length ? reportRows.map(r => `
+                          <tr class="bg-black/30">
+                            <td class="rounded-l-2xl px-3 py-3 text-zinc-300">${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+                            <td class="px-3 py-3 font-bold text-emerald-300">${r.plaka || "-"}</td>
+                            <td class="px-3 py-3">${r.customerName || "-"}</td>
+                            <td class="px-3 py-3 text-zinc-300">${(r.operations || []).map(op => `${op.name || "-"} ${op.fee ? "(" + formatMoney(op.fee) + ")" : ""}`).join(" / ")}</td>
+                            <td class="px-3 py-3 text-right text-emerald-300">${Number(r.paymentCash || 0) ? formatMoney(r.paymentCash) : ""}</td>
+                            <td class="px-3 py-3 text-right text-sky-300">${Number(r.paymentCard || 0) ? formatMoney(r.paymentCard) : ""}</td>
+                            <td class="px-3 py-3 text-right text-amber-300">${Number(r.paymentTransfer || 0) ? formatMoney(r.paymentTransfer) : ""}</td>
+                            <td class="rounded-r-2xl px-3 py-3 text-right text-red-300"></td>
+                          </tr>
+                        `).join("") : `
+                          <tr><td colspan="8" class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Bu tarihte Montaj Bitti kaydı yok. Raporu Yenile butonuna da basabilirsin.</td></tr>
+                        `}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ` : ""}
+
             ${state.activeTab === "kurulum" && !state.tabletMode ? `
               <div class="grid gap-4 lg:grid-cols-3">
                 <div class="lg:col-span-2 rounded-3xl border border-white/10 bg-zinc-900/90 text-white">
@@ -3448,6 +3755,9 @@ if (addOpBtn) {
       document.getElementById("cancelEdit")?.addEventListener("click", cancelEdit);
       document.getElementById("exportCsv")?.addEventListener("click", exportCsv);
       document.getElementById("exportJson")?.addEventListener("click", exportJson);
+      document.getElementById("refreshDailyReport")?.addEventListener("click", refreshDailyReportPreview);
+      document.getElementById("exportDailyReportExcel")?.addEventListener("click", exportDailyReportExcel);
+      document.getElementById("printDailyReport")?.addEventListener("click", printDailyReport);
       document.getElementById("resetForm")?.addEventListener("click", () => {
         state.form = emptyForm();
         state.editId = null;
@@ -3498,6 +3808,8 @@ searchEl.addEventListener("keydown", (e) => {
       document.getElementById("selectedDateInput")?.addEventListener("change", async (e) => {
   state.selectedDate = e.target.value;
   state.visibleCount = PAGE_SIZE;
+  state.reportRows = [];
+  state.reportRowsDate = "";
   await listeyiYenile();
 });
 
