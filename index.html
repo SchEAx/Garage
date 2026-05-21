@@ -3694,8 +3694,8 @@ async function printDailyReport() {
 
             ${state.activeTab === "gunSonu" ? `
               <div class="space-y-4">
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px_300px]">
-                  <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white xl:min-h-[230px]">
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px_300px] xl:items-start">
+                  <div class="min-w-0 min-w-0 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white xl:min-h-[230px]">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div>
                         <h2 class="text-xl font-bold">📊 Gün Sonu Raporu</h2>
@@ -3709,8 +3709,7 @@ async function printDailyReport() {
                     </div>
                   </div>
 
-                  <div class="space-y-4">
-                    <div class="rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl xl:w-[280px]">
+                  <div class="min-w-0 rounded-3xl border border-red-400/20 bg-zinc-950/80 p-4 text-white shadow-xl xl:w-[280px] xl:h-fit">
                       <div class="mb-3 text-sm font-bold text-red-200">💸 Gider Ekle</div>
 
                       <input
@@ -3738,7 +3737,7 @@ async function printDailyReport() {
                       </button>
                     </div>
 
-                    <div class="rounded-3xl border border-violet-400/20 bg-violet-500/10 p-4 text-white shadow-xl xl:w-[300px]">
+                    <div class="min-w-0 rounded-3xl border border-violet-400/20 bg-violet-500/10 p-4 text-white shadow-xl xl:w-[300px] xl:h-fit">
                       <div class="mb-3 text-sm font-bold text-violet-200">🏬 Diğer Şube Ödemesi</div>
 
                       <input
