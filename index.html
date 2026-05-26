@@ -840,7 +840,7 @@ function mapSheetRecord(row) {
     status: row.Durum || "Beklemede",
     vehicleImage: row.Fotograf || "",
     noteText: stripDiscountFromNote(row.Notlar || ""),
-    discountAmount: parseDiscountAmount(row.Indirim || row.indirim || extractDiscountFromNote(row.Notlar || "")),
+    discountAmount: parseDiscountAmount(row.Iskonto || row.iskonto || extractDiscountFromNote(row.Notlar || "")),
     technician: row.Teknisyen || "",
     vehicleDefects: row.AracKusurlari || "",
     signature: row.Imza || "",
@@ -998,7 +998,7 @@ function mapSheetRecord(row) {
     }
   }
 
-  const DISCOUNT_NOTE_RE = /\s*\[INDIRIM:([0-9.,-]+)\]\s*/i;
+  const DISCOUNT_NOTE_RE = /\s*\[ISKONTO:([0-9.,-]+)\]\s*/i;
 
   function parseDiscountAmount(value) {
     const num = Number(String(value ?? "").replace(/\./g, "").replace(",", "."));
@@ -1017,7 +1017,7 @@ function mapSheetRecord(row) {
   function mergeNoteWithDiscount(note, discountAmount) {
     const clean = stripDiscountFromNote(note);
     const discount = parseDiscountAmount(discountAmount);
-    return [clean, discount > 0 ? `[INDIRIM:${discount}]` : ""].filter(Boolean).join(" " ).trim();
+    return [clean, discount > 0 ? `[ISKONTO:${discount}]` : ""].filter(Boolean).join(" " ).trim();
   }
 
   function operationsSubtotal(record) {
@@ -1025,7 +1025,7 @@ function mapSheetRecord(row) {
   }
 
   function recordDiscount(record) {
-    return parseDiscountAmount(record?.discountAmount ?? record?.indirim ?? record?.Indirim ?? 0);
+    return parseDiscountAmount(record?.discountAmount ?? record?.iskonto ?? record?.Iskonto ?? 0);
   }
 
   function recordTotal(record) {
