@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-pwa-v7-hizli-kayit";
+const CACHE_NAME = "garage-pwa-v8-indirimli-kayit";
 const urlsToCache = ["/", "/index.html", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
