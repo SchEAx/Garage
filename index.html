@@ -2022,7 +2022,7 @@ async function updateRecordStatus(id, status) {
     function toCsv(rows) {
       const headers = [
         "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Araç Marka", "Araç Modeli",
-        "Yapılacak İşlemler", "İşlem Ücretleri", "Ara Toplam", "İndirim", "Toplam Tutar", "Araçta Görülen Kusurlar", "Usta", "Durum", "Ek Notlar"
+        "Yapılacak İşlemler", "İşlem Ücretleri", "Ara Toplam", "İskonto", "Toplam Tutar", "Araçta Görülen Kusurlar", "Usta", "Durum", "Ek Notlar"
       ];
 
       const escapeCsv = (v) => {
@@ -2323,7 +2323,7 @@ async function updateRecordStatus(id, status) {
               </div>
               ${recordDiscount(record) > 0 ? `
                 <div class="summary muted">
-                  <span>İndirim</span>
+                  <span>İskonto</span>
                   <span>- ${formatMoney(recordDiscount(record))}</span>
                 </div>
               ` : ""}
@@ -3171,7 +3171,7 @@ async function printDailyReport() {
 
                       <div class="mt-3 grid gap-3 md:grid-cols-[1fr_180px]">
                         <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-                          <label class="mb-1 block text-xs font-bold text-amber-200">Toplu İndirim</label>
+                          <label class="mb-1 block text-xs font-bold text-amber-200">Toplu İskonto</label>
                           <input
                             data-form="discountAmount"
                             type="number"
@@ -3183,7 +3183,7 @@ async function printDailyReport() {
                           />
                         </div>
                         <div id="operationTotalBox" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-right text-sm font-bold text-emerald-300">
-                          Ara Toplam: ${formatMoney(operationsSubtotal(state.form))}<br>İndirim: ${formatMoney(recordDiscount(state.form))}<br>Genel Toplam: ${formatMoney(recordTotal(state.form))}
+                          Ara Toplam: ${formatMoney(operationsSubtotal(state.form))}<br>İskonto: ${formatMoney(recordDiscount(state.form))}<br>Genel Toplam: ${formatMoney(recordTotal(state.form))}
                         </div>
                       </div>
                     </div>
