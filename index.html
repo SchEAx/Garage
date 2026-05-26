@@ -94,7 +94,7 @@ vehicle_type: String(record.AracTip || record.type || ""),
 
   return String(value || "");
 })(),
-      note: String(record.Notlar || record.noteText || "")
+      note: stripDiscountFromNote(String(record.Notlar || record.noteText || ""))
     };
 
     const { data, error } = await supabaseClient
@@ -177,7 +177,7 @@ return data;
         return String(value || "");
       })(),
 
-      note: String(record.Notlar || record.noteText || ""),
+      note: stripDiscountFromNote(String(record.Notlar || record.noteText || "")),
       updated_at: new Date().toISOString()
     };
 
@@ -839,7 +839,8 @@ function mapSheetRecord(row) {
 
     status: row.Durum || "Beklemede",
     vehicleImage: row.Fotograf || "",
-    noteText: row.Notlar || "",
+    noteText: stripDiscountFromNote(row.Notlar || ""),
+    discountAmount: parseDiscountAmount(row.Indirim || row.indirim || extractDiscountFromNote(row.Notlar || "")),
     technician: row.Teknisyen || "",
     vehicleDefects: row.AracKusurlari || "",
     signature: row.Imza || "",
@@ -997,8 +998,38 @@ function mapSheetRecord(row) {
     }
   }
 
-  function recordTotal(record) {
+  const DISCOUNT_NOTE_RE = /\s*\[INDIRIM:([0-9.,-]+)\]\s*/i;
+
+  function parseDiscountAmount(value) {
+    const num = Number(String(value ?? "").replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(num) && num > 0 ? num : 0;
+  }
+
+  function extractDiscountFromNote(note) {
+    const match = String(note || "").match(DISCOUNT_NOTE_RE);
+    return match ? parseDiscountAmount(match[1]) : 0;
+  }
+
+  function stripDiscountFromNote(note) {
+    return String(note || "").replace(DISCOUNT_NOTE_RE, " " ).replace(/\s+/g, " " ).trim();
+  }
+
+  function mergeNoteWithDiscount(note, discountAmount) {
+    const clean = stripDiscountFromNote(note);
+    const discount = parseDiscountAmount(discountAmount);
+    return [clean, discount > 0 ? `[INDIRIM:${discount}]` : ""].filter(Boolean).join(" " ).trim();
+  }
+
+  function operationsSubtotal(record) {
     return (record.operations || []).reduce((sum, op) => sum + Number(op.fee || 0), 0);
+  }
+
+  function recordDiscount(record) {
+    return parseDiscountAmount(record?.discountAmount ?? record?.indirim ?? record?.Indirim ?? 0);
+  }
+
+  function recordTotal(record) {
+    return Math.max(0, operationsSubtotal(record) - recordDiscount(record));
   }
 
   function grandTotal(records) {
@@ -1067,6 +1098,7 @@ function isToday(value) {
       paymentCash: "",
 paymentCard: "",
 paymentTransfer: "",
+      discountAmount: "",
     };
   }
 
@@ -1122,6 +1154,9 @@ paymentTransfer: "",
   const names = [...document.querySelectorAll("[data-op-name]")];
   const fees = [...document.querySelectorAll("[data-op-fee]")];
 
+  const discountEl = document.querySelector('[data-form="discountAmount"]');
+  if (discountEl) state.form.discountAmount = discountEl.value || "";
+
   if (!names.length) return;
 
   state.form.operations = names.map((nameEl, index) => {
@@ -1145,8 +1180,8 @@ function buildPayloadFromForm(form, override = {}) {
     Plaka: form.plaka || "",
     SasiNo: form.sasiNo || "",
     YapilacakIslem: JSON.stringify(ops), // ESKİSİ: ops.map(op => op.name).join(", ")
-    Ucret: calculateOperationsTotal(ops),
-    Notlar: form.noteText || "",
+    Ucret: Math.max(0, calculateOperationsTotal(ops) - parseDiscountAmount(form.discountAmount)),
+    Notlar: mergeNoteWithDiscount(form.noteText || "", form.discountAmount),
     Durum: form.status || "Beklemede",
     Fotograf: form.vehicleImage || "",
     Teknisyen: form.technician || "",
@@ -1423,7 +1458,7 @@ function handleVehicleImage(file) {
 
     const totalBox = document.getElementById("operationTotalBox");
     if (totalBox) {
-      totalBox.textContent = `Toplam: ${formatMoney(recordTotal(state.form))}`;
+      totalBox.textContent = `Ara Toplam: ${formatMoney(operationsSubtotal(state.form))} · İndirim: ${formatMoney(recordDiscount(state.form))} · Genel Toplam: ${formatMoney(recordTotal(state.form))}`;
     }
 
     if (shouldRender) {
@@ -1530,6 +1565,7 @@ function visibleRows() {
       paymentCash: record.paymentCash || "",
       paymentCard: record.paymentCard || "",
       paymentTransfer: record.paymentTransfer || "",
+      discountAmount: record.discountAmount || "",
     };
 
     state.editId = id;
@@ -1986,7 +2022,7 @@ async function updateRecordStatus(id, status) {
     function toCsv(rows) {
       const headers = [
         "Kayıt No", "Kayıt Tarihi", "Müşteri", "Telefon", "Araç Marka", "Araç Modeli",
-        "Yapılacak İşlemler", "İşlem Ücretleri", "Toplam Tutar", "Araçta Görülen Kusurlar", "Usta", "Durum", "Ek Notlar"
+        "Yapılacak İşlemler", "İşlem Ücretleri", "Ara Toplam", "İndirim", "Toplam Tutar", "Araçta Görülen Kusurlar", "Usta", "Durum", "Ek Notlar"
       ];
 
       const escapeCsv = (v) => {
@@ -2008,6 +2044,8 @@ async function updateRecordStatus(id, status) {
           r.model,
           (r.operations || []).map((op) => op.name).join(", "),
           feeText,
+          operationsSubtotal(r),
+          recordDiscount(r),
           recordTotal(r),
           r.vehicleDefects || "",
           r.technician || "",
@@ -2280,7 +2318,17 @@ async function updateRecordStatus(id, status) {
               <h3>Yapılacak İşlemler</h3>
               ${operationsHtml || "<p>-</p>"}
               <div class="summary">
-                <span>Toplam</span>
+                <span>Ara Toplam</span>
+                <span>${formatMoney(operationsSubtotal(record))}</span>
+              </div>
+              ${recordDiscount(record) > 0 ? `
+                <div class="summary muted">
+                  <span>İndirim</span>
+                  <span>- ${formatMoney(recordDiscount(record))}</span>
+                </div>
+              ` : ""}
+              <div class="summary">
+                <span>Genel Toplam</span>
                 <span>${formatMoney(recordTotal(record))}</span>
               </div>
             </div>
@@ -3121,8 +3169,22 @@ async function printDailyReport() {
                         `).join("")}
                       </div>
 
-                      <div id="operationTotalBox" class="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-right text-lg font-bold text-emerald-300">
-                        Toplam: ${formatMoney(recordTotal(state.form))}
+                      <div class="mt-3 grid gap-3 md:grid-cols-[1fr_180px]">
+                        <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+                          <label class="mb-1 block text-xs font-bold text-amber-200">Toplu İndirim</label>
+                          <input
+                            data-form="discountAmount"
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            value="${state.form.discountAmount || ""}"
+                            class="w-full rounded-xl border border-amber-400/20 bg-black/30 px-3 py-2 text-base font-bold text-white outline-none"
+                          />
+                        </div>
+                        <div id="operationTotalBox" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-right text-sm font-bold text-emerald-300">
+                          Ara Toplam: ${formatMoney(operationsSubtotal(state.form))}<br>İndirim: ${formatMoney(recordDiscount(state.form))}<br>Genel Toplam: ${formatMoney(recordTotal(state.form))}
+                        </div>
                       </div>
                     </div>
 
@@ -3287,8 +3349,24 @@ async function printDailyReport() {
                         </button>
                   
                         <div id="operationTotalBox" class="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
-  Toplam: ${formatMoney(recordTotal(state.form))}
+  Ara Toplam: ${formatMoney(operationsSubtotal(state.form))}<br>İndirim: ${formatMoney(recordDiscount(state.form))}<br>Genel Toplam: ${formatMoney(recordTotal(state.form))}
 </div>
+                      </div>
+
+                      <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3">
+                        <label class="mb-1 block text-sm font-semibold text-amber-200">Toplu İndirim</label>
+                        <div class="flex items-center rounded-2xl border border-amber-400/20 bg-black/30 px-3 py-2">
+                          <span class="mr-2 text-sm text-amber-200">₺</span>
+                          <input
+                            data-form="discountAmount"
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            value="${state.form.discountAmount || ""}"
+                            class="w-full bg-transparent text-sm font-bold text-white outline-none"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3512,7 +3590,7 @@ async function printDailyReport() {
                           </div>
 
                           <div class="text-sm font-semibold text-emerald-300">
-                            Bu Kayıt Toplamı: ${formatMoney(recordTotal(record))}
+                            Ara Toplam: ${formatMoney(operationsSubtotal(record))}${recordDiscount(record) > 0 ? ` · İndirim: ${formatMoney(recordDiscount(record))}` : ""} · Toplam: ${formatMoney(recordTotal(record))}
                           </div>
 
                           <div class="text-sm text-zinc-500">
@@ -4124,8 +4202,18 @@ document.querySelectorAll('[data-kontrol-note]').forEach((el) => {
       });
 
       document.querySelectorAll("[data-form]").forEach((el) => {
-        el.addEventListener("input", (e) => updateForm(el.dataset.form, e.target.value));
-        el.addEventListener("change", (e) => updateForm(el.dataset.form, e.target.value));
+        const syncFormField = (e) => {
+          updateForm(el.dataset.form, e.target.value);
+          if (el.dataset.form === "discountAmount") {
+            const totalBox = document.getElementById("operationTotalBox");
+            if (totalBox) {
+              totalBox.innerHTML = `Ara Toplam: ${formatMoney(operationsSubtotal(state.form))}<br>İndirim: ${formatMoney(recordDiscount(state.form))}<br>Genel Toplam: ${formatMoney(recordTotal(state.form))}`;
+            }
+            updatePaymentRemaining();
+          }
+        };
+        el.addEventListener("input", syncFormField);
+        el.addEventListener("change", syncFormField);
       });
 
       const technicianInput = document.getElementById("technicianInput");
@@ -4629,7 +4717,7 @@ function paymentTotal() {
 }
 
 function currentFormTotal() {
-  return calculateOperationsTotal(state.form.operations || []);
+  return recordTotal(state.form);
 }
 
 function updatePaymentRemaining() {
@@ -4645,7 +4733,7 @@ function updatePaymentRemaining() {
     box.className =
       "rounded-xl bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-400";
 
-    box.innerHTML = `Kalan: ${formatMoney(recordTotal(record))} `;
+    box.innerHTML = `Kalan: ${formatMoney(remaining)} ✅`;
   } else if (remaining > 0) {
     box.className =
       "rounded-xl bg-amber-500/20 px-3 py-2 text-xs font-bold text-amber-300";
