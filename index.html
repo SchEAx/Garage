@@ -769,11 +769,26 @@ async function listeyiYenile() {
     state.loading = true;
     render();
 
-    const { data, error } = await supabaseClient
+    let query = supabaseClient
       .from("records")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
+      .order("created_at", { ascending: false });
+
+    const startDate = state.listStartDate || "";
+    const endDate = state.listEndDate || "";
+
+    if (startDate) {
+      query = query.gte("created_at", startDate + "T00:00:00+03:00");
+    }
+
+    if (endDate) {
+      query = query.lte("created_at", endDate + "T23:59:59+03:00");
+    }
+
+    // Tarih filtresi yokken eski davranışı koruyoruz, tarih seçilince aralıktaki kayıtların tamamını çekiyoruz.
+    query = query.limit(startDate || endDate ? 3000 : 100);
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -1119,6 +1134,9 @@ paymentTransfer: "",
     statusUpdatingId: null,
     visibleCount: PAGE_SIZE,
     selectedDate: new Date().toISOString().slice(0, 10),
+    listStartDate: "",
+    listEndDate: "",
+    inlineOperation: { recordId: null, name: "", fee: "", saving: false },
     company: {
       name: "Garage İstanbul Oto Aksesuar",
       phone: "0 (540) 715 34 34",
@@ -1521,6 +1539,128 @@ function visibleRows() {
 
     return plateMatch || textMatch;
   }).slice(0, state.visibleCount);
+}
+
+function setListStartDate(value) {
+  state.listStartDate = value || "";
+}
+
+function setListEndDate(value) {
+  state.listEndDate = value || "";
+}
+
+async function applyDateRangeFilter() {
+  state.visibleCount = PAGE_SIZE;
+  await listeyiYenile();
+  if (typeof showToast === "function") {
+    const start = state.listStartDate || "ilk kayıt";
+    const end = state.listEndDate || "bugün";
+    showToast(`Tarih aralığı uygulandı: ${start} - ${end} ✅`);
+  }
+}
+
+async function clearDateRangeFilter() {
+  state.listStartDate = "";
+  state.listEndDate = "";
+  state.visibleCount = PAGE_SIZE;
+  await listeyiYenile();
+  if (typeof showToast === "function") showToast("Tarih filtresi temizlendi ✅");
+}
+
+function listDateRangeLabel() {
+  if (!state.listStartDate && !state.listEndDate) return "Gösterilen kayıtlar içinde";
+  if (state.listStartDate && !state.listEndDate) return `${state.listStartDate} tarihinden bugüne`;
+  if (!state.listStartDate && state.listEndDate) return `${state.listEndDate} tarihine kadar`;
+  return `${state.listStartDate} - ${state.listEndDate}`;
+}
+
+function toggleInlineOperation(recordId) {
+  const currentId = state.inlineOperation?.recordId;
+  state.inlineOperation = {
+    recordId: currentId === recordId ? null : recordId,
+    name: "",
+    fee: "",
+    saving: false
+  };
+  render();
+}
+
+function updateInlineOperationField(key, value) {
+  state.inlineOperation = {
+    ...(state.inlineOperation || {}),
+    [key]: value
+  };
+}
+
+async function addInlineOperationToRecord(recordId) {
+  const record = state.records.find((r) => String(r.id) === String(recordId));
+  if (!record) return;
+
+  const opName = String(state.inlineOperation?.name || "").trim();
+  const opFee = Number(String(state.inlineOperation?.fee || "").replace(",", "."));
+
+  if (!opName) {
+    alert("İşlem adı boş olmasın knk.");
+    return;
+  }
+
+  if (!Number.isFinite(opFee) || opFee < 0) {
+    alert("Tutarı kontrol et knk.");
+    return;
+  }
+
+  const payments = getRecordPaymentValues(record.id, record);
+  const operations = temizOperations([...(record.operations || []), { name: opName, fee: opFee }]);
+
+  try {
+    state.inlineOperation = { ...(state.inlineOperation || {}), saving: true };
+    render();
+
+    const payload = buildPayloadFromForm({
+      customerName: record.customerName,
+      phone: record.phone,
+      brand: record.brand,
+      model: record.model,
+      type: record.type,
+      modelYear: record.modelYear,
+      plaka: record.plaka,
+      sasiNo: record.sasiNo,
+      operations,
+      status: record.status,
+      noteText: record.noteText,
+      discountAmount: record.discountAmount,
+      technician: record.technician,
+      vehicleDefects: record.vehicleDefects,
+      signature: record.signature,
+      technicianSignature: record.technicianSignature,
+      kvkkOnay: record.kvkkOnay,
+      musteriOnay: record.musteriOnay,
+      paymentCash: payments.cash,
+      paymentCard: payments.card,
+      paymentTransfer: payments.transfer
+    }, { ID: record.id });
+
+    delete payload.Fotograf;
+    delete payload.Imza;
+    delete payload.UstaImza;
+
+    assertNoBase64InPayload(payload);
+
+    const result = await supabaseKayitGuncelle(payload);
+    await updateStockRequestFromRecord(result);
+
+    const updatedRecord = mapSheetRecord(result);
+    state.records = state.records.map(r => String(r.id) === String(record.id) ? updatedRecord : r);
+    state.inlineOperation = { recordId: null, name: "", fee: "", saving: false };
+
+    if (typeof showToast === "function") showToast(`+ ${opName} eklendi (${formatMoney(opFee)}) ✅`);
+  } catch (e) {
+    console.error("İşlem ekleme hata:", e);
+    alert("İşlem eklenemedi: " + (e.message || "Bilinmeyen hata"));
+    state.inlineOperation = { ...(state.inlineOperation || {}), saving: false };
+  } finally {
+    render();
+  }
 }
 
   function stats() {
@@ -2952,6 +3092,7 @@ async function printDailyReport() {
       const uniquePlates = new Set(rows.map((r) => normalizePlate(r.plaka)).filter(Boolean)).size;
       const reportRows = reportSourceRows();
       const reportTotals = dailyReportTotals(reportRows);
+      const rangeLabel = listDateRangeLabel();
 
       const tabs = [
         { key: "hizliKayit", label: "Hızlı Kayıt" },
@@ -3507,11 +3648,27 @@ async function printDailyReport() {
             ` : ""}
 
           ${state.activeTab === "liste" ? `
+  <div class="mb-4 rounded-3xl border border-white/10 bg-zinc-900/70 p-4">
+    <div class="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
+      <div>
+        <label class="mb-1 block text-xs font-semibold text-zinc-300">İlk Tarih</label>
+        <input type="date" value="${state.listStartDate || ""}" onchange="setListStartDate(this.value)" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-semibold text-zinc-300">Son Tarih</label>
+        <input type="date" value="${state.listEndDate || ""}" onchange="setListEndDate(this.value)" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
+      </div>
+      <button onclick="applyDateRangeFilter()" class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">Uygula</button>
+      <button onclick="clearDateRangeFilter()" class="rounded-2xl border border-white/10 bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Temizle</button>
+    </div>
+    <div class="mt-2 text-xs text-zinc-400">İlk tarih seçip son tarihi boş bırakırsan o tarihten bugüne kadar hesaplar.</div>
+  </div>
+
   <div class="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
     <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
       <div class="text-sm text-emerald-200">Gösterilen Kayıtlar Toplamı</div>
       <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
-      <div class="mt-1 text-xs text-emerald-100">${rows.length} kayıt ekranda</div>
+      <div class="mt-1 text-xs text-emerald-100">${rows.length} kayıt · ${rangeLabel}</div>
     </div>
 
    <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5">
@@ -3531,7 +3688,7 @@ async function printDailyReport() {
     <div class="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
       <div class="text-sm text-amber-200">Tekil Müşteri</div>
       <div class="text-2xl font-bold text-amber-300">${uniqueCustomers}</div>
-      <div class="mt-1 text-xs text-amber-100">Gösterilen kayıtlar içinde</div>
+      <div class="mt-1 text-xs text-amber-100">${rangeLabel}</div>
     </div>
 
     <div class="rounded-3xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-5">
@@ -3752,6 +3909,13 @@ async function printDailyReport() {
                               </button>
 
                               <button
+                                onclick="toggleInlineOperation('${record.id}')"
+                                class="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 hover:bg-emerald-500/20"
+                              >
+                                İşlem Ekle
+                              </button>
+
+                              <button
                                 onclick="openKontrol('${record.id}')"
                                 class="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-300 hover:bg-blue-500/20"
                               >
@@ -3761,6 +3925,25 @@ async function printDailyReport() {
                           </div>
                         </div>
                       </div>
+
+                      ${state.inlineOperation?.recordId === record.id ? `
+                        <div class="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3">
+                          <div class="grid gap-2 md:grid-cols-[1fr_160px_auto_auto] md:items-end">
+                            <div>
+                              <label class="mb-1 block text-xs text-emerald-200">Yeni İşlem</label>
+                              <input value="${state.inlineOperation.name || ""}" oninput="updateInlineOperationField('name', this.value)" placeholder="Örn: Bagaj havuzu" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
+                            </div>
+                            <div>
+                              <label class="mb-1 block text-xs text-emerald-200">Tutar</label>
+                              <input type="number" value="${state.inlineOperation.fee || ""}" oninput="updateInlineOperationField('fee', this.value)" placeholder="0" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" />
+                            </div>
+                            <button onclick="addInlineOperationToRecord('${record.id}')" ${state.inlineOperation.saving ? "disabled" : ""} class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
+                              ${state.inlineOperation.saving ? "Ekleniyor..." : "Ekle"}
+                            </button>
+                            <button onclick="toggleInlineOperation('${record.id}')" class="rounded-2xl border border-white/10 bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">Vazgeç</button>
+                          </div>
+                        </div>
+                      ` : ""}
                     </div>
                   `).join("")}
 
