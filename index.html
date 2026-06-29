@@ -2917,6 +2917,34 @@ async function fetchDailyReportRows(dateValue = state.selectedDate) {
   ].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 }
 
+async function setDailyReportDate(dateValue) {
+  if (!dateValue) return;
+
+  state.selectedDate = dateValue;
+  state.visibleCount = PAGE_SIZE;
+  state.reportRows = [];
+  state.reportRowsDate = "";
+
+  try {
+    state.reportLoading = true;
+    render();
+    await listeyiYenile();
+    await reloadDailyReportData(state.selectedDate);
+  } catch (err) {
+    console.error("Gün sonu tarih değiştirme hatası:", err);
+    alert("Rapor tarihi değiştirilemedi: " + (err.message || "Bilinmeyen hata"));
+  } finally {
+    state.reportLoading = false;
+    render();
+  }
+}
+
+async function shiftDailyReportDate(dayDiff) {
+  const base = state.selectedDate ? new Date(state.selectedDate + "T12:00:00") : new Date();
+  base.setDate(base.getDate() + Number(dayDiff || 0));
+  await setDailyReportDate(base.toISOString().slice(0, 10));
+}
+
 async function refreshDailyReportPreview() {
   try {
     state.reportLoading = true;
@@ -3897,11 +3925,20 @@ async function printDailyReport() {
             ${state.activeTab === "gunSonu" ? `
               <div class="space-y-4">
                 <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px_300px] xl:items-start">
-                  <div class="min-w-0 min-w-0 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white xl:min-h-[230px]">
-                    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
+                  <div class="min-w-0 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-white xl:min-h-[230px]">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div class="min-w-0">
                         <h2 class="text-xl font-bold">📊 Gün Sonu Raporu</h2>
                         <p class="mt-1 text-sm text-emerald-100">${trReportDateLabel(state.selectedDate)} G.S.R · Montaj Bitti olan kayıtlar listelenir.</p>
+
+                        <div class="mt-4 flex flex-wrap items-center gap-2">
+                          <button id="prevDailyReportDate" class="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm font-bold text-white hover:bg-zinc-800">◀ Önceki Gün</button>
+                          <label class="flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-black/40 px-3 py-2 text-sm text-emerald-100">
+                            📅
+                            <input id="selectedDateInput" type="date" value="${state.selectedDate}" class="bg-transparent text-sm font-bold text-white outline-none" />
+                          </label>
+                          <button id="nextDailyReportDate" class="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm font-bold text-white hover:bg-zinc-800">Sonraki Gün ▶</button>
+                        </div>
                       </div>
                       <div class="flex w-full flex-col gap-2 sm:w-[190px]">
                         <button id="refreshDailyReport" class="w-full rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800">🔄 Raporu Yenile</button>
@@ -4546,13 +4583,14 @@ searchEl.addEventListener("keydown", (e) => {
   render();
 });
       document.getElementById("selectedDateInput")?.addEventListener("change", async (e) => {
-  state.selectedDate = e.target.value;
-  state.visibleCount = PAGE_SIZE;
-  state.reportRows = [];
-  state.reportRowsDate = "";
-  await listeyiYenile();
-  await reloadDailyReportData(state.selectedDate);
-});
+        await setDailyReportDate(e.target.value);
+      });
+      document.getElementById("prevDailyReportDate")?.addEventListener("click", async () => {
+        await shiftDailyReportDate(-1);
+      });
+      document.getElementById("nextDailyReportDate")?.addEventListener("click", async () => {
+        await shiftDailyReportDate(1);
+      });
 
       document.getElementById("showMoreBtn")?.addEventListener("click", () => {
   state.visibleCount += PAGE_SIZE;
