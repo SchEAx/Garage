@@ -1168,6 +1168,42 @@ paymentTransfer: "",
       fee: Number(op.fee || 0)
     }));
 }
+
+function fillMissingRecordFields(form, operations = []) {
+  const filled = { ...(form || {}) };
+
+  const textDefaults = {
+    customerName: "Girilmedi",
+    phone: "Girilmedi",
+    plaka: "YOK",
+    brand: "Girilmedi",
+    model: "Girilmedi",
+    type: "Girilmedi",
+    modelYear: "Girilmedi",
+    sasiNo: "YOK"
+  };
+
+  Object.entries(textDefaults).forEach(([key, value]) => {
+    if (!String(filled[key] ?? "").trim()) filled[key] = value;
+  });
+
+  filled.status = filled.status || "Beklemede";
+  filled.kvkkOnay = true;
+  filled.musteriOnay = true;
+
+  const cleanedOps = (operations || []).length
+    ? operations
+    : temizOperations(filled.operations || []);
+
+  const safeOps = cleanedOps.length
+    ? cleanedOps.map(op => ({
+        name: String(op.name || "Girilmedi").trim() || "Girilmedi",
+        fee: Number(op.fee || 0)
+      }))
+    : [{ name: "Girilmedi", fee: 0 }];
+
+  return { form: filled, operations: safeOps };
+}
   function syncOperationsFromDom() {
   const names = [...document.querySelectorAll("[data-op-name]")];
   const fees = [...document.querySelectorAll("[data-op-fee]")];
@@ -1720,22 +1756,15 @@ async function saveRecord() {
 
   syncOperationsFromDom();
 
-  const form = state.form;
-  const validOperations = temizOperations(form.operations);
+  let form = state.form;
+  let validOperations = temizOperations(form.operations);
+  const prepared = fillMissingRecordFields(form, validOperations);
+  form = prepared.form;
+  validOperations = prepared.operations;
 
   console.log("KAYIT ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
 
-  if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
-    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, en az 1 işlem ve ücret.");
-    return;
-  }
-
-  if (!form.kvkkOnay || !form.musteriOnay) {
-    alert("Lütfen gerekli onay kutularını işaretleyin!");
-    return;
-  }
-
-  const formSnapshot = cloneForOffline(form);
+  const formSnapshot = cloneForOffline({ ...form, operations: validOperations });
 
   if (!navigator.onLine) {
     try {
@@ -1801,9 +1830,9 @@ async function saveQuickRecord() {
 
   syncOperationsFromDom();
 
-  const form = {
+  let form = {
     ...state.form,
-    sasiNo: "",
+    sasiNo: state.form.sasiNo || "",
     vehicleImage: "",
     signature: "",
     technicianSignature: "",
@@ -1815,12 +1844,10 @@ async function saveQuickRecord() {
     musteriOnay: true
   };
 
-  const validOperations = temizOperations(form.operations);
-
-  if (!form.customerName || !form.phone || !form.plaka || !form.brand || !form.model || !validOperations.length) {
-    alert("Zorunlu alanlar: Ad Soyad, Telefon, Plaka, Araç Marka/Model, en az 1 işlem ve tutar.");
-    return;
-  }
+  let validOperations = temizOperations(form.operations);
+  const prepared = fillMissingRecordFields(form, validOperations);
+  form = prepared.form;
+  validOperations = prepared.operations;
 
   const formSnapshot = cloneForOffline({ ...form, operations: validOperations });
 
@@ -1892,20 +1919,13 @@ async function updateCurrentRecord() {
 
   syncOperationsFromDom();
 
-const form = state.form;
-const validOperations = temizOperations(form.operations);
+let form = state.form;
+let validOperations = temizOperations(form.operations);
+const prepared = fillMissingRecordFields(form, validOperations);
+form = prepared.form;
+validOperations = prepared.operations;
 
 console.log("GÜNCELLEME ÖNCESİ OPERATIONS:", JSON.stringify(validOperations));
-
-  if (!form.customerName || !form.phone || !form.brand || !form.model || !validOperations.length) {
-    alert("Zorunlu alanlar: Müşteri Ad-Soyadı, Telefon, Araç Marka, Araç Modeli, en az 1 işlem ve ücret.");
-    return;
-  }
-
-  if (!form.kvkkOnay || !form.musteriOnay) {
-    alert("Lütfen gerekli onay kutularını işaretleyin!");
-    return;
-  }
 
   const currentRecord = state.records.find((r) => r.id === state.editId);
   if (!currentRecord) {
@@ -3140,24 +3160,24 @@ async function printDailyReport() {
                   <div class="flex items-center justify-between p-6 pb-3">
                     <div>
                       <h2 class="text-xl font-bold">⚡ Hızlı Araç Kabul</h2>
-                      <p class="mt-1 text-sm text-zinc-400">Yoğun anda sadece gerekli bilgileri gir. Kayıt yine depo/stok programına talep olarak düşer.</p>
+                      <p class="mt-1 text-sm text-zinc-400">İstersen alanları boş bırakabilirsin; boş kalanlar kayıtta “Girilmedi/YOK” olarak açılır.</p>
                     </div>
                     <span class="rounded-xl bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300">Minimal Mod</span>
                   </div>
 
                   <div class="grid gap-4 p-6 pt-0 md:grid-cols-2">
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Ad Soyad *</label>
+                      <label class="text-sm text-zinc-300">Ad Soyad</label>
                       <input data-form="customerName" autocomplete="name" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.customerName || ""}" />
                     </div>
 
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Telefon *</label>
+                      <label class="text-sm text-zinc-300">Telefon</label>
                       <input data-form="phone" inputmode="tel" autocomplete="tel" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.phone || ""}" />
                     </div>
 
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Plaka *</label>
+                      <label class="text-sm text-zinc-300">Plaka</label>
                       <input data-form="plaka" placeholder="34 ABC 123" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base uppercase text-white" value="${state.form.plaka || ""}" />
                     </div>
 
@@ -3169,12 +3189,12 @@ async function printDailyReport() {
                     </div>
 
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Araç Marka *</label>
+                      <label class="text-sm text-zinc-300">Araç Marka</label>
                       <input data-form="brand" placeholder="Örn: Renault" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.brand || ""}" />
                     </div>
 
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Araç Model *</label>
+                      <label class="text-sm text-zinc-300">Araç Model</label>
                       <input data-form="model" placeholder="Örn: Megane" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.model || ""}" />
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3217,7 +3237,7 @@ async function printDailyReport() {
 
                     <div class="space-y-2 md:col-span-2">
                       <div class="mb-2 flex items-center justify-between gap-3">
-                        <label class="text-sm text-zinc-300">Yapılacak İşlemler / Tutar *</label>
+                        <label class="text-sm text-zinc-300">Yapılacak İşlemler / Tutar</label>
                         <button id="addOperationRow" type="button" class="rounded-2xl bg-zinc-800 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-700">+ İşlem Ekle</button>
                       </div>
 
@@ -3287,11 +3307,11 @@ async function printDailyReport() {
                   </div>
                   <div class="grid gap-4 p-6 pt-0 md:grid-cols-2">
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Müşteri Ad Soyadı *</label>
+                      <label class="text-sm text-zinc-300">Müşteri Ad Soyadı</label>
                       <input data-form="customerName" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.customerName}" />
                     </div>
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Telefon *</label>
+                      <label class="text-sm text-zinc-300">Telefon</label>
                       <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
                     </div>
                     <div class="space-y-2">
@@ -3315,7 +3335,7 @@ async function printDailyReport() {
                       />
                     </div>
                      <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Araç Marka *</label>
+                      <label class="text-sm text-zinc-300">Araç Marka</label>
                       <select id="brandSelect" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white">
                         <option value="">Marka Seç</option>
                         ${Object.keys(aracVerileri)
@@ -3327,7 +3347,7 @@ async function printDailyReport() {
                     </div>
                     
                     <div class="space-y-2">
-                      <label class="text-sm text-zinc-300">Araç Modeli *</label>
+                      <label class="text-sm text-zinc-300">Araç Modeli</label>
                       <select id="modelSelect" ${!state.form.brand ? "disabled" : ""} class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white ${!state.form.brand ? "opacity-60" : ""}">
                         <option value="">${state.form.brand ? "Model Seç" : "Önce Marka Seç"}</option>
                         ${state.form.brand
