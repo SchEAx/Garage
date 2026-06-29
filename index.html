@@ -18,6 +18,17 @@
   accent-color: #18181b;
 }
     textarea, input, select { outline: none; }
+
+    /* Gün sonu tarih kutusu: tarayıcının koyu takvim ikonunu gizle */
+    input.gunsonu-date-input::-webkit-calendar-picker-indicator {
+      opacity: 0;
+      display: none;
+      -webkit-appearance: none;
+    }
+    input.gunsonu-date-input {
+      color-scheme: dark;
+      cursor: pointer;
+    }
     @media print {
       @page { size: A5 portrait; margin: 8mm; }
       html, body { background: #fff !important; }
@@ -3932,12 +3943,14 @@ async function printDailyReport() {
                         <p class="mt-1 text-sm text-emerald-100">${trReportDateLabel(state.selectedDate)} G.S.R · Montaj Bitti olan kayıtlar listelenir.</p>
 
                         <div class="mt-4 flex flex-wrap items-center gap-2">
-                          <button id="prevDailyReportDate" class="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm font-bold text-white hover:bg-zinc-800">◀ Önceki Gün</button>
-                          <label class="flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-black/40 px-3 py-2 text-sm text-emerald-100">
-                            📅
-                            <input id="selectedDateInput" type="date" value="${state.selectedDate}" class="bg-transparent text-sm font-bold text-white outline-none" />
+                          <button id="prevDailyReportDate" class="h-11 rounded-2xl border border-white/10 bg-zinc-950/70 px-4 text-sm font-bold text-white hover:bg-zinc-800">◀ Önceki Gün</button>
+
+                          <label id="dailyDatePickerShell" class="flex h-11 min-w-[170px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-zinc-500/50 bg-zinc-800/80 px-4 text-sm font-bold text-zinc-100 shadow-inner hover:bg-zinc-700/80">
+                            <span class="text-zinc-300">📅</span>
+                            <input id="selectedDateInput" type="date" value="${state.selectedDate}" class="gunsonu-date-input w-[105px] bg-transparent text-center text-sm font-bold text-white outline-none" />
                           </label>
-                          <button id="nextDailyReportDate" class="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm font-bold text-white hover:bg-zinc-800">Sonraki Gün ▶</button>
+
+                          <button id="nextDailyReportDate" class="h-11 rounded-2xl border border-white/10 bg-zinc-950/70 px-4 text-sm font-bold text-white hover:bg-zinc-800">Sonraki Gün ▶</button>
                         </div>
                       </div>
                       <div class="flex w-full flex-col gap-2 sm:w-[190px]">
@@ -4582,6 +4595,11 @@ searchEl.addEventListener("keydown", (e) => {
   state.visibleCount = PAGE_SIZE;
   render();
 });
+      document.getElementById("dailyDatePickerShell")?.addEventListener("click", (e) => {
+        const input = document.getElementById("selectedDateInput");
+        if (!input) return;
+        if (e.target !== input && typeof input.showPicker === "function") input.showPicker();
+      });
       document.getElementById("selectedDateInput")?.addEventListener("change", async (e) => {
         await setDailyReportDate(e.target.value);
       });
