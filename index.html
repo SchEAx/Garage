@@ -1069,18 +1069,45 @@ function mapSheetRecord(row) {
       .trim();
   }
 
-function isToday(value) {
-  if (!value) return false;
+function dateKeyTR(value) {
+  const d = value ? new Date(value) : new Date();
+  if (isNaN(d.getTime())) return "";
 
-  const d = new Date(value);
-  const now = new Date();
+  const parts = new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(d);
 
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
+  const get = (type) => parts.find(p => p.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
+
+function todayDateKeyTR() {
+  return dateKeyTR(new Date());
+}
+
+function isToday(value) {
+  return dateKeyTR(value) === todayDateKeyTR();
+}
+
+function activeListDateScope() {
+  const today = todayDateKeyTR();
+  const start = state.listStartDate || today;
+  const end = state.listEndDate || start;
+  return { start, end };
+}
+
+function rowsForActiveListDateScope(records = state.records) {
+  const { start, end } = activeListDateScope();
+  return (records || []).filter((r) => {
+    const key = dateKeyTR(r.createdAt);
+    if (!key) return false;
+    return key >= start && key <= end;
+  });
+}
+
   function todayTotal(records) {
     return (records || [])
       .filter((r) => isToday(r.createdAt) && r.status === "Montaj Bitti")
@@ -1597,12 +1624,16 @@ function setListEndDate(value) {
 }
 
 async function applyDateRangeFilter() {
+  // İlk tarih seçilip son tarih boş bırakılırsa artık sadece o gün hesaplanır.
+  if (state.listStartDate && !state.listEndDate) {
+    state.listEndDate = state.listStartDate;
+  }
+
   state.visibleCount = PAGE_SIZE;
   await listeyiYenile();
   if (typeof showToast === "function") {
-    const start = state.listStartDate || "ilk kayıt";
-    const end = state.listEndDate || "bugün";
-    showToast(`Tarih aralığı uygulandı: ${start} - ${end} ✅`);
+    const { start, end } = activeListDateScope();
+    showToast(start === end ? `${start} günü uygulandı ✅` : `Tarih aralığı uygulandı: ${start} - ${end} ✅`);
   }
 }
 
@@ -1611,14 +1642,13 @@ async function clearDateRangeFilter() {
   state.listEndDate = "";
   state.visibleCount = PAGE_SIZE;
   await listeyiYenile();
-  if (typeof showToast === "function") showToast("Tarih filtresi temizlendi ✅");
+  if (typeof showToast === "function") showToast("Tarih filtresi temizlendi, bugünün kayıtları gösteriliyor ✅");
 }
 
 function listDateRangeLabel() {
-  if (!state.listStartDate && !state.listEndDate) return "Gösterilen kayıtlar içinde";
-  if (state.listStartDate && !state.listEndDate) return `${state.listStartDate} tarihinden bugüne`;
-  if (!state.listStartDate && state.listEndDate) return `${state.listEndDate} tarihine kadar`;
-  return `${state.listStartDate} - ${state.listEndDate}`;
+  const { start, end } = activeListDateScope();
+  if (start === end) return `${start} günü`;
+  return `${start} - ${end}`;
 }
 
 function toggleInlineOperation(recordId) {
@@ -3145,9 +3175,11 @@ async function printDailyReport() {
        const rows = visibleRows();
       const selected = selectedRecord();
       const showModal = !!state.selectedId && !!selected;
-      const grand = grandTotal(rows);
-      const todayGrand = todayTotal(state.records);
-      const todayRecordsCount = todayCount(rows);
+      const cardRows = rowsForActiveListDateScope(state.records);
+      const finishedCardRows = cardRows.filter((r) => r.status === "Montaj Bitti");
+      const grand = grandTotal(cardRows);
+      const todayGrand = grandTotal(finishedCardRows);
+      const todayRecordsCount = finishedCardRows.length;
       const totalCount = state.totalRemoteCount;
       const canShowMore = state.records.length < state.totalRemoteCount;
       const selectedPlateHistory = selected ? plateHistory(selected.plaka, selected.id) : [];
@@ -3648,7 +3680,7 @@ async function printDailyReport() {
     <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
       <div class="text-sm text-emerald-200">Bugün Açılan Kayıtlar Toplamı</div>
       <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
-      <div class="mt-1 text-xs text-emerald-100">${rows.length} kayıt · ${rangeLabel}</div>
+      <div class="mt-1 text-xs text-emerald-100">${cardRows.length} kayıt · ${rangeLabel}</div>
     </div>
 
    <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5">
@@ -3661,7 +3693,7 @@ async function printDailyReport() {
   </div>
 
   <div class="text-2xl font-bold text-sky-300">${formatMoney(todayGrand)}</div>
-  <div class="mt-1 text-xs text-sky-100">Bugün açılan kayıt: ${todayRecordsCount}</div>
+  <div class="mt-1 text-xs text-sky-100">Montajı biten kayıt: ${todayRecordsCount}</div>
 </div>
     
 
