@@ -3169,11 +3169,36 @@ async function printDailyReport() {
   }
 }
 
-    function render() {
+    
+function updateBrowserTitle(selectedRecord = null) {
+  const tabTitles = {
+    hizliKayit: "⚡ Hızlı Kayıt",
+    kayit: state.editId ? "✏️ Kayıt Düzenleniyor" : "📝 Detaylı Kayıt",
+    liste: "📋 Kayıtlar",
+    gunSonu: "📊 Gün Sonu Raporu",
+    kontrol: "🔧 Montaj Kontrol",
+    kurulum: "✅ Sonraki Adım"
+  };
+
+  let title = tabTitles[state.activeTab] || "Araç Kabul";
+
+  if (state.activeTab === "kontrol" && kontrolRecord?.plaka) {
+    title = `🔧 Montaj Kontrol - ${kontrolRecord.plaka}`;
+  }
+
+  if (state.selectedId && selectedRecord?.plaka) {
+    title = `🚗 ${selectedRecord.plaka} - Kayıt Detayı`;
+  }
+
+  document.title = `${title} | Garage İstanbul`;
+}
+
+function render() {
       const app = document.getElementById("app");
       const s = stats();
        const rows = visibleRows();
       const selected = selectedRecord();
+      updateBrowserTitle(selected);
       const showModal = !!state.selectedId && !!selected;
       const cardRows = rowsForActiveListDateScope(state.records);
       const finishedCardRows = cardRows.filter((r) => r.status === "Montaj Bitti");
