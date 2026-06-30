@@ -3646,14 +3646,14 @@ async function printDailyReport() {
 
   <div class="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
     <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-      <div class="text-sm text-emerald-200">Gösterilen Kayıtlar Toplamı</div>
+      <div class="text-sm text-emerald-200">Bugün Açılan Kayıtlar Toplamı</div>
       <div class="text-2xl font-bold text-emerald-300">${formatMoney(grand)}</div>
       <div class="mt-1 text-xs text-emerald-100">${rows.length} kayıt · ${rangeLabel}</div>
     </div>
 
    <div class="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-5">
   <div class="flex items-center justify-between">
-    <div class="text-sm text-sky-200">Bugünkü Toplam</div>
+    <div class="text-sm text-sky-200">Bugün Montajı Bitenlerin Toplamı</div>
     <button onclick="refreshTodayRevenue()" 
       class="rounded-xl bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-500">
       Yenile
