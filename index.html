@@ -3104,7 +3104,8 @@ function dailyReportTotals(rows = reportSourceRows()) {
     branchGross: 0
   });
 
-  totals.net = totals.gross - totals.expense;
+  // Net artık gider düşmeden hesaplanır. Gider ayrı kutuda takip edilir.
+  totals.net = totals.gross;
   return totals;
 }
 
