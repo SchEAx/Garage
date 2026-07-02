@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-pwa-v12-bekleme-workflow";
+const CACHE_NAME = "garage-pwa-v19-1-islem-ekle-fix";
 const urlsToCache = ["/", "/index.html", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
