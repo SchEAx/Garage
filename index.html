@@ -2213,6 +2213,213 @@ async function saveRecordPayments(id) {
 }
 
 
+
+function orderStageList() {
+  return [
+    { status: "Sipariş Beklemede", title: "Sipariş Bekliyor", icon: "🟣" },
+    { status: "Sipariş Ürün Geldi", title: "Ürün Geldi", icon: "📦" },
+    { status: "Sipariş Müşteri Arandı", title: "Müşteri Arandı", icon: "📞" }
+  ];
+}
+
+function warrantyStageList() {
+  return [
+    { status: "Garanti Beklemede", title: "Garanti Geldi", icon: "🟠" },
+    { status: "Garanti Servise Gönderildi", title: "Servise Gönderildi", icon: "🚚" },
+    { status: "Garanti Parça Bekliyor", title: "Parça Bekleniyor", icon: "🧩" },
+    { status: "Garanti Test Edilecek", title: "Test Ediliyor", icon: "🧪" }
+  ];
+}
+
+function nextOrderStatus(record) {
+  const status = String(record?.status || "Sipariş Beklemede");
+  if (status === "Sipariş Beklemede") return "Sipariş Ürün Geldi";
+  if (status === "Sipariş Ürün Geldi") return "Sipariş Müşteri Arandı";
+  if (status === "Sipariş Müşteri Arandı") return "Sipariş Tamamlandı";
+  return "Sipariş Tamamlandı";
+}
+
+function orderNextLabel(record) {
+  const next = nextOrderStatus(record);
+  if (next === "Sipariş Ürün Geldi") return "Ürün Geldi >";
+  if (next === "Sipariş Müşteri Arandı") return "Müşteri Arandı >";
+  return "Tamamlandı";
+}
+
+function nextWarrantyStatus(record) {
+  const status = String(record?.status || "Garanti Beklemede");
+  if (status === "Garanti Beklemede") return "Garanti Servise Gönderildi";
+  if (status === "Garanti Servise Gönderildi") return "Garanti Parça Bekliyor";
+  if (status === "Garanti Parça Bekliyor") return "Garanti Test Edilecek";
+  if (status === "Garanti Test Edilecek") return "Garanti Teslim Edildi";
+  return "Garanti Teslim Edildi";
+}
+
+function warrantyNextLabel(record) {
+  const next = nextWarrantyStatus(record);
+  if (next === "Garanti Servise Gönderildi") return "Servise Gönderildi >";
+  if (next === "Garanti Parça Bekliyor") return "Parça Bekliyor >";
+  if (next === "Garanti Test Edilecek") return "Test Edilecek >";
+  return "Teslim Edildi";
+}
+
+function paymentPercent(record) {
+  const total = recordTotal(record);
+  if (total <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((recordPaidTotal(record) / total) * 100)));
+}
+
+function customerWhatsappHref(record) {
+  const raw = String(record?.phone || "").replace(/\D/g, "");
+  if (!raw) return "#";
+  const phone = raw.startsWith("90") ? raw : raw.startsWith("0") ? "9" + raw : "90" + raw;
+  const message = encodeURIComponent(`Merhaba, Garage İstanbul. Siparişiniz/işleminiz hakkında bilgilendirme yapmak için yazıyoruz.`);
+  return `https://wa.me/${phone}?text=${message}`;
+}
+
+function renderPaymentEditor(record, remaining) {
+  const canComplete = remaining <= 0;
+  return `
+    <div class="mt-3 rounded-2xl border border-white/10 bg-zinc-950/60 p-3">
+      <div class="mb-2 text-xs font-bold text-zinc-300">Ödeme Güncelle</div>
+      <div class="grid gap-2 md:grid-cols-3">
+        <input type="number" data-payment-cash="${record.id}" value="${record.paymentCash || ""}" oninput="updatePaymentRemainingForRecord('${record.id}')" placeholder="Nakit" class="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white" />
+        <input type="number" data-payment-card="${record.id}" value="${record.paymentCard || ""}" oninput="updatePaymentRemainingForRecord('${record.id}')" placeholder="Kart" class="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white" />
+        <input type="number" data-payment-transfer="${record.id}" value="${record.paymentTransfer || ""}" oninput="updatePaymentRemainingForRecord('${record.id}')" placeholder="Havale" class="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white" />
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button onclick="saveRecordPayments('${record.id}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600 disabled:opacity-60">Ödemeyi Kaydet</button>
+        <button onclick="updateRecordStatus('${record.id}', 'Sipariş Tamamlandı')" ${!canComplete || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-4 py-2 text-sm font-bold ${canComplete ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canComplete ? "Tamamlandı" : `Kalan ${formatMoney(remaining)}`}</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderOrderMiniCard(record) {
+  const total = recordTotal(record);
+  const paid = recordPaidTotal(record);
+  const remaining = recordRemaining(record);
+  const percent = paymentPercent(record);
+  const next = nextOrderStatus(record);
+  const canGoNext = next !== "Sipariş Tamamlandı" || remaining <= 0;
+  const note = safeNote(record);
+  return `
+    <div class="rounded-2xl border border-purple-400/15 bg-black/35 p-4 shadow-xl">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-base font-black text-white">${record.customerName || "-"}</div>
+          <div class="mt-1 text-xs text-zinc-300">${record.phone || "-"} · ${record.brand || ""} ${record.model || ""} · ${record.plaka || "-"}</div>
+          <div class="mt-2 text-sm font-bold text-white">${(record.operations || []).map(op => op.name || "-").join(", ") || "-"}</div>
+        </div>
+        <span class="shrink-0 rounded-xl border px-2 py-1 text-[11px] font-bold ${waitingAgeClass(record)}">${daysWaiting(record)} gün</span>
+      </div>
+      ${note ? `<div class="mt-3 rounded-xl border border-purple-400/20 bg-purple-500/10 p-2 text-xs text-purple-100"><b>Not:</b> ${note}</div>` : ""}
+      <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
+        <div class="rounded-xl bg-zinc-950/70 p-2"><div class="text-zinc-500">Tutar</div><div class="font-black text-purple-200">${formatMoney(total)}</div></div>
+        <div class="rounded-xl bg-zinc-950/70 p-2"><div class="text-zinc-500">Kapora</div><div class="font-black text-emerald-300">${formatMoney(paid)}</div></div>
+        <div class="rounded-xl bg-zinc-950/70 p-2"><div class="text-zinc-500">Kalan</div><div class="font-black ${remaining > 0 ? "text-amber-300" : "text-emerald-300"}">${formatMoney(remaining)}</div></div>
+      </div>
+      <div class="mt-3">
+        <div class="mb-1 flex justify-between text-[11px] text-zinc-400"><span>Ödeme ilerleme</span><span>%${percent}</span></div>
+        <div class="h-2 overflow-hidden rounded-full bg-zinc-800"><div class="h-full rounded-full bg-emerald-500" style="width:${percent}%"></div></div>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button onclick="updateRecordStatus('${record.id}', '${next}')" ${!canGoNext || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-3 py-2 text-xs font-bold ${canGoNext ? "bg-purple-700 text-white hover:bg-purple-600" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canGoNext ? orderNextLabel(record) : `Kalan ${formatMoney(remaining)}`}</button>
+        <a href="tel:${String(record.phone || "").replace(/\s+/g, "")}" class="rounded-2xl bg-zinc-800 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-700">📞 Ara</a>
+        <a href="${customerWhatsappHref(record)}" target="_blank" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">WhatsApp</a>
+      </div>
+      ${renderPaymentEditor(record, remaining)}
+    </div>
+  `;
+}
+
+function renderWarrantyMiniCard(record) {
+  const note = safeNote(record);
+  const next = nextWarrantyStatus(record);
+  return `
+    <div class="rounded-2xl border border-orange-400/15 bg-black/35 p-4 shadow-xl">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-base font-black text-white">${record.customerName || "-"}</div>
+          <div class="mt-1 text-xs text-zinc-300">${record.phone || "-"} · ${record.brand || ""} ${record.model || ""} · ${record.plaka || "-"}</div>
+          <div class="mt-2 text-sm font-bold text-white">${(record.operations || []).map(op => op.name || "-").join(", ") || "-"}</div>
+        </div>
+        <span class="shrink-0 rounded-xl border px-2 py-1 text-[11px] font-bold ${waitingAgeClass(record)}">${daysWaiting(record)} gün</span>
+      </div>
+      <div class="mt-3 rounded-xl border border-orange-400/20 bg-orange-500/10 p-3 text-sm text-orange-100">
+        <div class="font-bold text-orange-200">Açıklama / Not</div>
+        <div class="mt-1 whitespace-pre-wrap">${note || "Not girilmemiş"}</div>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button onclick="updateRecordStatus('${record.id}', '${next}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60">${warrantyNextLabel(record)}</button>
+        <a href="tel:${String(record.phone || "").replace(/\s+/g, "")}" class="rounded-2xl bg-zinc-800 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-700">📞 Ara</a>
+        <a href="${customerWhatsappHref(record)}" target="_blank" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">WhatsApp</a>
+      </div>
+      <div class="mt-2 text-[11px] text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
+    </div>
+  `;
+}
+
+function renderWaitingCenter(orderRows, warrantyRows) {
+  const orderStages = orderStageList();
+  const warrantyStages = warrantyStageList();
+  return `
+    <div class="space-y-6">
+      <div class="rounded-3xl border border-purple-400/20 bg-zinc-900/90 p-5">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-purple-100">🟣 Sipariş Akışı</h2>
+            <div class="text-xs text-zinc-400">Kartlar tek tuşla sıradaki aşamaya ilerler. Ödeme bitmeden tamamlandı aktif olmaz.</div>
+          </div>
+          <span class="rounded-xl bg-purple-500/15 px-3 py-1 text-xs font-bold text-purple-200">${orderRows.length} aktif sipariş</span>
+        </div>
+        <div class="grid gap-4 xl:grid-cols-3">
+          ${orderStages.map(stage => {
+            const rows = orderRows.filter(r => (r.status || "Sipariş Beklemede") === stage.status);
+            return `
+              <div class="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div class="mb-3 flex items-center justify-between">
+                  <div class="font-black text-white">${stage.icon} ${stage.title}</div>
+                  <span class="rounded-xl bg-white/10 px-2 py-1 text-xs font-bold text-zinc-200">${rows.length}</span>
+                </div>
+                <div class="space-y-3">
+                  ${rows.length ? rows.map(renderOrderMiniCard).join("") : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-zinc-500">Bu aşamada kayıt yok.</div>`}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="rounded-3xl border border-orange-400/20 bg-zinc-900/90 p-5">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-orange-100">🟠 Garanti Akışı</h2>
+            <div class="text-xs text-zinc-400">Tek İleri butonu ile garanti süreci sırayla akar, teslim edilince listeden çıkar.</div>
+          </div>
+          <span class="rounded-xl bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-200">${warrantyRows.length} aktif garanti</span>
+        </div>
+        <div class="grid gap-4 xl:grid-cols-4">
+          ${warrantyStages.map(stage => {
+            const rows = warrantyRows.filter(r => (r.status || "Garanti Beklemede") === stage.status);
+            return `
+              <div class="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div class="mb-3 flex items-center justify-between">
+                  <div class="font-black text-white">${stage.icon} ${stage.title}</div>
+                  <span class="rounded-xl bg-white/10 px-2 py-1 text-xs font-bold text-zinc-200">${rows.length}</span>
+                </div>
+                <div class="space-y-3">
+                  ${rows.length ? rows.map(renderWarrantyMiniCard).join("") : `<div class="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-zinc-500">Bu aşamada kayıt yok.</div>`}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 async function updateRecordStatus(id, status) {
   const record = state.records.find((r) => r.id === id);
   if (!record) return;
@@ -4148,102 +4355,7 @@ function render() {
                   `;
                 })()}
 
-                <div class="grid gap-4 xl:grid-cols-2">
-                  <div class="rounded-3xl border border-purple-400/20 bg-zinc-900/90 p-5">
-                    <div class="mb-4 flex items-center justify-between">
-                      <h2 class="text-lg font-bold text-purple-100">🟣 Sipariş Takibi</h2>
-                      <span class="rounded-xl bg-purple-500/15 px-3 py-1 text-xs font-bold text-purple-200">${orderRows.length} kayıt</span>
-                    </div>
-                    <div class="space-y-3">
-                      ${orderRows.length === 0 ? `<div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-zinc-400">Sipariş bekleyen kayıt yok.</div>` : orderRows.map((record) => {
-                        const total = recordTotal(record);
-                        const paid = recordPaidTotal(record);
-                        const remaining = recordRemaining(record);
-                        const canComplete = remaining <= 0;
-                        const note = safeNote(record);
-                        return `
-                          <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
-                            <div class="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                  <div class="text-lg font-bold text-white">${record.customerName || "-"}</div>
-                                  <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${statusBadgeClass(record.status)}">${record.status || "Sipariş Beklemede"}</span>
-                                  <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${waitingAgeClass(record)}">${daysWaiting(record)} gündür bekliyor</span>
-                                </div>
-                                <div class="mt-1 text-sm text-zinc-300">${record.phone || "-"} · ${record.brand || ""} ${record.model || ""} · ${record.plaka || "-"}</div>
-                                <div class="mt-2 text-sm text-white">${(record.operations || []).map(op => op.name || "-").join(", ")}</div>
-                                ${note ? `<div class="mt-3 rounded-xl border border-purple-400/20 bg-purple-500/10 p-3 text-sm text-purple-100"><span class="font-bold text-purple-200">Not:</span> ${note}</div>` : ""}
-                              </div>
-                              <div class="text-right text-sm">
-                                <div class="text-zinc-400">Sipariş Tutarı</div>
-                                <div class="text-lg font-bold text-purple-200">${formatMoney(total)}</div>
-                                <div class="mt-1 text-xs ${remaining > 0 ? "text-amber-300" : "text-emerald-300"}">${remaining > 0 ? `Kalan ${formatMoney(remaining)}` : "Ödeme tamam ✅"}</div>
-                              </div>
-                            </div>
-
-                            <div class="mt-4 grid gap-2 md:grid-cols-3">
-                              <div class="rounded-xl bg-zinc-950/70 p-3"><div class="text-xs text-zinc-400">Alınan / Kapora</div><div class="font-bold text-emerald-300">${formatMoney(paid)}</div></div>
-                              <div class="rounded-xl bg-zinc-950/70 p-3"><div class="text-xs text-zinc-400">Kalan</div><div class="font-bold ${remaining > 0 ? "text-amber-300" : "text-emerald-300"}">${formatMoney(remaining)}${remaining <= 0 ? " ✅" : ""}</div></div>
-                              <div class="rounded-xl bg-zinc-950/70 p-3"><div class="text-xs text-zinc-400">Tarih</div><div class="font-bold text-white">${formatDateTime(record.createdAt)}</div></div>
-                            </div>
-
-                            <div class="mt-4 flex flex-wrap gap-2">
-                              <button onclick="updateRecordStatus('${record.id}', 'Sipariş Ürün Geldi')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-purple-700 px-3 py-2 text-xs font-bold text-white hover:bg-purple-600 disabled:opacity-60">Ürün Geldi</button>
-                              <button onclick="updateRecordStatus('${record.id}', 'Sipariş Müşteri Arandı')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-600 disabled:opacity-60">Müşteri Arandı</button>
-                            </div>
-
-                            <div class="mt-4 rounded-2xl border border-white/10 bg-zinc-950/60 p-3">
-                              <div class="mb-2 text-xs font-bold text-zinc-300">Ödeme Güncelle</div>
-                              <div class="grid gap-2 md:grid-cols-3">
-                                <input type="number" data-payment-cash="${record.id}" value="${record.paymentCash || ""}" oninput="updatePaymentRemainingForRecord('${record.id}')" placeholder="Nakit" class="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white" />
-                                <input type="number" data-payment-card="${record.id}" value="${record.paymentCard || ""}" oninput="updatePaymentRemainingForRecord('${record.id}')" placeholder="Kart" class="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white" />
-                                <input type="number" data-payment-transfer="${record.id}" value="${record.paymentTransfer || ""}" oninput="updatePaymentRemainingForRecord('${record.id}')" placeholder="Havale" class="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white" />
-                              </div>
-                              <div class="mt-3 flex flex-wrap gap-2">
-                                <button onclick="saveRecordPayments('${record.id}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600 disabled:opacity-60">Ödemeyi Kaydet</button>
-                                <button onclick="updateRecordStatus('${record.id}', 'Sipariş Tamamlandı')" ${!canComplete || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-4 py-2 text-sm font-bold ${canComplete ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canComplete ? "Tamamlandı" : `Kalan ${formatMoney(remaining)}`}</button>
-                              </div>
-                            </div>
-                          </div>
-                        `;
-                      }).join("")}
-                    </div>
-                  </div>
-
-                  <div class="rounded-3xl border border-orange-400/20 bg-zinc-900/90 p-5">
-                    <div class="mb-4 flex items-center justify-between">
-                      <h2 class="text-lg font-bold text-orange-100">🟠 Garanti Takibi</h2>
-                      <span class="rounded-xl bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-200">${warrantyRows.length} kayıt</span>
-                    </div>
-                    <div class="space-y-3">
-                      ${warrantyRows.length === 0 ? `<div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-zinc-400">Garanti bekleyen kayıt yok.</div>` : warrantyRows.map((record) => {
-                        const note = safeNote(record);
-                        return `
-                        <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
-                          <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div class="min-w-0 flex-1">
-                              <div class="flex flex-wrap items-center gap-2">
-                                <div class="text-lg font-bold text-white">${record.customerName || "-"}</div>
-                                <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${statusBadgeClass(record.status)}">${record.status || "Garanti Beklemede"}</span>
-                                <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${waitingAgeClass(record)}">${daysWaiting(record)} gündür bekliyor</span>
-                              </div>
-                              <div class="mt-1 text-sm text-zinc-300">${record.phone || "-"} · ${record.brand || ""} ${record.model || ""} · ${record.plaka || "-"}</div>
-                              <div class="mt-2 text-sm text-white">${(record.operations || []).map(op => op.name || "-").join(", ")}</div>
-                              ${note ? `<div class="mt-3 rounded-xl border border-orange-400/20 bg-orange-500/10 p-3 text-sm text-orange-100"><span class="font-bold text-orange-200">Açıklama / Not:</span> ${note}</div>` : `<div class="mt-3 rounded-xl border border-white/10 bg-zinc-950/60 p-3 text-sm text-zinc-500">Açıklama / Not yok</div>`}
-                              <div class="mt-2 text-xs text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
-                            </div>
-                            <div class="flex flex-wrap justify-end gap-2">
-                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Servise Gönderildi')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60">Servise Gönderildi</button>
-                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Parça Bekliyor')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-amber-700 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-60">Parça Bekliyor</button>
-                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Test Edilecek')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-600 disabled:opacity-60">Test Edilecek</button>
-                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Teslim Edildi')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60">Teslim Edildi</button>
-                            </div>
-                          </div>
-                        </div>
-                      `}).join("")}
-                    </div>
-                  </div>
-                </div>
+                ${renderWaitingCenter(orderRows, warrantyRows)}
               </div>
             ` : ""}
 

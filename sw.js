@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-pwa-v11-bekleme-takip";
+const CACHE_NAME = "garage-pwa-v12-bekleme-workflow";
 const urlsToCache = ["/", "/index.html", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
