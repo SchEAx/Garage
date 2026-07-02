@@ -865,7 +865,7 @@ function mapSheetRecord(row) {
 
     status: row.Durum || "Beklemede",
     vehicleImage: row.Fotograf || "",
-    noteText: stripDiscountFromNote(row.Notlar || ""),
+    noteText: stripDiscountFromNote(row.Notlar || row.notlar || row.NOTLAR || row.Note || row.note || row.notes || ""),
     discountAmount: parseDiscountAmount(row.Iskonto || row.iskonto || extractDiscountFromNote(row.Notlar || "")),
     technician: row.Teknisyen || "",
     vehicleDefects: row.AracKusurlari || "",
@@ -904,8 +904,13 @@ function mapSheetRecord(row) {
     "Montaj Bitti",
     "Montaj İptal Oldu",
     "Sipariş Beklemede",
+    "Sipariş Ürün Geldi",
+    "Sipariş Müşteri Arandı",
     "Sipariş Tamamlandı",
     "Garanti Beklemede",
+    "Garanti Servise Gönderildi",
+    "Garanti Parça Bekliyor",
+    "Garanti Test Edilecek",
     "Garanti Teslim Edildi",
     "Garantiye Gitti"
   ];
@@ -1071,11 +1076,38 @@ function mapSheetRecord(row) {
   }
 
   function pendingOrderRows() {
-    return (state.records || []).filter((r) => r.status === "Sipariş Beklemede");
+    return (state.records || []).filter((r) => String(r.status || "").startsWith("Sipariş") && r.status !== "Sipariş Tamamlandı");
   }
 
   function pendingWarrantyRows() {
-    return (state.records || []).filter((r) => r.status === "Garanti Beklemede");
+    return (state.records || []).filter((r) => String(r.status || "").startsWith("Garanti") && r.status !== "Garanti Teslim Edildi" && r.status !== "Garantiye Gitti");
+  }
+
+  function daysWaiting(record) {
+    const d = new Date(record?.createdAt || Date.now());
+    if (isNaN(d.getTime())) return 0;
+    return Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)));
+  }
+
+  function waitingAgeClass(record) {
+    const days = daysWaiting(record);
+    if (days >= 7) return "border-red-500/40 bg-red-500/10 text-red-200";
+    if (days >= 3) return "border-amber-500/40 bg-amber-500/10 text-amber-200";
+    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  }
+
+  function statusBadgeClass(status) {
+    const text = String(status || "");
+    if (text.includes("Tamamlandı") || text.includes("Teslim")) return "bg-emerald-500/15 text-emerald-200 border-emerald-400/20";
+    if (text.includes("Parça") || text.includes("Kalan")) return "bg-amber-500/15 text-amber-200 border-amber-400/20";
+    if (text.includes("Test")) return "bg-blue-500/15 text-blue-200 border-blue-400/20";
+    if (text.includes("Arandı") || text.includes("Geldi")) return "bg-purple-500/15 text-purple-200 border-purple-400/20";
+    if (text.includes("Servise")) return "bg-orange-500/15 text-orange-200 border-orange-400/20";
+    return "bg-zinc-500/15 text-zinc-200 border-white/10";
+  }
+
+  function safeNote(record) {
+    return stripDiscountFromNote(record?.noteText || record?.Notlar || record?.notlar || record?.notes || "");
   }
 
   function grandTotal(records) {
@@ -4086,21 +4118,40 @@ function render() {
 
             ${state.activeTab === "beklemede" ? `
               <div class="space-y-4">
-                <div class="grid gap-3 md:grid-cols-2">
-                  <div class="rounded-3xl border border-purple-400/20 bg-purple-500/10 p-5">
-                    <div class="text-sm text-purple-200">Sipariş Bekleyen</div>
-                    <div class="text-3xl font-bold text-purple-200">${orderRows.length}</div>
-                  </div>
-                  <div class="rounded-3xl border border-orange-400/20 bg-orange-500/10 p-5">
-                    <div class="text-sm text-orange-200">Garanti Bekleyen</div>
-                    <div class="text-3xl font-bold text-orange-200">${warrantyRows.length}</div>
-                  </div>
-                </div>
+                ${(() => {
+                  const unpaidOrders = orderRows.filter(r => recordRemaining(r) > 0);
+                  const paidOrders = orderRows.filter(r => recordRemaining(r) <= 0);
+                  const oldWarranty = warrantyRows.filter(r => daysWaiting(r) >= 7);
+                  return `
+                    <div class="grid gap-3 md:grid-cols-5">
+                      <div class="rounded-3xl border border-purple-400/20 bg-purple-500/10 p-5">
+                        <div class="text-sm text-purple-200">Sipariş Bekleyen</div>
+                        <div class="text-3xl font-bold text-purple-200">${orderRows.length}</div>
+                      </div>
+                      <div class="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
+                        <div class="text-sm text-amber-200">Ödemesi Eksik</div>
+                        <div class="text-3xl font-bold text-amber-200">${unpaidOrders.length}</div>
+                      </div>
+                      <div class="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+                        <div class="text-sm text-emerald-200">Ödemesi Tamam</div>
+                        <div class="text-3xl font-bold text-emerald-200">${paidOrders.length}</div>
+                      </div>
+                      <div class="rounded-3xl border border-orange-400/20 bg-orange-500/10 p-5">
+                        <div class="text-sm text-orange-200">Garanti Bekleyen</div>
+                        <div class="text-3xl font-bold text-orange-200">${warrantyRows.length}</div>
+                      </div>
+                      <div class="rounded-3xl border border-red-400/20 bg-red-500/10 p-5">
+                        <div class="text-sm text-red-200">7 Günü Geçen</div>
+                        <div class="text-3xl font-bold text-red-200">${oldWarranty.length}</div>
+                      </div>
+                    </div>
+                  `;
+                })()}
 
                 <div class="grid gap-4 xl:grid-cols-2">
                   <div class="rounded-3xl border border-purple-400/20 bg-zinc-900/90 p-5">
                     <div class="mb-4 flex items-center justify-between">
-                      <h2 class="text-lg font-bold text-purple-100">🟣 Sipariş</h2>
+                      <h2 class="text-lg font-bold text-purple-100">🟣 Sipariş Takibi</h2>
                       <span class="rounded-xl bg-purple-500/15 px-3 py-1 text-xs font-bold text-purple-200">${orderRows.length} kayıt</span>
                     </div>
                     <div class="space-y-3">
@@ -4109,17 +4160,24 @@ function render() {
                         const paid = recordPaidTotal(record);
                         const remaining = recordRemaining(record);
                         const canComplete = remaining <= 0;
+                        const note = safeNote(record);
                         return `
                           <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
                             <div class="flex flex-wrap items-start justify-between gap-3">
                               <div>
-                                <div class="text-lg font-bold text-white">${record.customerName || "-"}</div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <div class="text-lg font-bold text-white">${record.customerName || "-"}</div>
+                                  <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${statusBadgeClass(record.status)}">${record.status || "Sipariş Beklemede"}</span>
+                                  <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${waitingAgeClass(record)}">${daysWaiting(record)} gündür bekliyor</span>
+                                </div>
                                 <div class="mt-1 text-sm text-zinc-300">${record.phone || "-"} · ${record.brand || ""} ${record.model || ""} · ${record.plaka || "-"}</div>
                                 <div class="mt-2 text-sm text-white">${(record.operations || []).map(op => op.name || "-").join(", ")}</div>
+                                ${note ? `<div class="mt-3 rounded-xl border border-purple-400/20 bg-purple-500/10 p-3 text-sm text-purple-100"><span class="font-bold text-purple-200">Not:</span> ${note}</div>` : ""}
                               </div>
                               <div class="text-right text-sm">
                                 <div class="text-zinc-400">Sipariş Tutarı</div>
                                 <div class="text-lg font-bold text-purple-200">${formatMoney(total)}</div>
+                                <div class="mt-1 text-xs ${remaining > 0 ? "text-amber-300" : "text-emerald-300"}">${remaining > 0 ? `Kalan ${formatMoney(remaining)}` : "Ödeme tamam ✅"}</div>
                               </div>
                             </div>
 
@@ -4127,6 +4185,11 @@ function render() {
                               <div class="rounded-xl bg-zinc-950/70 p-3"><div class="text-xs text-zinc-400">Alınan / Kapora</div><div class="font-bold text-emerald-300">${formatMoney(paid)}</div></div>
                               <div class="rounded-xl bg-zinc-950/70 p-3"><div class="text-xs text-zinc-400">Kalan</div><div class="font-bold ${remaining > 0 ? "text-amber-300" : "text-emerald-300"}">${formatMoney(remaining)}${remaining <= 0 ? " ✅" : ""}</div></div>
                               <div class="rounded-xl bg-zinc-950/70 p-3"><div class="text-xs text-zinc-400">Tarih</div><div class="font-bold text-white">${formatDateTime(record.createdAt)}</div></div>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap gap-2">
+                              <button onclick="updateRecordStatus('${record.id}', 'Sipariş Ürün Geldi')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-purple-700 px-3 py-2 text-xs font-bold text-white hover:bg-purple-600 disabled:opacity-60">Ürün Geldi</button>
+                              <button onclick="updateRecordStatus('${record.id}', 'Sipariş Müşteri Arandı')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-600 disabled:opacity-60">Müşteri Arandı</button>
                             </div>
 
                             <div class="mt-4 rounded-2xl border border-white/10 bg-zinc-950/60 p-3">
@@ -4149,23 +4212,35 @@ function render() {
 
                   <div class="rounded-3xl border border-orange-400/20 bg-zinc-900/90 p-5">
                     <div class="mb-4 flex items-center justify-between">
-                      <h2 class="text-lg font-bold text-orange-100">🟠 Garanti</h2>
+                      <h2 class="text-lg font-bold text-orange-100">🟠 Garanti Takibi</h2>
                       <span class="rounded-xl bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-200">${warrantyRows.length} kayıt</span>
                     </div>
                     <div class="space-y-3">
-                      ${warrantyRows.length === 0 ? `<div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-zinc-400">Garanti bekleyen kayıt yok.</div>` : warrantyRows.map((record) => `
+                      ${warrantyRows.length === 0 ? `<div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-zinc-400">Garanti bekleyen kayıt yok.</div>` : warrantyRows.map((record) => {
+                        const note = safeNote(record);
+                        return `
                         <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
                           <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <div class="text-lg font-bold text-white">${record.customerName || "-"}</div>
+                            <div class="min-w-0 flex-1">
+                              <div class="flex flex-wrap items-center gap-2">
+                                <div class="text-lg font-bold text-white">${record.customerName || "-"}</div>
+                                <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${statusBadgeClass(record.status)}">${record.status || "Garanti Beklemede"}</span>
+                                <span class="rounded-xl border px-2 py-1 text-[11px] font-bold ${waitingAgeClass(record)}">${daysWaiting(record)} gündür bekliyor</span>
+                              </div>
                               <div class="mt-1 text-sm text-zinc-300">${record.phone || "-"} · ${record.brand || ""} ${record.model || ""} · ${record.plaka || "-"}</div>
                               <div class="mt-2 text-sm text-white">${(record.operations || []).map(op => op.name || "-").join(", ")}</div>
+                              ${note ? `<div class="mt-3 rounded-xl border border-orange-400/20 bg-orange-500/10 p-3 text-sm text-orange-100"><span class="font-bold text-orange-200">Açıklama / Not:</span> ${note}</div>` : `<div class="mt-3 rounded-xl border border-white/10 bg-zinc-950/60 p-3 text-sm text-zinc-500">Açıklama / Not yok</div>`}
                               <div class="mt-2 text-xs text-zinc-500">Kayıt: ${formatDateTime(record.createdAt)}</div>
                             </div>
-                            <button onclick="updateRecordStatus('${record.id}', 'Garanti Teslim Edildi')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-500 disabled:opacity-60">Teslim Edildi</button>
+                            <div class="flex flex-wrap justify-end gap-2">
+                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Servise Gönderildi')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60">Servise Gönderildi</button>
+                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Parça Bekliyor')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-amber-700 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-60">Parça Bekliyor</button>
+                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Test Edilecek')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-600 disabled:opacity-60">Test Edilecek</button>
+                              <button onclick="updateRecordStatus('${record.id}', 'Garanti Teslim Edildi')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60">Teslim Edildi</button>
+                            </div>
                           </div>
                         </div>
-                      `).join("")}
+                      `}).join("")}
                     </div>
                   </div>
                 </div>
