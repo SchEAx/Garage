@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Garage İstanbul</title>
+  <title>Garage İstanbul v19</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#09090b" />
@@ -2246,6 +2246,22 @@ function orderNextLabel(record) {
   return "Tamamlandı";
 }
 
+function prevOrderStatus(record) {
+  const status = String(record?.status || "Sipariş Beklemede");
+  if (status === "Sipariş Ürün Geldi") return "Sipariş Beklemede";
+  if (status === "Sipariş Müşteri Arandı") return "Sipariş Ürün Geldi";
+  if (status === "Sipariş Tamamlandı") return "Sipariş Müşteri Arandı";
+  return "";
+}
+
+function orderPrevLabel(record) {
+  const prev = prevOrderStatus(record);
+  if (prev === "Sipariş Beklemede") return "< Siparişe Geri Al";
+  if (prev === "Sipariş Ürün Geldi") return "< Ürün Geldi";
+  if (prev === "Sipariş Müşteri Arandı") return "< Arandı";
+  return "";
+}
+
 function nextWarrantyStatus(record) {
   const status = warrantyDisplayStatus(record?.status || "Garanti Beklemede");
   if (status === "Garanti Beklemede") return "Garanti Servise Gönderildi";
@@ -2261,6 +2277,24 @@ function warrantyNextLabel(record) {
   if (next === "Garanti Ürün Geldi") return "Ürün Geldi >";
   if (next === "Garanti Müşteri Arandı") return "Müşteri Arandı >";
   return "Teslim Edildi";
+}
+
+function prevWarrantyStatus(record) {
+  const status = warrantyDisplayStatus(record?.status || "Garanti Beklemede");
+  if (status === "Garanti Servise Gönderildi") return "Garanti Beklemede";
+  if (status === "Garanti Ürün Geldi") return "Garanti Servise Gönderildi";
+  if (status === "Garanti Müşteri Arandı") return "Garanti Ürün Geldi";
+  if (status === "Garanti Teslim Edildi") return "Garanti Müşteri Arandı";
+  return "";
+}
+
+function warrantyPrevLabel(record) {
+  const prev = prevWarrantyStatus(record);
+  if (prev === "Garanti Beklemede") return "< Garanti Geldi";
+  if (prev === "Garanti Servise Gönderildi") return "< Servise Gönderildi";
+  if (prev === "Garanti Ürün Geldi") return "< Ürün Geldi";
+  if (prev === "Garanti Müşteri Arandı") return "< Arandı";
+  return "";
 }
 
 const WARRANTY_CALL_NOTE_RE = /\s*\[ARANDI_NOTU:([\s\S]*?)\]\s*/i;
@@ -2314,7 +2348,7 @@ function renderPaymentEditor(record, remaining) {
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
         <button onclick="saveRecordPayments('${record.id}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-600 disabled:opacity-60">Ödemeyi Kaydet</button>
-        <button onclick="updateRecordStatus('${record.id}', 'Sipariş Tamamlandı')" ${!canComplete || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-4 py-2 text-sm font-bold ${canComplete ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canComplete ? "Tamamlandı" : `Kalan ${formatMoney(remaining)}`}</button>
+        <button onclick="updateOrderStatus('${record.id}', 'Sipariş Tamamlandı')" ${!canComplete || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-4 py-2 text-sm font-bold ${canComplete ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canComplete ? "Tamamlandı" : `Kalan ${formatMoney(remaining)}`}</button>
       </div>
     </div>
   `;
@@ -2326,6 +2360,7 @@ function renderOrderMiniCard(record) {
   const remaining = recordRemaining(record);
   const percent = paymentPercent(record);
   const next = nextOrderStatus(record);
+  const prev = prevOrderStatus(record);
   const canGoNext = next !== "Sipariş Tamamlandı" || remaining <= 0;
   const note = safeNote(record);
   return `
@@ -2349,7 +2384,8 @@ function renderOrderMiniCard(record) {
         <div class="h-2 overflow-hidden rounded-full bg-zinc-800"><div class="h-full rounded-full bg-emerald-500" style="width:${percent}%"></div></div>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <button onclick="updateRecordStatus('${record.id}', '${next}')" ${!canGoNext || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-3 py-2 text-xs font-bold ${canGoNext ? "bg-purple-700 text-white hover:bg-purple-600" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canGoNext ? orderNextLabel(record) : `Kalan ${formatMoney(remaining)}`}</button>
+        ${prev ? `<button onclick="updateOrderStatus('${record.id}', '${prev}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-zinc-700 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-60">${orderPrevLabel(record)}</button>` : ""}
+        <button onclick="updateOrderStatus('${record.id}', '${next}')" ${!canGoNext || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-3 py-2 text-xs font-bold ${canGoNext ? "bg-purple-700 text-white hover:bg-purple-600" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canGoNext ? orderNextLabel(record) : `Kalan ${formatMoney(remaining)}`}</button>
         <a href="tel:${String(record.phone || "").replace(/\s+/g, "")}" class="rounded-2xl bg-zinc-800 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-700">📞 Ara</a>
         <a href="${customerWhatsappHref(record)}" target="_blank" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">WhatsApp</a>
       </div>
@@ -2362,6 +2398,7 @@ function renderWarrantyMiniCard(record) {
   const note = safeNote(record);
   const callNote = getWarrantyCallNote(record);
   const next = nextWarrantyStatus(record);
+  const prev = prevWarrantyStatus(record);
   return `
     <div class="rounded-2xl border border-orange-400/15 bg-black/35 p-4 shadow-xl">
       <div class="flex items-start justify-between gap-3">
@@ -2378,6 +2415,7 @@ function renderWarrantyMiniCard(record) {
       </div>
       ${callNote ? `<div class="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-100"><div class="font-bold text-emerald-200">☎ Arandı Notu</div><div class="mt-1 whitespace-pre-wrap">${callNote}</div></div>` : ""}
       <div class="mt-3 flex flex-wrap gap-2">
+        ${prev ? `<button onclick="updateWarrantyStatus('${record.id}', '${prev}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-zinc-700 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-60">${warrantyPrevLabel(record)}</button>` : ""}
         <button onclick="updateWarrantyStatus('${record.id}', '${next}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60">${warrantyNextLabel(record)}</button>
         ${String(record.status || "") === "Garanti Müşteri Arandı" ? `<button onclick="editWarrantyCallNote('${record.id}')" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">Arandı Notu</button>` : ""}
         <a href="tel:${String(record.phone || "").replace(/\s+/g, "")}" class="rounded-2xl bg-zinc-800 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-700">📞 Ara</a>
@@ -2448,12 +2486,29 @@ function renderWaitingCenter(orderRows, warrantyRows) {
   `;
 }
 
+async function updateOrderStatus(id, status) {
+  const record = state.records.find((r) => r.id === id);
+  if (!record) return;
+
+  if (status === "Sipariş Tamamlandı") {
+    const ok = confirm("Sipariş tamamlandı yapılacak. Bekleme listesinden düşecek. Emin misin knk?");
+    if (!ok) return;
+  }
+
+  return updateRecordStatus(id, status);
+}
+
 async function updateWarrantyStatus(id, status) {
   const record = state.records.find((r) => r.id === id);
   if (!record) return;
 
   let callNote = getWarrantyCallNote(record);
   let noteText = record.noteText || "";
+
+  if (status === "Garanti Teslim Edildi") {
+    const ok = confirm("Garanti teslim edildi yapılacak. Bekleme listesinden düşecek. Emin misin knk?");
+    if (!ok) return;
+  }
 
   if (status === "Garanti Müşteri Arandı") {
     const entered = prompt("Arandı notu yaz knk (örn: Yarın gelecek / Cumartesi sabah gelecek):", callNote || "");
