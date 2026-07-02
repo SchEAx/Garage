@@ -909,8 +909,8 @@ function mapSheetRecord(row) {
     "Sipariş Tamamlandı",
     "Garanti Beklemede",
     "Garanti Servise Gönderildi",
-    "Garanti Parça Bekliyor",
-    "Garanti Test Edilecek",
+    "Garanti Ürün Geldi",
+    "Garanti Müşteri Arandı",
     "Garanti Teslim Edildi",
     "Garantiye Gitti"
   ];
@@ -1107,7 +1107,7 @@ function mapSheetRecord(row) {
   }
 
   function safeNote(record) {
-    return stripDiscountFromNote(record?.noteText || record?.Notlar || record?.notlar || record?.notes || "");
+    return stripWarrantyCallNote(stripDiscountFromNote(record?.noteText || record?.Notlar || record?.notlar || record?.notes || ""));
   }
 
   function grandTotal(records) {
@@ -1756,7 +1756,7 @@ async function addInlineOperationToRecord(recordId) {
       sasiNo: record.sasiNo,
       operations,
       status: record.status,
-      noteText: record.noteText,
+      noteText: options.noteTextOverride !== undefined ? options.noteTextOverride : record.noteText,
       discountAmount: record.discountAmount,
       technician: record.technician,
       vehicleDefects: record.vehicleDefects,
@@ -2180,7 +2180,7 @@ async function saveRecordPayments(id) {
       sasiNo: record.sasiNo,
       operations: record.operations,
       status: record.status,
-      noteText: record.noteText,
+      noteText: options.noteTextOverride !== undefined ? options.noteTextOverride : record.noteText,
       technician: record.technician,
       vehicleDefects: record.vehicleDefects,
       kvkkOnay: record.kvkkOnay,
@@ -2226,8 +2226,8 @@ function warrantyStageList() {
   return [
     { status: "Garanti Beklemede", title: "Garanti Geldi", icon: "🟠" },
     { status: "Garanti Servise Gönderildi", title: "Servise Gönderildi", icon: "🚚" },
-    { status: "Garanti Parça Bekliyor", title: "Parça Bekleniyor", icon: "🧩" },
-    { status: "Garanti Test Edilecek", title: "Test Ediliyor", icon: "🧪" }
+    { status: "Garanti Ürün Geldi", title: "Ürün Geldi", icon: "📦" },
+    { status: "Garanti Müşteri Arandı", title: "Müşteri Arandı", icon: "📞" }
   ];
 }
 
@@ -2247,20 +2247,45 @@ function orderNextLabel(record) {
 }
 
 function nextWarrantyStatus(record) {
-  const status = String(record?.status || "Garanti Beklemede");
+  const status = warrantyDisplayStatus(record?.status || "Garanti Beklemede");
   if (status === "Garanti Beklemede") return "Garanti Servise Gönderildi";
-  if (status === "Garanti Servise Gönderildi") return "Garanti Parça Bekliyor";
-  if (status === "Garanti Parça Bekliyor") return "Garanti Test Edilecek";
-  if (status === "Garanti Test Edilecek") return "Garanti Teslim Edildi";
+  if (status === "Garanti Servise Gönderildi") return "Garanti Ürün Geldi";
+  if (status === "Garanti Ürün Geldi") return "Garanti Müşteri Arandı";
+  if (status === "Garanti Müşteri Arandı") return "Garanti Teslim Edildi";
   return "Garanti Teslim Edildi";
 }
 
 function warrantyNextLabel(record) {
   const next = nextWarrantyStatus(record);
   if (next === "Garanti Servise Gönderildi") return "Servise Gönderildi >";
-  if (next === "Garanti Parça Bekliyor") return "Parça Bekliyor >";
-  if (next === "Garanti Test Edilecek") return "Test Edilecek >";
+  if (next === "Garanti Ürün Geldi") return "Ürün Geldi >";
+  if (next === "Garanti Müşteri Arandı") return "Müşteri Arandı >";
   return "Teslim Edildi";
+}
+
+const WARRANTY_CALL_NOTE_RE = /\s*\[ARANDI_NOTU:([\s\S]*?)\]\s*/i;
+
+function getWarrantyCallNote(record) {
+  const match = String(record?.noteText || "").match(WARRANTY_CALL_NOTE_RE);
+  return match ? String(match[1] || "").trim() : "";
+}
+
+function stripWarrantyCallNote(note) {
+  return String(note || "").replace(WARRANTY_CALL_NOTE_RE, " ").replace(/\s+/g, " ").trim();
+}
+
+function mergeWarrantyCallNote(note, callNote) {
+  const clean = stripWarrantyCallNote(note);
+  const extra = String(callNote || "").trim();
+  return [clean, extra ? `[ARANDI_NOTU:${extra}]` : ""].filter(Boolean).join(" ").trim();
+}
+
+function warrantyDisplayStatus(status) {
+  const text = String(status || "Garanti Beklemede");
+  // v17'de kullanılan eski detaylı aşamaları yeni sade akışta karşılığına alıyoruz.
+  if (text === "Garanti Parça Bekliyor") return "Garanti Ürün Geldi";
+  if (text === "Garanti Test Edilecek") return "Garanti Müşteri Arandı";
+  return text;
 }
 
 function paymentPercent(record) {
@@ -2335,6 +2360,7 @@ function renderOrderMiniCard(record) {
 
 function renderWarrantyMiniCard(record) {
   const note = safeNote(record);
+  const callNote = getWarrantyCallNote(record);
   const next = nextWarrantyStatus(record);
   return `
     <div class="rounded-2xl border border-orange-400/15 bg-black/35 p-4 shadow-xl">
@@ -2350,8 +2376,10 @@ function renderWarrantyMiniCard(record) {
         <div class="font-bold text-orange-200">Açıklama / Not</div>
         <div class="mt-1 whitespace-pre-wrap">${note || "Not girilmemiş"}</div>
       </div>
+      ${callNote ? `<div class="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-100"><div class="font-bold text-emerald-200">☎ Arandı Notu</div><div class="mt-1 whitespace-pre-wrap">${callNote}</div></div>` : ""}
       <div class="mt-3 flex flex-wrap gap-2">
-        <button onclick="updateRecordStatus('${record.id}', '${next}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60">${warrantyNextLabel(record)}</button>
+        <button onclick="updateWarrantyStatus('${record.id}', '${next}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60">${warrantyNextLabel(record)}</button>
+        ${String(record.status || "") === "Garanti Müşteri Arandı" ? `<button onclick="editWarrantyCallNote('${record.id}')" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">Arandı Notu</button>` : ""}
         <a href="tel:${String(record.phone || "").replace(/\s+/g, "")}" class="rounded-2xl bg-zinc-800 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-700">📞 Ara</a>
         <a href="${customerWhatsappHref(record)}" target="_blank" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">WhatsApp</a>
       </div>
@@ -2395,13 +2423,13 @@ function renderWaitingCenter(orderRows, warrantyRows) {
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 class="text-lg font-bold text-orange-100">🟠 Garanti Akışı</h2>
-            <div class="text-xs text-zinc-400">Tek İleri butonu ile garanti süreci sırayla akar, teslim edilince listeden çıkar.</div>
+            <div class="text-xs text-zinc-400">Garanti süreci sade akışla ilerler. Arandı aşamasında küçük not tutulur.</div>
           </div>
           <span class="rounded-xl bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-200">${warrantyRows.length} aktif garanti</span>
         </div>
         <div class="grid gap-4 xl:grid-cols-4">
           ${warrantyStages.map(stage => {
-            const rows = warrantyRows.filter(r => (r.status || "Garanti Beklemede") === stage.status);
+            const rows = warrantyRows.filter(r => warrantyDisplayStatus(r.status || "Garanti Beklemede") === stage.status);
             return `
               <div class="rounded-3xl border border-white/10 bg-black/20 p-4">
                 <div class="mb-3 flex items-center justify-between">
@@ -2420,7 +2448,35 @@ function renderWaitingCenter(orderRows, warrantyRows) {
   `;
 }
 
-async function updateRecordStatus(id, status) {
+async function updateWarrantyStatus(id, status) {
+  const record = state.records.find((r) => r.id === id);
+  if (!record) return;
+
+  let callNote = getWarrantyCallNote(record);
+  let noteText = record.noteText || "";
+
+  if (status === "Garanti Müşteri Arandı") {
+    const entered = prompt("Arandı notu yaz knk (örn: Yarın gelecek / Cumartesi sabah gelecek):", callNote || "");
+    if (entered === null) return;
+    callNote = String(entered || "").trim();
+    noteText = mergeWarrantyCallNote(noteText, callNote);
+  }
+
+  return updateRecordStatus(id, status, { noteTextOverride: noteText });
+}
+
+async function editWarrantyCallNote(id) {
+  const record = state.records.find((r) => r.id === id);
+  if (!record) return;
+
+  const entered = prompt("Arandı notunu düzenle knk:", getWarrantyCallNote(record) || "");
+  if (entered === null) return;
+
+  const noteText = mergeWarrantyCallNote(record.noteText || "", String(entered || "").trim());
+  return updateRecordStatus(id, record.status || "Garanti Müşteri Arandı", { noteTextOverride: noteText });
+}
+
+async function updateRecordStatus(id, status, options = {}) {
   const record = state.records.find((r) => r.id === id);
   if (!record) return;
 
@@ -2433,6 +2489,7 @@ async function updateRecordStatus(id, status) {
   try {
     state.statusUpdatingId = id;
     record.status = status;
+    if (options.noteTextOverride !== undefined) record.noteText = options.noteTextOverride;
     render();
 
     const payload = buildPayloadFromForm({
@@ -2447,7 +2504,7 @@ async function updateRecordStatus(id, status) {
       sasiNo: record.sasiNo,
       operations: record.operations,
       status,
-      noteText: record.noteText,
+      noteText: options.noteTextOverride !== undefined ? options.noteTextOverride : record.noteText,
       technician: record.technician,
       vehicleDefects: record.vehicleDefects,
       kvkkOnay: record.kvkkOnay,
