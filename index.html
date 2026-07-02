@@ -5096,37 +5096,40 @@ if (addOpBtn) {
 
 const searchEl = document.getElementById("search");
 
+function applySearchFilterAndKeepFocus(cursorPos = null) {
+  const nextSearch = String(state.searchDraft || "").trim();
+  if (state.search === nextSearch) return;
+
+  state.search = nextSearch;
+  state.visibleCount = PAGE_SIZE;
+  render();
+
+  setTimeout(() => {
+    const freshSearchEl = document.getElementById("search");
+    if (!freshSearchEl) return;
+    freshSearchEl.focus({ preventScroll: true });
+    const pos = cursorPos ?? freshSearchEl.value.length;
+    try { freshSearchEl.setSelectionRange(pos, pos); } catch {}
+  }, 0);
+}
+
 if (searchEl) {
   searchEl.addEventListener("input", (e) => {
     state.searchDraft = e.target.value;
+    const cursorPos = e.target.selectionStart;
 
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-  if (state.search !== state.searchDraft.trim()) {
-    state.search = state.searchDraft.trim();
-    state.visibleCount = PAGE_SIZE;
-    render();
-  }
-}, 250);
+      applySearchFilterAndKeepFocus(cursorPos);
+    }, 800);
   });
 
-searchEl.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    clearTimeout(searchTimer);
-    state.search = state.searchDraft.trim();
-    state.visibleCount = PAGE_SIZE;
-    render();
-  }
-});
-
-  searchEl.addEventListener("blur", () => {
-  clearTimeout(searchTimer);
-  if (state.search !== state.searchDraft.trim()) {
-    state.search = state.searchDraft.trim();
-    state.visibleCount = PAGE_SIZE;
-    render();
-  }
-});
+  searchEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      clearTimeout(searchTimer);
+      applySearchFilterAndKeepFocus(e.target.selectionStart);
+    }
+  });
 }
 
       document.getElementById("statusFilter")?.addEventListener("change", (e) => {
