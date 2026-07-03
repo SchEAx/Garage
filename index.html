@@ -29,6 +29,29 @@
       color-scheme: dark;
       cursor: pointer;
     }
+
+
+    /* === TEMA SEÇİMİ === */
+    body[data-theme="dark-orange"] { --theme-bg:#121214; --theme-panel:#1b1b1f; --theme-input:#0b0b0d; --theme-border:#3a2a1d; --theme-accent:#ff7a18; --theme-accent-soft:rgba(255,122,24,.16); --theme-text:#ffffff; --theme-muted:#d6d6d6; }
+    body[data-theme="night-blue"] { --theme-bg:#07111f; --theme-panel:#0e2035; --theme-input:#081525; --theme-border:#24496f; --theme-accent:#2196ff; --theme-accent-soft:rgba(33,150,255,.16); --theme-text:#f4f8ff; --theme-muted:#bfd2ec; }
+    body[data-theme="forest-green"] { --theme-bg:#07130c; --theme-panel:#102417; --theme-input:#07160d; --theme-border:#28563a; --theme-accent:#57d68d; --theme-accent-soft:rgba(87,214,141,.16); --theme-text:#f3fff6; --theme-muted:#bbd3c1; }
+    body[data-theme="purple"] { --theme-bg:#12091d; --theme-panel:#1d102d; --theme-input:#10071c; --theme-border:#49305f; --theme-accent:#b45cff; --theme-accent-soft:rgba(180,92,255,.18); --theme-text:#fff7ff; --theme-muted:#d5c2e7; }
+    body[data-theme="light-turquoise"] { --theme-bg:#f4f1ea; --theme-panel:#fffaf1; --theme-input:#ffffff; --theme-border:#d4d8d8; --theme-accent:#13b8b2; --theme-accent-soft:rgba(19,184,178,.14); --theme-text:#172026; --theme-muted:#53636b; }
+
+    body[data-theme] { background: var(--theme-bg) !important; color: var(--theme-text) !important; }
+    body[data-theme] .min-h-screen { background: var(--theme-bg) !important; color: var(--theme-text) !important; }
+    body[data-theme] .bg-zinc-950, body[data-theme] .bg-zinc-950\/95 { background-color: var(--theme-bg) !important; }
+    body[data-theme] .bg-zinc-900, body[data-theme] .bg-zinc-900\/90, body[data-theme] .bg-black\/35, body[data-theme] .bg-black\/30, body[data-theme] .bg-black\/20 { background-color: var(--theme-panel) !important; }
+    body[data-theme] input, body[data-theme] select, body[data-theme] textarea { background-color: var(--theme-input) !important; color: var(--theme-text) !important; border-color: var(--theme-border) !important; }
+    body[data-theme] .border-white\/10, body[data-theme] .border-zinc-700, body[data-theme] .border-emerald-400\/20, body[data-theme] .border-purple-400\/15 { border-color: var(--theme-border) !important; }
+    body[data-theme] .text-white { color: var(--theme-text) !important; }
+    body[data-theme] .text-zinc-300, body[data-theme] .text-zinc-400, body[data-theme] .text-slate-300 { color: var(--theme-muted) !important; }
+    body[data-theme] .bg-emerald-500, body[data-theme] .bg-emerald-600, body[data-theme] .bg-purple-700, body[data-theme] .bg-blue-600, body[data-theme] .bg-amber-600 { background-color: var(--theme-accent) !important; color:#fff !important; }
+    body[data-theme] .bg-emerald-500\/10, body[data-theme] .bg-purple-500\/10, body[data-theme] .bg-amber-500\/10 { background-color: var(--theme-accent-soft) !important; }
+    body[data-theme] [data-tab].bg-white { background-color: var(--theme-accent) !important; color:#fff !important; }
+    body[data-theme="light-turquoise"] [data-tab]:not(.bg-white) { color:#172026 !important; }
+    .theme-select { min-width: 190px; }
+
     @media print {
       @page { size: A5 portrait; margin: 8mm; }
       html, body { background: #fff !important; }
@@ -38,6 +61,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+  <script>document.body.setAttribute("data-theme", localStorage.getItem("garage_theme") || "dark-orange");</script>
   <div class="fixed top-2 right-3 z-[9999] rounded-2xl border border-amber-400/40 bg-black/50 px-3 py-2 text-[11px] font-bold tracking-wide text-white shadow-2xl backdrop-blur-xl print:hidden">
     ⚡ Powered By <span class="text-white">GPT</span> & <span class="text-red-400">SchEAx</span>
   </div>
@@ -866,6 +890,7 @@ function mapSheetRecord(row) {
     status: row.Durum || "Beklemede",
     vehicleImage: row.Fotograf || "",
     noteText: stripDiscountFromNote(row.Notlar || row.notlar || row.NOTLAR || row.Note || row.note || row.notes || ""),
+    paymentLog: extractPaymentLogFromNote(row.Notlar || row.notlar || row.NOTLAR || row.Note || row.note || row.notes || ""),
     discountAmount: parseDiscountAmount(row.Iskonto || row.iskonto || extractDiscountFromNote(row.Notlar || "")),
     technician: row.Teknisyen || "",
     vehicleDefects: row.AracKusurlari || "",
@@ -1034,6 +1059,95 @@ function mapSheetRecord(row) {
   }
 
   const DISCOUNT_NOTE_RE = /\s*\[ISKONTO:([0-9.,-]+)\]\s*/i;
+  const PAYMENT_LOG_NOTE_RE = /\s*\[PAYMENT_LOG:([A-Za-z0-9+/=]+)\]\s*/g;
+
+  function encodePaymentLog(log = []) {
+    try {
+      const json = JSON.stringify(Array.isArray(log) ? log : []);
+      return btoa(unescape(encodeURIComponent(json)));
+    } catch {
+      return "";
+    }
+  }
+
+  function decodePaymentLog(encoded) {
+    try {
+      const json = decodeURIComponent(escape(atob(String(encoded || ""))));
+      const parsed = JSON.parse(json);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function extractPaymentLogFromNote(note) {
+    const text = String(note || "");
+    PAYMENT_LOG_NOTE_RE.lastIndex = 0;
+    let match;
+    let latest = [];
+    while ((match = PAYMENT_LOG_NOTE_RE.exec(text)) !== null) {
+      latest = decodePaymentLog(match[1]);
+    }
+    return latest;
+  }
+
+  function stripPaymentLogFromNote(note) {
+    PAYMENT_LOG_NOTE_RE.lastIndex = 0;
+    return String(note || "").replace(PAYMENT_LOG_NOTE_RE, " " ).replace(/\s+/g, " " ).trim();
+  }
+
+  function normalizePaymentLogEntry(entry = {}) {
+    return {
+      date: entry.date || todayDateKeyTR(),
+      cash: Number(entry.cash || 0),
+      card: Number(entry.card || 0),
+      transfer: Number(entry.transfer || 0),
+      at: entry.at || new Date().toISOString()
+    };
+  }
+
+  function paymentValuesObject(value = {}) {
+    return {
+      cash: Number(value.cash ?? value.paymentCash ?? value.odeme_nakit ?? value.OdemeNakit ?? 0),
+      card: Number(value.card ?? value.paymentCard ?? value.odeme_kart ?? value.OdemeKart ?? 0),
+      transfer: Number(value.transfer ?? value.paymentTransfer ?? value.odeme_havale ?? value.OdemeHavale ?? 0)
+    };
+  }
+
+  function buildPaymentDeltaLog(baseLog = [], oldValues = {}, newValues = {}, date = todayDateKeyTR()) {
+    const oldPay = paymentValuesObject(oldValues);
+    const newPay = paymentValuesObject(newValues);
+    const delta = {
+      cash: newPay.cash - oldPay.cash,
+      card: newPay.card - oldPay.card,
+      transfer: newPay.transfer - oldPay.transfer
+    };
+
+    if (!delta.cash && !delta.card && !delta.transfer) {
+      return (baseLog || []).map(normalizePaymentLogEntry);
+    }
+
+    return [
+      ...(baseLog || []).map(normalizePaymentLogEntry),
+      normalizePaymentLogEntry({ date, ...delta })
+    ];
+  }
+
+  function mergeNoteWithPaymentLog(note, paymentLog = []) {
+    const clean = stripPaymentLogFromNote(note);
+    const normalized = (paymentLog || []).map(normalizePaymentLogEntry).filter(e => e.cash || e.card || e.transfer);
+    const encoded = encodePaymentLog(normalized);
+    return [clean, encoded ? `[PAYMENT_LOG:${encoded}]` : ""].filter(Boolean).join(" " ).trim();
+  }
+
+  function withPaymentLogDelta(form, oldRecord = null, newPaymentValues = null) {
+    const oldPay = paymentValuesObject(oldRecord || {});
+    const newPay = paymentValuesObject(newPaymentValues || form || {});
+    return {
+      ...form,
+      paymentLog: buildPaymentDeltaLog(oldRecord?.paymentLog || [], oldPay, newPay)
+    };
+  }
 
   function parseDiscountAmount(value) {
     const num = Number(String(value ?? "").replace(/\./g, "").replace(",", "."));
@@ -1046,7 +1160,7 @@ function mapSheetRecord(row) {
   }
 
   function stripDiscountFromNote(note) {
-    return String(note || "").replace(DISCOUNT_NOTE_RE, " " ).replace(/\s+/g, " " ).trim();
+    return stripPaymentLogFromNote(String(note || "")).replace(DISCOUNT_NOTE_RE, " " ).replace(/\s+/g, " " ).trim();
   }
 
   function mergeNoteWithDiscount(note, discountAmount) {
@@ -1107,7 +1221,7 @@ function mapSheetRecord(row) {
   }
 
   function safeNote(record) {
-    return stripWarrantyCallNote(stripDiscountFromNote(record?.noteText || record?.Notlar || record?.notlar || record?.notes || ""));
+    return stripWarrantyCallNote(stripDiscountFromNote(stripPaymentLogFromNote(record?.noteText || record?.Notlar || record?.notlar || record?.notes || "")));
   }
 
   function grandTotal(records) {
@@ -1203,6 +1317,7 @@ function rowsForActiveListDateScope(records = state.records) {
       paymentCash: "",
 paymentCard: "",
 paymentTransfer: "",
+      paymentLog: [],
       discountAmount: "",
     };
   }
@@ -1325,7 +1440,7 @@ function buildPayloadFromForm(form, override = {}) {
     SasiNo: form.sasiNo || "",
     YapilacakIslem: JSON.stringify(ops), // ESKİSİ: ops.map(op => op.name).join(", ")
     Ucret: Math.max(0, calculateOperationsTotal(ops) - parseDiscountAmount(form.discountAmount)),
-    Notlar: mergeNoteWithDiscount(form.noteText || "", form.discountAmount),
+    Notlar: mergeNoteWithPaymentLog(mergeNoteWithDiscount(form.noteText || "", form.discountAmount), form.paymentLog || []),
     Durum: form.status || "Beklemede",
     Fotograf: form.vehicleImage || "",
     Teknisyen: form.technician || "",
@@ -1416,9 +1531,11 @@ async function submitNewRecordFromSnapshot(formSnapshot, validOperations) {
     technicianSignature: technicianSignatureUrl
   };
 
+  const initialPaymentLog = buildPaymentDeltaLog([], {}, uploadedForm);
   const payload = buildPayloadFromForm({
     ...uploadedForm,
-    operations: validOperations
+    operations: validOperations,
+    paymentLog: initialPaymentLog
   });
 
   assertNoBase64InPayload(payload);
@@ -1745,7 +1862,7 @@ async function addInlineOperationToRecord(recordId) {
     state.inlineOperation = { ...(state.inlineOperation || {}), saving: true };
     render();
 
-    const payload = buildPayloadFromForm({
+    const payload = buildPayloadFromForm(withPaymentLogDelta({
       customerName: record.customerName,
       phone: record.phone,
       brand: record.brand,
@@ -1767,7 +1884,7 @@ async function addInlineOperationToRecord(recordId) {
       paymentCash: payments.cash,
       paymentCard: payments.card,
       paymentTransfer: payments.transfer
-    }, { ID: record.id });
+    }, record, payments), { ID: record.id });
 
     delete payload.Fotograf;
     delete payload.Imza;
@@ -1834,6 +1951,7 @@ async function addInlineOperationToRecord(recordId) {
       paymentCash: record.paymentCash || "",
       paymentCard: record.paymentCard || "",
       paymentTransfer: record.paymentTransfer || "",
+      paymentLog: record.paymentLog || [],
       discountAmount: record.discountAmount || "",
     };
 
@@ -2052,7 +2170,7 @@ const uploadedForm = {
 };
 
     const payload = buildPayloadFromForm(
-      { ...uploadedForm, operations: validOperations },
+      withPaymentLogDelta({ ...uploadedForm, operations: validOperations }, currentRecord),
       { ID: currentRecord.id }
     );
 
@@ -2169,7 +2287,7 @@ async function saveRecordPayments(id) {
     state.statusUpdatingId = id;
     render();
 
-    const payload = buildPayloadFromForm({
+    const payload = buildPayloadFromForm(withPaymentLogDelta({
       customerName: record.customerName,
       phone: record.phone,
       brand: record.brand,
@@ -2188,7 +2306,7 @@ async function saveRecordPayments(id) {
       paymentCash: paymentValues.cash,
       paymentCard: paymentValues.card,
       paymentTransfer: paymentValues.transfer
-    }, { ID: record.id });
+    }, record, paymentValues), { ID: record.id });
 
     delete payload.Fotograf;
     delete payload.Imza;
@@ -2547,7 +2665,7 @@ async function updateRecordStatus(id, status, options = {}) {
     if (options.noteTextOverride !== undefined) record.noteText = options.noteTextOverride;
     render();
 
-    const payload = buildPayloadFromForm({
+    const payload = buildPayloadFromForm(withPaymentLogDelta({
       customerName: record.customerName,
       phone: record.phone,
       invoiceAddress: record.invoiceAddress,
@@ -2567,7 +2685,7 @@ async function updateRecordStatus(id, status, options = {}) {
       paymentCash: paymentValuesBeforeRender.cash,
       paymentCard: paymentValuesBeforeRender.card,
       paymentTransfer: paymentValuesBeforeRender.transfer
-    }, {
+    }, record, paymentValuesBeforeRender), {
       ID: record.id
     });
 
@@ -2872,6 +2990,29 @@ async function updateRecordStatus(id, status, options = {}) {
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
+
+
+    /* === TEMA SEÇİMİ === */
+    body[data-theme="dark-orange"] { --theme-bg:#121214; --theme-panel:#1b1b1f; --theme-input:#0b0b0d; --theme-border:#3a2a1d; --theme-accent:#ff7a18; --theme-accent-soft:rgba(255,122,24,.16); --theme-text:#ffffff; --theme-muted:#d6d6d6; }
+    body[data-theme="night-blue"] { --theme-bg:#07111f; --theme-panel:#0e2035; --theme-input:#081525; --theme-border:#24496f; --theme-accent:#2196ff; --theme-accent-soft:rgba(33,150,255,.16); --theme-text:#f4f8ff; --theme-muted:#bfd2ec; }
+    body[data-theme="forest-green"] { --theme-bg:#07130c; --theme-panel:#102417; --theme-input:#07160d; --theme-border:#28563a; --theme-accent:#57d68d; --theme-accent-soft:rgba(87,214,141,.16); --theme-text:#f3fff6; --theme-muted:#bbd3c1; }
+    body[data-theme="purple"] { --theme-bg:#12091d; --theme-panel:#1d102d; --theme-input:#10071c; --theme-border:#49305f; --theme-accent:#b45cff; --theme-accent-soft:rgba(180,92,255,.18); --theme-text:#fff7ff; --theme-muted:#d5c2e7; }
+    body[data-theme="light-turquoise"] { --theme-bg:#f4f1ea; --theme-panel:#fffaf1; --theme-input:#ffffff; --theme-border:#d4d8d8; --theme-accent:#13b8b2; --theme-accent-soft:rgba(19,184,178,.14); --theme-text:#172026; --theme-muted:#53636b; }
+
+    body[data-theme] { background: var(--theme-bg) !important; color: var(--theme-text) !important; }
+    body[data-theme] .min-h-screen { background: var(--theme-bg) !important; color: var(--theme-text) !important; }
+    body[data-theme] .bg-zinc-950, body[data-theme] .bg-zinc-950\/95 { background-color: var(--theme-bg) !important; }
+    body[data-theme] .bg-zinc-900, body[data-theme] .bg-zinc-900\/90, body[data-theme] .bg-black\/35, body[data-theme] .bg-black\/30, body[data-theme] .bg-black\/20 { background-color: var(--theme-panel) !important; }
+    body[data-theme] input, body[data-theme] select, body[data-theme] textarea { background-color: var(--theme-input) !important; color: var(--theme-text) !important; border-color: var(--theme-border) !important; }
+    body[data-theme] .border-white\/10, body[data-theme] .border-zinc-700, body[data-theme] .border-emerald-400\/20, body[data-theme] .border-purple-400\/15 { border-color: var(--theme-border) !important; }
+    body[data-theme] .text-white { color: var(--theme-text) !important; }
+    body[data-theme] .text-zinc-300, body[data-theme] .text-zinc-400, body[data-theme] .text-slate-300 { color: var(--theme-muted) !important; }
+    body[data-theme] .bg-emerald-500, body[data-theme] .bg-emerald-600, body[data-theme] .bg-purple-700, body[data-theme] .bg-blue-600, body[data-theme] .bg-amber-600 { background-color: var(--theme-accent) !important; color:#fff !important; }
+    body[data-theme] .bg-emerald-500\/10, body[data-theme] .bg-purple-500\/10, body[data-theme] .bg-amber-500\/10 { background-color: var(--theme-accent-soft) !important; }
+    body[data-theme] [data-tab].bg-white { background-color: var(--theme-accent) !important; color:#fff !important; }
+    body[data-theme="light-turquoise"] [data-tab]:not(.bg-white) { color:#172026 !important; }
+    .theme-select { min-width: 190px; }
+
     @media print {
       .print-btn-wrap {
         display: none;
@@ -3039,6 +3180,15 @@ function isSameReportDay(value, dateValue = state.selectedDate) {
   return d >= start && d < end;
 }
 
+function reportRowTime(record) {
+  if (!record) return "";
+  if (record.isExpense || record.isBranchPayment) return record.createdAt || "";
+
+  const log = Array.isArray(record.paymentLog) ? record.paymentLog : [];
+  const entry = log.find(e => e.date === state.selectedDate && (Number(e.cash || 0) || Number(e.card || 0) || Number(e.transfer || 0)));
+  return entry?.at || record.createdAt || "";
+}
+
 function reportSourceRows() {
   const rows = Array.isArray(state.reportRows) && state.reportRowsDate === state.selectedDate
     ? state.reportRows
@@ -3052,6 +3202,11 @@ function reportSourceRows() {
 
       if (r.isBranchPayment) {
         return (r.branchDate && r.branchDate === state.selectedDate) || isSameReportDay(r.createdAt, state.selectedDate);
+      }
+
+      const log = Array.isArray(r.paymentLog) ? r.paymentLog : [];
+      if (log.length) {
+        return log.some(e => e.date === state.selectedDate && (Number(e.cash || 0) || Number(e.card || 0) || Number(e.transfer || 0)));
       }
 
       return r.status === "Montaj Bitti" && isSameReportDay(r.createdAt, state.selectedDate);
@@ -3135,6 +3290,18 @@ function reportMoneyValue(record, keys = []) {
 }
 
 function reportPaymentValues(record) {
+  const log = Array.isArray(record?.paymentLog) ? record.paymentLog : [];
+  if (log.length && state.selectedDate) {
+    return log
+      .filter(e => e.date === state.selectedDate)
+      .reduce((acc, e) => {
+        acc.cash += Number(e.cash || 0);
+        acc.card += Number(e.card || 0);
+        acc.transfer += Number(e.transfer || 0);
+        return acc;
+      }, { cash: 0, card: 0, transfer: 0 });
+  }
+
   return {
     cash: reportMoneyValue(record, ["paymentCash", "odeme_nakit", "OdemeNakit"]),
     card: reportMoneyValue(record, ["paymentCard", "odeme_kart", "OdemeKart"]),
@@ -3367,10 +3534,8 @@ async function fetchDailyReportRows(dateValue = state.selectedDate) {
     supabaseClient
       .from("records")
       .select("*")
-      .eq("Durum", "Montaj Bitti")
-      .gte("created_at", start.toISOString())
-      .lt("created_at", end.toISOString())
-      .order("created_at", { ascending: true }),
+      .order("created_at", { ascending: false })
+      .limit(5000),
     fetchDailyExpenseRows(dateValue),
     fetchDailyBranchPaymentRows(dateValue)
   ]);
@@ -3381,7 +3546,7 @@ async function fetchDailyReportRows(dateValue = state.selectedDate) {
     ...(data || []).map(mapSheetRecord),
     ...(branchRows || []),
     ...(expenseRows || [])
-  ].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  ].sort((a, b) => new Date(reportRowTime(a) || 0) - new Date(reportRowTime(b) || 0));
 }
 
 async function setDailyReportDate(dateValue) {
@@ -3505,7 +3670,30 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
           .summary th { text-align:left; }
           .summary td { text-align:right; font-weight:bold; }
           .net td { background:#dcfce7; font-size:14px; }
-          @media print {
+      
+
+    /* === TEMA SEÇİMİ === */
+    body[data-theme="dark-orange"] { --theme-bg:#121214; --theme-panel:#1b1b1f; --theme-input:#0b0b0d; --theme-border:#3a2a1d; --theme-accent:#ff7a18; --theme-accent-soft:rgba(255,122,24,.16); --theme-text:#ffffff; --theme-muted:#d6d6d6; }
+    body[data-theme="night-blue"] { --theme-bg:#07111f; --theme-panel:#0e2035; --theme-input:#081525; --theme-border:#24496f; --theme-accent:#2196ff; --theme-accent-soft:rgba(33,150,255,.16); --theme-text:#f4f8ff; --theme-muted:#bfd2ec; }
+    body[data-theme="forest-green"] { --theme-bg:#07130c; --theme-panel:#102417; --theme-input:#07160d; --theme-border:#28563a; --theme-accent:#57d68d; --theme-accent-soft:rgba(87,214,141,.16); --theme-text:#f3fff6; --theme-muted:#bbd3c1; }
+    body[data-theme="purple"] { --theme-bg:#12091d; --theme-panel:#1d102d; --theme-input:#10071c; --theme-border:#49305f; --theme-accent:#b45cff; --theme-accent-soft:rgba(180,92,255,.18); --theme-text:#fff7ff; --theme-muted:#d5c2e7; }
+    body[data-theme="light-turquoise"] { --theme-bg:#f4f1ea; --theme-panel:#fffaf1; --theme-input:#ffffff; --theme-border:#d4d8d8; --theme-accent:#13b8b2; --theme-accent-soft:rgba(19,184,178,.14); --theme-text:#172026; --theme-muted:#53636b; }
+
+    body[data-theme] { background: var(--theme-bg) !important; color: var(--theme-text) !important; }
+    body[data-theme] .min-h-screen { background: var(--theme-bg) !important; color: var(--theme-text) !important; }
+    body[data-theme] .bg-zinc-950, body[data-theme] .bg-zinc-950\/95 { background-color: var(--theme-bg) !important; }
+    body[data-theme] .bg-zinc-900, body[data-theme] .bg-zinc-900\/90, body[data-theme] .bg-black\/35, body[data-theme] .bg-black\/30, body[data-theme] .bg-black\/20 { background-color: var(--theme-panel) !important; }
+    body[data-theme] input, body[data-theme] select, body[data-theme] textarea { background-color: var(--theme-input) !important; color: var(--theme-text) !important; border-color: var(--theme-border) !important; }
+    body[data-theme] .border-white\/10, body[data-theme] .border-zinc-700, body[data-theme] .border-emerald-400\/20, body[data-theme] .border-purple-400\/15 { border-color: var(--theme-border) !important; }
+    body[data-theme] .text-white { color: var(--theme-text) !important; }
+    body[data-theme] .text-zinc-300, body[data-theme] .text-zinc-400, body[data-theme] .text-slate-300 { color: var(--theme-muted) !important; }
+    body[data-theme] .bg-emerald-500, body[data-theme] .bg-emerald-600, body[data-theme] .bg-purple-700, body[data-theme] .bg-blue-600, body[data-theme] .bg-amber-600 { background-color: var(--theme-accent) !important; color:#fff !important; }
+    body[data-theme] .bg-emerald-500\/10, body[data-theme] .bg-purple-500\/10, body[data-theme] .bg-amber-500\/10 { background-color: var(--theme-accent-soft) !important; }
+    body[data-theme] [data-tab].bg-white { background-color: var(--theme-accent) !important; color:#fff !important; }
+    body[data-theme="light-turquoise"] [data-tab]:not(.bg-white) { color:#172026 !important; }
+    .theme-select { min-width: 190px; }
+
+    @media print {
             @page { size: A4 portrait; margin: 8mm; }
             .no-print { display:none !important; }
           }
@@ -3668,6 +3856,15 @@ function render() {
                 ${tabs.map((tab) => `
                   <button data-tab="${tab.key}" class="rounded-2xl px-4 py-2 text-sm font-medium transition ${state.activeTab === tab.key ? "bg-white text-black" : "text-white hover:bg-white/5"}">${tab.label}</button>
                 `).join("")}
+              </div>
+              <div class="mt-2 flex justify-end">
+                <select id="themeSelect" class="theme-select rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2 text-xs font-bold text-white">
+                  <option value="dark-orange">Kömür Gri + Turuncu</option>
+                  <option value="night-blue">Gece Mavisi + Mavi</option>
+                  <option value="forest-green">Orman Yeşili</option>
+                  <option value="purple">Mor + Lila</option>
+                  <option value="light-turquoise">Açık Gri + Turkuaz</option>
+                </select>
               </div>
             </div>
 
@@ -4677,7 +4874,7 @@ function render() {
                           const pay = reportPaymentValues(r);
                           return `
                           <tr class="bg-black/30">
-                            <td class="rounded-l-2xl px-3 py-3 text-zinc-300">${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+                            <td class="rounded-l-2xl px-3 py-3 text-zinc-300">${formatDateTime(reportRowTime(r)).split(" ").slice(-1)[0] || ""}</td>
                             <td class="px-3 py-3 font-bold text-emerald-300">${r.plaka || "-"}</td>
                             <td class="px-3 py-3">${r.customerName || "-"}</td>
                             <td class="px-3 py-3 text-zinc-300">${(r.operations || []).map(op => `${op.name || "-"} ${op.fee ? "(" + formatMoney(op.fee) + ")" : ""}`).join(" / ")}</td>
@@ -4914,6 +5111,18 @@ document.querySelectorAll('[data-kontrol-note]').forEach((el) => {
           render();
         });
       });
+
+      const themeSelect = document.getElementById("themeSelect");
+      if (themeSelect) {
+        const activeTheme = localStorage.getItem("garage_theme") || "dark-orange";
+        themeSelect.value = activeTheme;
+        document.body.setAttribute("data-theme", activeTheme);
+        themeSelect.addEventListener("change", (e) => {
+          const theme = e.target.value || "dark-orange";
+          localStorage.setItem("garage_theme", theme);
+          document.body.setAttribute("data-theme", theme);
+        });
+      }
 
       document.querySelectorAll("[data-form]").forEach((el) => {
         const syncFormField = (e) => {
