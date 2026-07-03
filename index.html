@@ -52,6 +52,55 @@
     body[data-theme="light-turquoise"] [data-tab]:not(.bg-white) { color:#172026 !important; }
     .theme-select { min-width: 190px; }
 
+
+    /* === DURUM FİLİGRANI / WATERMARK === */
+    .record-card-watermark {
+      position: relative;
+      overflow: hidden;
+    }
+    .record-card-watermark > * {
+      position: relative;
+      z-index: 2;
+    }
+    .record-card-watermark::before {
+      content: attr(data-watermark);
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 1;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-size: clamp(30px, 5vw, 76px);
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: .12em;
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      opacity: .105;
+      color: #ffffff;
+      text-shadow: 0 0 18px currentColor;
+    }
+    .record-card-watermark::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 6px;
+      z-index: 3;
+      background: currentColor;
+      opacity: .65;
+      pointer-events: none;
+    }
+    .record-card-status-cancelled { color: #fb7185; }
+    .record-card-status-completed { color: #34d399; }
+    .record-card-status-waiting { color: #facc15; }
+    .record-card-status-process { color: #fb923c; }
+    .record-card-status-warranty { color: #60a5fa; }
+    .record-card-status-order { color: #c084fc; }
+    .record-card-status-default { color: rgba(255,255,255,.28); }
+    @media (max-width: 640px) {
+      .record-card-watermark::before { font-size: 28px; letter-spacing: .06em; }
+    }
+
     @media print {
       @page { size: A5 portrait; margin: 8mm; }
       html, body { background: #fff !important; }
@@ -1731,17 +1780,28 @@ async function searchCustomerHistory(phone) {
       clean.slice(-7)
     ].filter(Boolean)));
 
-    let query = supabaseClient
-      .from("records")
-      .select("id,created_at,MusteriAdi,Telefon,Plaka,AracMarka,AracModel,AracTip,AracYil,AracModelYil,Durum,YapilacakIslem,Notlar")
-      .order("created_at", { ascending: false })
-      .limit(10);
-
+    // Sadece gerekli kolonları çekiyoruz. Araç model/yıl kolonları bazı tablolarda olmadığı için hata vermesin.
     const orFilter = variants.map(v => `Telefon.ilike.%${v}%`).join(",");
-    const { data, error } = await query.or(orFilter);
+    const { data, error } = await supabaseClient
+      .from("records")
+      .select("id,created_at,MusteriAdi,Telefon")
+      .or(orFilter)
+      .order("created_at", { ascending: false })
+      .limit(25);
+
     if (error) throw error;
 
-    const mapped = (data || []).map(mapSheetRecord).filter(r => normalizePhone(r.phone).includes(clean) || clean.includes(normalizePhone(r.phone)) || normalizePhone(r.phone).slice(-7) === clean.slice(-7));
+    const mapped = (data || [])
+      .map(row => ({
+        id: row.id,
+        createdAt: row.created_at,
+        customerName: row.MusteriAdi || "",
+        phone: row.Telefon || ""
+      }))
+      .filter(r => {
+        const rp = normalizePhone(r.phone);
+        return rp.includes(clean) || clean.includes(rp) || rp.slice(-7) === clean.slice(-7);
+      });
 
     state.customerLookup = { loading: false, phone: clean, rows: mapped, error: "" };
     if (mapped[0] && !String(state.form.customerName || "").trim()) {
@@ -1760,11 +1820,6 @@ function fillCustomerFromHistory(id) {
   if (!row) return;
   state.form.customerName = row.customerName || state.form.customerName;
   state.form.phone = row.phone || state.form.phone;
-  state.form.plaka = row.plaka || state.form.plaka;
-  state.form.brand = row.brand || state.form.brand;
-  state.form.model = row.model || state.form.model;
-  state.form.type = row.type || state.form.type;
-  state.form.modelYear = row.modelYear || state.form.modelYear;
   render();
 }
 
@@ -1784,28 +1839,41 @@ function renderCustomerLookupBox() {
   const rows = lookup.rows || [];
   if (!rows.length) return `<div class="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-zinc-400">Bu numarayla eski kayıt bulunamadı.</div>`;
 
-  const uniqVehicles = rows.reduce((acc, r) => {
-    const key = `${r.plaka || ""}-${r.brand || ""}-${r.model || ""}`;
-    if (!acc.find(x => x.key === key)) acc.push({ key, r });
-    return acc;
-  }, []).slice(0, 4);
-
+  const first = rows[0] || {};
   return `
     <div class="mt-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-50">
       <div class="mb-2 flex items-center justify-between gap-2">
         <div class="font-bold">👤 Eski müşteri bulundu</div>
         <div class="text-xs text-emerald-200">Toplam geliş: ${rows.length}</div>
       </div>
-      <div class="text-xs text-emerald-100/80">${rows[0].customerName || "İsim yok"} · Son geliş: ${formatDateTime(rows[0].createdAt)}</div>
-      <div class="mt-2 grid gap-2">
-        ${uniqVehicles.map(({ r }) => `
-          <button type="button" onclick="fillCustomerFromHistory('${r.id}')" class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-left text-xs text-white hover:bg-emerald-500/15">
-            <b>${r.plaka || "Plaka yok"}</b> · ${[r.brand, r.model, r.type, r.modelYear].filter(Boolean).join(" ") || "Araç bilgisi yok"}
-            <span class="block text-emerald-200/80">Bilgileri forma doldur</span>
-          </button>
-        `).join("")}
-      </div>
+      <div class="text-sm font-bold">${first.customerName || "İsim yok"}</div>
+      <div class="mt-1 text-xs text-emerald-100/80">Son geliş: ${formatDateTime(first.createdAt)}</div>
+      <button type="button" onclick="fillCustomerFromHistory('${first.id}')" class="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-left text-xs text-white hover:bg-emerald-500/15">
+        İsmi forma doldur
+      </button>
     </div>`;
+}
+
+function recordWatermarkText(status = "") {
+  const text = String(status || "");
+  if (text === "İptal Edildi" || text.includes("İptal")) return "İPTAL EDİLDİ";
+  if (text === "Montaj Bitti" || text.includes("Teslim Edildi")) return "MONTAJ TAMAMLANDI";
+  if (text.includes("Garanti")) return "GARANTİ";
+  if (text.includes("Sipariş")) return "SİPARİŞ";
+  if (text.includes("Sürecinde") || text.includes("İşlem")) return "İŞLEMDE";
+  if (text.includes("Bekle")) return "BEKLEMEDE";
+  return text ? text.toUpperCase() : "KAYIT";
+}
+
+function recordWatermarkClass(status = "") {
+  const text = String(status || "");
+  if (text === "İptal Edildi" || text.includes("İptal")) return "record-card-status-cancelled";
+  if (text === "Montaj Bitti" || text.includes("Teslim Edildi")) return "record-card-status-completed";
+  if (text.includes("Garanti")) return "record-card-status-warranty";
+  if (text.includes("Sipariş")) return "record-card-status-order";
+  if (text.includes("Sürecinde") || text.includes("İşlem")) return "record-card-status-process";
+  if (text.includes("Bekle")) return "record-card-status-waiting";
+  return "record-card-status-default";
 }
 
 async function cancelRecord(id) {
@@ -4542,7 +4610,7 @@ function render() {
                   ${rows.length === 0 ? `
                     <div class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-400">Henüz kayıt yok.</div>
                   ` : rows.map((record) => `
-                    <div class="rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div class="record-card-watermark ${recordWatermarkClass(record.status)} rounded-2xl border border-white/10 bg-black/30 p-4" data-watermark="${recordWatermarkText(record.status)}">
                       <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
 
                         <!-- SOL BİLGİ ALANI -->
