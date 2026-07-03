@@ -928,6 +928,7 @@ function mapSheetRecord(row) {
     "Montaj Sürecinde",
     "Montaj Bitti",
     "Montaj İptal Oldu",
+    "İptal Edildi",
     "Sipariş Beklemede",
     "Sipariş Ürün Geldi",
     "Sipariş Müşteri Arandı",
@@ -1212,6 +1213,7 @@ function mapSheetRecord(row) {
 
   function statusBadgeClass(status) {
     const text = String(status || "");
+    if (text.includes("İptal")) return "bg-red-500/15 text-red-200 border-red-400/30";
     if (text.includes("Tamamlandı") || text.includes("Teslim")) return "bg-emerald-500/15 text-emerald-200 border-emerald-400/20";
     if (text.includes("Parça") || text.includes("Kalan")) return "bg-amber-500/15 text-amber-200 border-amber-400/20";
     if (text.includes("Test")) return "bg-blue-500/15 text-blue-200 border-blue-400/20";
@@ -1342,6 +1344,7 @@ paymentTransfer: "",
     listStartDate: "",
     listEndDate: "",
     inlineOperation: { recordId: null, name: "", fee: "", saving: false },
+    customerLookup: { loading: false, phone: "", rows: [], error: "" },
     company: {
       name: "Garage İstanbul Oto Aksesuar",
       phone: "0 (540) 715 34 34",
@@ -1694,11 +1697,159 @@ function handleVehicleImage(file) {
 
   reader.readAsDataURL(file);
 }
+
+function normalizePhone(value) {
+  return String(value || "").replace(/\D/g, "").replace(/^90/, "").replace(/^0/, "");
+}
+
+let customerLookupTimer = null;
+
+function scheduleCustomerLookup(phoneValue) {
+  clearTimeout(customerLookupTimer);
+  const phone = normalizePhone(phoneValue);
+  state.customerLookup.phone = phone;
+
+  if (phone.length < 7) {
+    state.customerLookup = { loading: false, phone, rows: [], error: "" };
+    return;
+  }
+
+  state.customerLookup = { loading: true, phone, rows: state.customerLookup.rows || [], error: "" };
+
+  customerLookupTimer = setTimeout(() => searchCustomerHistory(phone), 500);
+}
+
+async function searchCustomerHistory(phone) {
+  try {
+    const clean = normalizePhone(phone);
+    if (clean.length < 7) return;
+
+    const variants = Array.from(new Set([
+      clean,
+      "0" + clean,
+      "90" + clean,
+      clean.slice(-7)
+    ].filter(Boolean)));
+
+    let query = supabaseClient
+      .from("records")
+      .select("id,created_at,MusteriAdi,Telefon,Plaka,AracMarka,AracModel,AracTip,AracYil,AracModelYil,Durum,YapilacakIslem,Notlar")
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    const orFilter = variants.map(v => `Telefon.ilike.%${v}%`).join(",");
+    const { data, error } = await query.or(orFilter);
+    if (error) throw error;
+
+    const mapped = (data || []).map(mapSheetRecord).filter(r => normalizePhone(r.phone).includes(clean) || clean.includes(normalizePhone(r.phone)) || normalizePhone(r.phone).slice(-7) === clean.slice(-7));
+
+    state.customerLookup = { loading: false, phone: clean, rows: mapped, error: "" };
+    if (mapped[0] && !String(state.form.customerName || "").trim()) {
+      state.form.customerName = mapped[0].customerName || state.form.customerName;
+    }
+    render();
+  } catch (e) {
+    console.error("Müşteri geçmişi arama hata:", e);
+    state.customerLookup = { loading: false, phone: normalizePhone(phone), rows: [], error: e.message || "Arama hatası" };
+    render();
+  }
+}
+
+function fillCustomerFromHistory(id) {
+  const row = (state.customerLookup.rows || []).find(r => String(r.id) === String(id));
+  if (!row) return;
+  state.form.customerName = row.customerName || state.form.customerName;
+  state.form.phone = row.phone || state.form.phone;
+  state.form.plaka = row.plaka || state.form.plaka;
+  state.form.brand = row.brand || state.form.brand;
+  state.form.model = row.model || state.form.model;
+  state.form.type = row.type || state.form.type;
+  state.form.modelYear = row.modelYear || state.form.modelYear;
+  render();
+}
+
+function renderCustomerLookupBox() {
+  const lookup = state.customerLookup || {};
+  const phone = normalizePhone(state.form.phone);
+  if (phone.length < 7 && !(lookup.rows || []).length) return "";
+
+  if (lookup.loading) {
+    return `<div class="mt-2 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-3 text-sm text-blue-100">📞 Eski müşteri kayıtları aranıyor...</div>`;
+  }
+
+  if (lookup.error) {
+    return `<div class="mt-2 rounded-2xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200">Müşteri geçmişi aranamadı: ${lookup.error}</div>`;
+  }
+
+  const rows = lookup.rows || [];
+  if (!rows.length) return `<div class="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-zinc-400">Bu numarayla eski kayıt bulunamadı.</div>`;
+
+  const uniqVehicles = rows.reduce((acc, r) => {
+    const key = `${r.plaka || ""}-${r.brand || ""}-${r.model || ""}`;
+    if (!acc.find(x => x.key === key)) acc.push({ key, r });
+    return acc;
+  }, []).slice(0, 4);
+
+  return `
+    <div class="mt-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-50">
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <div class="font-bold">👤 Eski müşteri bulundu</div>
+        <div class="text-xs text-emerald-200">Toplam geliş: ${rows.length}</div>
+      </div>
+      <div class="text-xs text-emerald-100/80">${rows[0].customerName || "İsim yok"} · Son geliş: ${formatDateTime(rows[0].createdAt)}</div>
+      <div class="mt-2 grid gap-2">
+        ${uniqVehicles.map(({ r }) => `
+          <button type="button" onclick="fillCustomerFromHistory('${r.id}')" class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-left text-xs text-white hover:bg-emerald-500/15">
+            <b>${r.plaka || "Plaka yok"}</b> · ${[r.brand, r.model, r.type, r.modelYear].filter(Boolean).join(" ") || "Araç bilgisi yok"}
+            <span class="block text-emerald-200/80">Bilgileri forma doldur</span>
+          </button>
+        `).join("")}
+      </div>
+    </div>`;
+}
+
+async function cancelRecord(id) {
+  const record = state.records.find((r) => String(r.id) === String(id));
+  if (!record) return;
+
+  const reasons = [
+    "Müşteri vazgeçti",
+    "Parça bulunamadı",
+    "Fiyat anlaşması olmadı",
+    "Yanlış kayıt açıldı",
+    "Randevuya gelmedi",
+    "Başka servise gitti",
+    "Diğer"
+  ];
+
+  const choice = prompt("İptal nedeni yaz veya numara gir:\n\n" + reasons.map((r, i) => `${i + 1}) ${r}`).join("\n"), "1");
+  if (choice === null) return;
+
+  let reason = reasons[Number(choice) - 1] || choice.trim() || "Belirtilmedi";
+  if (reason === "Diğer") {
+    const other = prompt("İptal açıklaması:", "");
+    if (other === null) return;
+    reason = other.trim() || "Diğer";
+  }
+
+  const ok = confirm(`Bu kayıt İptal Edildi yapılacak.\n\nSebep: ${reason}\n\nKayıt silinmeyecek, bilgiler saklanacak. Onaylıyor musun?`);
+  if (!ok) return;
+
+  const dateText = new Date().toLocaleString("tr-TR");
+  const cleanNote = safeNote(record);
+  const noteText = `${cleanNote ? cleanNote + "\n" : ""}[İPTAL] ${dateText} - ${reason}`;
+
+  await updateRecordStatus(id, "İptal Edildi", { noteTextOverride: noteText, skipPaymentCheck: true });
+}
+
   function updateForm(key, value) {
   state.form = {
     ...state.form,
     [key]: value
   };
+  if (key === "phone") {
+    scheduleCustomerLookup(value);
+  }
 }
 
   function addOperationRow() {
@@ -1920,6 +2071,7 @@ async function addInlineOperationToRecord(recordId) {
       pending: selectedRows.filter((r) => r.status === "Beklemede").length,
       inProgress: selectedRows.filter((r) => r.status === "Montaj Sürecinde").length,
       completed: selectedRows.filter((r) => r.status === "Montaj Bitti").length,
+      canceled: selectedRows.filter((r) => r.status === "İptal Edildi").length,
     };
   }
 
@@ -3846,6 +3998,7 @@ function render() {
         { label: "Beklemede", value: s.pending, icon: "⏳" },
         { label: "Montajda", value: s.inProgress, icon: "🔧" },
         { label: "Montaj Bitti", value: s.completed, icon: "✅" },
+        { label: "İptal", value: s.canceled, icon: "❌" },
       ];
 
       app.innerHTML = `
@@ -3897,6 +4050,7 @@ function render() {
                     <div class="space-y-2">
                       <label class="text-sm text-zinc-300">Telefon</label>
                       <input data-form="phone" inputmode="tel" autocomplete="tel" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-3 text-base text-white" value="${state.form.phone || ""}" />
+                      ${renderCustomerLookupBox()}
                     </div>
 
                     <div class="space-y-2">
@@ -4036,6 +4190,7 @@ function render() {
                     <div class="space-y-2">
                       <label class="text-sm text-zinc-300">Telefon</label>
                       <input data-form="phone" class="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white" value="${state.form.phone}" />
+                      ${renderCustomerLookupBox()}
                     </div>
                     <div class="space-y-2">
                       <label class="text-sm text-zinc-300">Araç Plakası</label>
@@ -4600,6 +4755,14 @@ function render() {
                                 class="rounded-2xl border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-sm text-orange-200 hover:bg-orange-500/20 disabled:opacity-60"
                               >
                                 Garanti
+                              </button>
+
+                              <button
+                                onclick="cancelRecord('${record.id}')"
+                                ${state.statusUpdatingId === record.id || record.status === "İptal Edildi" ? "disabled" : ""}
+                                class="rounded-2xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200 hover:bg-red-500/20 disabled:opacity-60"
+                              >
+                                İptal Edildi
                               </button>
                             </div>
                           </div>
