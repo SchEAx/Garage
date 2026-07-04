@@ -3850,8 +3850,6 @@ async function deleteDailyBranchPayment(id) {
 }
 
 async function fetchDailyReportRows(dateValue = state.selectedDate) {
-  const { start, end } = trDateParts(dateValue);
-
   const [{ data, error }, expenseRows, branchRows] = await Promise.all([
     supabaseClient
       .from("records")
@@ -3864,11 +3862,32 @@ async function fetchDailyReportRows(dateValue = state.selectedDate) {
 
   if (error) throw error;
 
-  return [
+  const rows = [
     ...(data || []).map(mapSheetRecord),
     ...(branchRows || []),
     ...(expenseRows || [])
-  ].sort((a, b) => new Date(reportRowTime(a) || 0) - new Date(reportRowTime(b) || 0));
+  ];
+
+  // GSR sadece seçilen günün hareketlerini getirsin.
+  // Önceki sürüm burada tüm kayıtları döndürüyordu; Excel/Yazdır da hepsini basıyordu.
+  return rows
+    .filter(r => {
+      if (r.isExpense) {
+        return (r.expenseDate && r.expenseDate === dateValue) || isSameReportDay(r.createdAt, dateValue);
+      }
+
+      if (r.isBranchPayment) {
+        return (r.branchDate && r.branchDate === dateValue) || isSameReportDay(r.createdAt, dateValue);
+      }
+
+      const log = Array.isArray(r.paymentLog) ? r.paymentLog : [];
+      if (log.length) {
+        return log.some(e => e.date === dateValue && (Number(e.cash || 0) || Number(e.card || 0) || Number(e.transfer || 0)));
+      }
+
+      return r.status === "Montaj Bitti" && isSameReportDay(r.createdAt, dateValue);
+    })
+    .sort((a, b) => new Date(reportRowTime(a) || 0) - new Date(reportRowTime(b) || 0));
 }
 
 async function setDailyReportDate(dateValue) {
@@ -3963,7 +3982,7 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
     return `
       <tr>
         <td>${index + 1}</td>
-        <td>${formatDateTime(r.createdAt).split(" ").slice(-1)[0] || ""}</td>
+        <td>${formatDateTime(reportRowTime(r)).split(" ").slice(-1)[0] || ""}</td>
         <td>${escapeHtml(r.plaka || "")}</td>
         <td>${escapeHtml(r.customerName || "")}</td>
         <td>${escapeHtml(operations || "-")}</td>
