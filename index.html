@@ -3476,7 +3476,122 @@ async function updateRecordStatus(id, status, options = {}) {
             <p>${record.noteText || "-"}</p>
           </div>
         </div>
-      </body>
+      
+
+<style id="theme-contrast-fix">
+  /* Açık Gri + Turkuaz tema: kontrast düzeltmeleri */
+  body[data-theme="light-turquoise"]{
+    --theme-bg:#f6f1e8;
+    --theme-panel:#fffaf0;
+    --theme-input:#fffdf8;
+    --theme-border:#b9c5c8;
+    --theme-accent:#0faaa4;
+    --theme-accent-soft:rgba(15,170,164,.18);
+    --theme-text:#111827;
+    --theme-muted:#374151;
+  }
+
+  body[data-theme="light-turquoise"],
+  body[data-theme="light-turquoise"] .min-h-screen,
+  body[data-theme="light-turquoise"] .rounded-3xl,
+  body[data-theme="light-turquoise"] .rounded-2xl,
+  body[data-theme="light-turquoise"] .rounded-xl{
+    color:#111827 !important;
+  }
+
+  body[data-theme="light-turquoise"] input,
+  body[data-theme="light-turquoise"] select,
+  body[data-theme="light-turquoise"] textarea{
+    background:#fffdf8 !important;
+    color:#111827 !important;
+    border-color:#b9c5c8 !important;
+  }
+
+  body[data-theme="light-turquoise"] input::placeholder,
+  body[data-theme="light-turquoise"] textarea::placeholder{
+    color:#64748b !important;
+    opacity:1 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-white,
+  body[data-theme="light-turquoise"] .text-zinc-100,
+  body[data-theme="light-turquoise"] .text-zinc-200{
+    color:#111827 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-zinc-300,
+  body[data-theme="light-turquoise"] .text-zinc-400,
+  body[data-theme="light-turquoise"] .text-zinc-500,
+  body[data-theme="light-turquoise"] .text-slate-300,
+  body[data-theme="light-turquoise"] .text-slate-400{
+    color:#374151 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-emerald-200,
+  body[data-theme="light-turquoise"] .text-emerald-300,
+  body[data-theme="light-turquoise"] .text-emerald-400,
+  body[data-theme="light-turquoise"] .text-green-300,
+  body[data-theme="light-turquoise"] .text-green-400{
+    color:#047857 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-cyan-200,
+  body[data-theme="light-turquoise"] .text-cyan-300,
+  body[data-theme="light-turquoise"] .text-cyan-400,
+  body[data-theme="light-turquoise"] .text-sky-300,
+  body[data-theme="light-turquoise"] .text-blue-300,
+  body[data-theme="light-turquoise"] .text-blue-400{
+    color:#0369a1 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-amber-200,
+  body[data-theme="light-turquoise"] .text-amber-300,
+  body[data-theme="light-turquoise"] .text-yellow-200,
+  body[data-theme="light-turquoise"] .text-yellow-300,
+  body[data-theme="light-turquoise"] .text-orange-300{
+    color:#b45309 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-purple-200,
+  body[data-theme="light-turquoise"] .text-purple-300,
+  body[data-theme="light-turquoise"] .text-pink-300{
+    color:#7e22ce !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-red-200,
+  body[data-theme="light-turquoise"] .text-red-300,
+  body[data-theme="light-turquoise"] .text-rose-300{
+    color:#b91c1c !important;
+  }
+
+  body[data-theme="light-turquoise"] .bg-black\/35,
+  body[data-theme="light-turquoise"] .bg-black\/30,
+  body[data-theme="light-turquoise"] .bg-black\/20,
+  body[data-theme="light-turquoise"] .bg-zinc-900,
+  body[data-theme="light-turquoise"] .bg-zinc-900\/90{
+    background-color:#fffaf0 !important;
+  }
+
+  body[data-theme="light-turquoise"] .border-white\/10,
+  body[data-theme="light-turquoise"] .border-white\/15,
+  body[data-theme="light-turquoise"] .border-zinc-700{
+    border-color:#b9c5c8 !important;
+  }
+
+  body[data-theme="light-turquoise"] button.bg-emerald-500,
+  body[data-theme="light-turquoise"] button.bg-emerald-600,
+  body[data-theme="light-turquoise"] button.bg-blue-600,
+  body[data-theme="light-turquoise"] button.bg-purple-700{
+    color:#ffffff !important;
+  }
+
+  body[data-theme="light-turquoise"] button.bg-amber-400,
+  body[data-theme="light-turquoise"] button.bg-yellow-400{
+    color:#111827 !important;
+  }
+</style>
+
+</body>
     </html>
   `);
 
@@ -4089,7 +4204,122 @@ function buildDailyReportTableHtml(rows, forPrint = false) {
           <tr><th>Toplam Gider</th><td>${formatMoney(totals.expense)}</td></tr>
           <tr class="net"><th>Gün Sonu Net</th><td>${formatMoney(totals.net)}</td></tr>
         </table>
-      </body>
+      
+
+<style id="theme-contrast-fix">
+  /* Açık Gri + Turkuaz tema: kontrast düzeltmeleri */
+  body[data-theme="light-turquoise"]{
+    --theme-bg:#f6f1e8;
+    --theme-panel:#fffaf0;
+    --theme-input:#fffdf8;
+    --theme-border:#b9c5c8;
+    --theme-accent:#0faaa4;
+    --theme-accent-soft:rgba(15,170,164,.18);
+    --theme-text:#111827;
+    --theme-muted:#374151;
+  }
+
+  body[data-theme="light-turquoise"],
+  body[data-theme="light-turquoise"] .min-h-screen,
+  body[data-theme="light-turquoise"] .rounded-3xl,
+  body[data-theme="light-turquoise"] .rounded-2xl,
+  body[data-theme="light-turquoise"] .rounded-xl{
+    color:#111827 !important;
+  }
+
+  body[data-theme="light-turquoise"] input,
+  body[data-theme="light-turquoise"] select,
+  body[data-theme="light-turquoise"] textarea{
+    background:#fffdf8 !important;
+    color:#111827 !important;
+    border-color:#b9c5c8 !important;
+  }
+
+  body[data-theme="light-turquoise"] input::placeholder,
+  body[data-theme="light-turquoise"] textarea::placeholder{
+    color:#64748b !important;
+    opacity:1 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-white,
+  body[data-theme="light-turquoise"] .text-zinc-100,
+  body[data-theme="light-turquoise"] .text-zinc-200{
+    color:#111827 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-zinc-300,
+  body[data-theme="light-turquoise"] .text-zinc-400,
+  body[data-theme="light-turquoise"] .text-zinc-500,
+  body[data-theme="light-turquoise"] .text-slate-300,
+  body[data-theme="light-turquoise"] .text-slate-400{
+    color:#374151 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-emerald-200,
+  body[data-theme="light-turquoise"] .text-emerald-300,
+  body[data-theme="light-turquoise"] .text-emerald-400,
+  body[data-theme="light-turquoise"] .text-green-300,
+  body[data-theme="light-turquoise"] .text-green-400{
+    color:#047857 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-cyan-200,
+  body[data-theme="light-turquoise"] .text-cyan-300,
+  body[data-theme="light-turquoise"] .text-cyan-400,
+  body[data-theme="light-turquoise"] .text-sky-300,
+  body[data-theme="light-turquoise"] .text-blue-300,
+  body[data-theme="light-turquoise"] .text-blue-400{
+    color:#0369a1 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-amber-200,
+  body[data-theme="light-turquoise"] .text-amber-300,
+  body[data-theme="light-turquoise"] .text-yellow-200,
+  body[data-theme="light-turquoise"] .text-yellow-300,
+  body[data-theme="light-turquoise"] .text-orange-300{
+    color:#b45309 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-purple-200,
+  body[data-theme="light-turquoise"] .text-purple-300,
+  body[data-theme="light-turquoise"] .text-pink-300{
+    color:#7e22ce !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-red-200,
+  body[data-theme="light-turquoise"] .text-red-300,
+  body[data-theme="light-turquoise"] .text-rose-300{
+    color:#b91c1c !important;
+  }
+
+  body[data-theme="light-turquoise"] .bg-black\/35,
+  body[data-theme="light-turquoise"] .bg-black\/30,
+  body[data-theme="light-turquoise"] .bg-black\/20,
+  body[data-theme="light-turquoise"] .bg-zinc-900,
+  body[data-theme="light-turquoise"] .bg-zinc-900\/90{
+    background-color:#fffaf0 !important;
+  }
+
+  body[data-theme="light-turquoise"] .border-white\/10,
+  body[data-theme="light-turquoise"] .border-white\/15,
+  body[data-theme="light-turquoise"] .border-zinc-700{
+    border-color:#b9c5c8 !important;
+  }
+
+  body[data-theme="light-turquoise"] button.bg-emerald-500,
+  body[data-theme="light-turquoise"] button.bg-emerald-600,
+  body[data-theme="light-turquoise"] button.bg-blue-600,
+  body[data-theme="light-turquoise"] button.bg-purple-700{
+    color:#ffffff !important;
+  }
+
+  body[data-theme="light-turquoise"] button.bg-amber-400,
+  body[data-theme="light-turquoise"] button.bg-yellow-400{
+    color:#111827 !important;
+  }
+</style>
+
+</body>
     </html>
   `;
 }
@@ -6957,5 +7187,120 @@ window.addEventListener("offline", () => {
   }
 });
   </script>
+
+
+<style id="theme-contrast-fix">
+  /* Açık Gri + Turkuaz tema: kontrast düzeltmeleri */
+  body[data-theme="light-turquoise"]{
+    --theme-bg:#f6f1e8;
+    --theme-panel:#fffaf0;
+    --theme-input:#fffdf8;
+    --theme-border:#b9c5c8;
+    --theme-accent:#0faaa4;
+    --theme-accent-soft:rgba(15,170,164,.18);
+    --theme-text:#111827;
+    --theme-muted:#374151;
+  }
+
+  body[data-theme="light-turquoise"],
+  body[data-theme="light-turquoise"] .min-h-screen,
+  body[data-theme="light-turquoise"] .rounded-3xl,
+  body[data-theme="light-turquoise"] .rounded-2xl,
+  body[data-theme="light-turquoise"] .rounded-xl{
+    color:#111827 !important;
+  }
+
+  body[data-theme="light-turquoise"] input,
+  body[data-theme="light-turquoise"] select,
+  body[data-theme="light-turquoise"] textarea{
+    background:#fffdf8 !important;
+    color:#111827 !important;
+    border-color:#b9c5c8 !important;
+  }
+
+  body[data-theme="light-turquoise"] input::placeholder,
+  body[data-theme="light-turquoise"] textarea::placeholder{
+    color:#64748b !important;
+    opacity:1 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-white,
+  body[data-theme="light-turquoise"] .text-zinc-100,
+  body[data-theme="light-turquoise"] .text-zinc-200{
+    color:#111827 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-zinc-300,
+  body[data-theme="light-turquoise"] .text-zinc-400,
+  body[data-theme="light-turquoise"] .text-zinc-500,
+  body[data-theme="light-turquoise"] .text-slate-300,
+  body[data-theme="light-turquoise"] .text-slate-400{
+    color:#374151 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-emerald-200,
+  body[data-theme="light-turquoise"] .text-emerald-300,
+  body[data-theme="light-turquoise"] .text-emerald-400,
+  body[data-theme="light-turquoise"] .text-green-300,
+  body[data-theme="light-turquoise"] .text-green-400{
+    color:#047857 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-cyan-200,
+  body[data-theme="light-turquoise"] .text-cyan-300,
+  body[data-theme="light-turquoise"] .text-cyan-400,
+  body[data-theme="light-turquoise"] .text-sky-300,
+  body[data-theme="light-turquoise"] .text-blue-300,
+  body[data-theme="light-turquoise"] .text-blue-400{
+    color:#0369a1 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-amber-200,
+  body[data-theme="light-turquoise"] .text-amber-300,
+  body[data-theme="light-turquoise"] .text-yellow-200,
+  body[data-theme="light-turquoise"] .text-yellow-300,
+  body[data-theme="light-turquoise"] .text-orange-300{
+    color:#b45309 !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-purple-200,
+  body[data-theme="light-turquoise"] .text-purple-300,
+  body[data-theme="light-turquoise"] .text-pink-300{
+    color:#7e22ce !important;
+  }
+
+  body[data-theme="light-turquoise"] .text-red-200,
+  body[data-theme="light-turquoise"] .text-red-300,
+  body[data-theme="light-turquoise"] .text-rose-300{
+    color:#b91c1c !important;
+  }
+
+  body[data-theme="light-turquoise"] .bg-black\/35,
+  body[data-theme="light-turquoise"] .bg-black\/30,
+  body[data-theme="light-turquoise"] .bg-black\/20,
+  body[data-theme="light-turquoise"] .bg-zinc-900,
+  body[data-theme="light-turquoise"] .bg-zinc-900\/90{
+    background-color:#fffaf0 !important;
+  }
+
+  body[data-theme="light-turquoise"] .border-white\/10,
+  body[data-theme="light-turquoise"] .border-white\/15,
+  body[data-theme="light-turquoise"] .border-zinc-700{
+    border-color:#b9c5c8 !important;
+  }
+
+  body[data-theme="light-turquoise"] button.bg-emerald-500,
+  body[data-theme="light-turquoise"] button.bg-emerald-600,
+  body[data-theme="light-turquoise"] button.bg-blue-600,
+  body[data-theme="light-turquoise"] button.bg-purple-700{
+    color:#ffffff !important;
+  }
+
+  body[data-theme="light-turquoise"] button.bg-amber-400,
+  body[data-theme="light-turquoise"] button.bg-yellow-400{
+    color:#111827 !important;
+  }
+</style>
+
 </body>
 </html>
