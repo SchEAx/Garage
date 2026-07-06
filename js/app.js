@@ -1014,7 +1014,9 @@ function mapSheetRecord(row) {
     return match ? parseDiscountAmount(match[1]) : 0;
   }
 
-  function stripPaymentLog(note){return String(note||"").replace(/\s*\[PAYMENT_LOG:[\s\S]*?\]\s*/g," ").replace(/\s+/g," ").trim();}\n\nfunction stripDiscountFromNote(note) {
+  function stripPaymentLog(note){return String(note||"").replace(/\s*\[PAYMENT_LOG:[\s\S]*?\]\s*/g," ").replace(/\s+/g," ").trim();}
+
+function stripDiscountFromNote(note) {
     return String(note || "").replace(DISCOUNT_NOTE_RE, " " ).replace(/\s+/g, " " ).trim();
   }
 
