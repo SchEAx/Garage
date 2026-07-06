@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-pwa-v20-1-siyah-ekran-fix";
+const CACHE_NAME = "garage-pwa-v20-2-payment-history";
 const urlsToCache = ["/", "/index.html", "/js/app.js", "/js/update-check.js", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {

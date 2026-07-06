@@ -1017,7 +1017,7 @@ function mapSheetRecord(row) {
   function stripPaymentLog(note){return String(note||"").replace(/\s*\[PAYMENT_LOG:[\s\S]*?\]\s*/g," ").replace(/\s+/g," ").trim();}
 
 function stripDiscountFromNote(note) {
-    return String(note || "").replace(DISCOUNT_NOTE_RE, " " ).replace(/\s+/g, " " ).trim();
+    return stripPaymentLog(String(note || "").replace(DISCOUNT_NOTE_RE, " " )).replace(/\s+/g, " " ).trim();
   }
 
   function mergeNoteWithDiscount(note, discountAmount) {
@@ -1083,7 +1083,7 @@ function stripDiscountFromNote(note) {
   }
 
   function safeNote(record) {
-    return stripWarrantyCallNote(stripDiscountFromNote(record?.noteText || record?.Notlar || record?.notlar || record?.notes || ""));
+    return stripPaymentLog(stripWarrantyCallNote(stripDiscountFromNote(record?.noteText || record?.Notlar || record?.notlar || record?.notes || "")));
   }
 
   function grandTotal(records) {
@@ -2140,6 +2140,31 @@ async function updateRecordTechnician(id, technician) {
 }
 
 
+async function savePaymentHistory(record, paymentValues) {
+  try {
+    const cash = Number(paymentValues?.cash || 0);
+    const card = Number(paymentValues?.card || 0);
+    const transfer = Number(paymentValues?.transfer || 0);
+
+    if (!cash && !card && !transfer) return null;
+
+    const { error } = await supabaseClient
+      .from("payment_history")
+      .insert({
+        record_id: record.id,
+        cash,
+        card,
+        transfer,
+        total: cash + card + transfer,
+        note: "Beklemede ekranından ödeme güncellendi"
+      });
+
+    if (error) throw error;
+  } catch (err) {
+    console.warn("Ödeme geçmişi yazılamadı. SQL çalışmadıysa bu normaldir:", err);
+  }
+}
+
 async function saveRecordPayments(id) {
   const record = state.records.find((r) => String(r.id) === String(id));
   if (!record) return false;
@@ -2178,6 +2203,7 @@ async function saveRecordPayments(id) {
     assertNoBase64InPayload(payload);
 
     const result = await supabaseKayitGuncelle(payload);
+    await savePaymentHistory(record, paymentValues);
     const updatedRecord = mapSheetRecord(result);
     state.records = state.records.map(r => String(r.id) === String(record.id) ? updatedRecord : r);
 
