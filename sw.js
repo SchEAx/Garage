@@ -1,5 +1,5 @@
-const CACHE_NAME = "garage-pwa-v19-1-islem-ekle-fix";
-const urlsToCache = ["/", "/index.html", "/manifest.json", "/logo.png"];
+const CACHE_NAME = "garage-pwa-v20-moduler-yapi";
+const urlsToCache = ["/", "/index.html", "/js/app.js", "/js/update-check.js", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
