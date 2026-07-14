@@ -679,8 +679,43 @@ function syncSheetsInBackground(action, payload) {
     });
 }
 
+
+async function getNextDocumentNumber(prefix) {
+  const cleanPrefix = String(prefix || "").toUpperCase();
+  const { data, error } = await supabaseClient.rpc("next_document_number", {
+    p_prefix: cleanPrefix
+  });
+  if (error) throw new Error("Belge numarası üretilemedi: " + error.message);
+  return String(data || "");
+}
+
+async function ensureRecordDocumentNumber(record, prefix) {
+  const fieldMap = { AK: "kabul_no", SP: "siparis_no", GR: "garanti_no" };
+  const localMap = { AK: "acceptanceNo", SP: "orderNo", GR: "warrantyNo" };
+  const field = fieldMap[prefix];
+  const localField = localMap[prefix];
+  if (!field || !localField) throw new Error("Geçersiz belge türü: " + prefix);
+  if (record?.[localField]) return record[localField];
+
+  const documentNo = await getNextDocumentNumber(prefix);
+  const { data, error } = await supabaseClient
+    .from("records")
+    .update({ [field]: documentNo })
+    .eq("id", record.id)
+    .select()
+    .single();
+  if (error) throw new Error("Belge numarası kaydedilemedi: " + error.message);
+
+  const updated = mapSheetRecord(data);
+  state.records = state.records.map(r => String(r.id) === String(record.id) ? updated : r);
+  return documentNo;
+}
+
 async function supabaseKayitEkle(payload) {
   const fixedPayload = supabasePayload(payload);
+  if (!fixedPayload.kabul_no) {
+    fixedPayload.kabul_no = await getNextDocumentNumber("AK");
+  }
 
   const { data, error } = await supabaseClient
     .from("records")
@@ -791,7 +826,10 @@ function mapSheetRecord(row) {
 
   return {
     id: String(row.id || row.ID || ""),
-    recordNo: row.ID || row.id || "-",
+    acceptanceNo: row.kabul_no || row.KabulNo || "",
+    orderNo: row.siparis_no || row.SiparisNo || "",
+    warrantyNo: row.garanti_no || row.GarantiNo || "",
+    recordNo: row.kabul_no || row.KabulNo || row.ID || row.id || "-",
     createdAt: new Date(row.created_at || row.TarihSaat || "").toISOString(),
     
 
@@ -1630,6 +1668,9 @@ function visibleRows() {
 
     const textMatch = [
       r.recordNo,
+      r.acceptanceNo,
+      r.orderNo,
+      r.warrantyNo,
       r.customerName,
       r.phone,
       r.brand,
@@ -2394,6 +2435,7 @@ function renderOrderMiniCard(record) {
         ${prev ? `<button onclick="updateOrderStatus('${record.id}', '${prev}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-zinc-700 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-60">${orderPrevLabel(record)}</button>` : ""}
         <button onclick="updateOrderStatus('${record.id}', '${next}')" ${!canGoNext || state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl px-3 py-2 text-xs font-bold ${canGoNext ? "bg-purple-700 text-white hover:bg-purple-600" : "bg-zinc-800 text-zinc-500 cursor-not-allowed"}">${canGoNext ? orderNextLabel(record) : `Kalan ${formatMoney(remaining)}`}</button>
         <button onclick="loadRecordToForm('${record.id}')" class="rounded-2xl bg-sky-700 px-3 py-2 text-xs font-bold text-white hover:bg-sky-600">Düzenle</button>
+        <button onclick="printOrderForm('${record.id}')" class="rounded-2xl bg-purple-700 px-3 py-2 text-xs font-bold text-white hover:bg-purple-600">🖨 Sipariş Formu</button>
         <a href="tel:${String(record.phone || "").replace(/\s+/g, "")}" class="rounded-2xl bg-zinc-800 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-700">📞 Ara</a>
         <a href="${customerWhatsappHref(record)}" target="_blank" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">WhatsApp</a>
       </div>
@@ -2427,6 +2469,7 @@ function renderWarrantyMiniCard(record) {
         <button onclick="updateWarrantyStatus('${record.id}', '${next}')" ${state.statusUpdatingId === record.id ? "disabled" : ""} class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60">${warrantyNextLabel(record)}</button>
         ${String(record.status || "") === "Garanti Müşteri Arandı" ? `<button onclick="editWarrantyCallNote('${record.id}')" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">Arandı Notu</button>` : ""}
         <button onclick="loadRecordToForm('${record.id}')" class="rounded-2xl bg-sky-700 px-3 py-2 text-xs font-bold text-white hover:bg-sky-600">Düzenle</button>
+        <button onclick="printWarrantyForm('${record.id}')" class="rounded-2xl bg-orange-700 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600">🖨 Garanti Formu</button>
         <a href="tel:${String(record.phone || "").replace(/\s+/g, "")}" class="rounded-2xl bg-zinc-800 px-3 py-2 text-xs font-bold text-white hover:bg-zinc-700">📞 Ara</a>
         <a href="${customerWhatsappHref(record)}" target="_blank" class="rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-600">WhatsApp</a>
       </div>
@@ -2557,6 +2600,18 @@ async function updateRecordStatus(id, status, options = {}) {
     if (options.noteTextOverride !== undefined) record.noteText = options.noteTextOverride;
     render();
 
+    let generatedDocumentFields = {};
+    if (String(status).startsWith("Sipariş") && !record.orderNo) {
+      const number = await getNextDocumentNumber("SP");
+      generatedDocumentFields.siparis_no = number;
+      record.orderNo = number;
+    }
+    if (String(status).startsWith("Garanti") && !record.warrantyNo) {
+      const number = await getNextDocumentNumber("GR");
+      generatedDocumentFields.garanti_no = number;
+      record.warrantyNo = number;
+    }
+
     const payload = buildPayloadFromForm({
       customerName: record.customerName,
       phone: record.phone,
@@ -2579,6 +2634,7 @@ async function updateRecordStatus(id, status, options = {}) {
       paymentTransfer: paymentValuesBeforeRender.transfer
     }, {
       ID: record.id,
+      ...generatedDocumentFields,
       ...((options.forceToday || status === "Montaj Bitti") ? { created_at: new Date().toISOString() } : {})
     });
 
@@ -2697,6 +2753,70 @@ async function updateRecordStatus(id, status, options = {}) {
     function exportCsv() {
       downloadFile("musteri-kayitlari.csv", toCsv(state.records), "text/csv;charset=utf-8;");
     }
+
+
+function escapePrintHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function openDocumentPrintWindow({ title, accent, documentNo, record, infoTitle, infoText, warranty = false }) {
+  const popup = window.open("", "_blank", "width=820,height=980");
+  if (!popup) {
+    alert("Yazdırma penceresi açılamadı. Açılır pencere iznini kontrol et knk.");
+    return;
+  }
+  const items = (record.operations || []).map(op => `<li><span>${escapePrintHtml(op.name || "-")}</span>${!warranty ? `<strong>${formatMoney(op.fee || 0)}</strong>` : ""}</li>`).join("");
+  const total = recordTotal(record);
+  const paid = recordPaidTotal(record);
+  const remaining = Math.max(0, total - paid);
+  const cleanNote = safeNote(record) || "-";
+  popup.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>${escapePrintHtml(title)} - ${escapePrintHtml(documentNo)}</title><style>
+    @page{size:A5 portrait;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#18181b;margin:0;background:#fff}.sheet{border:2px solid ${accent};border-radius:18px;padding:18px;min-height:190mm}.head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ${accent};padding-bottom:12px}.brand{font-size:22px;font-weight:900}.title{font-size:16px;font-weight:900;color:${accent};text-align:right}.no{font-size:12px;margin-top:4px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.box{border:1px solid #d4d4d8;border-radius:10px;padding:8px}.label{font-size:10px;color:#71717a;text-transform:uppercase;font-weight:700}.value{font-size:13px;font-weight:700;margin-top:3px}.section{margin-top:14px}.section h3{font-size:12px;color:${accent};margin:0 0 7px;text-transform:uppercase}ul{list-style:none;padding:0;margin:0;border:1px solid #e4e4e7;border-radius:10px;overflow:hidden}li{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-bottom:1px solid #e4e4e7;font-size:12px}li:last-child{border-bottom:0}.info{background:${accent}10;border:1px solid ${accent}55;border-radius:12px;padding:11px;font-size:11px;line-height:1.5}.totals{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.totals .box{text-align:center}.sign{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:28px;text-align:center;font-size:11px}.line{border-top:1px solid #27272a;padding-top:7px;margin-top:35px}.printbar{text-align:center;margin:10px}@media print{.printbar{display:none}.sheet{border-color:${accent}}}
+  </style></head><body><div class="printbar"><button onclick="window.print()">Yazdır</button></div><div class="sheet">
+  <div class="head"><div><div class="brand">GARAGE İSTANBUL</div><div style="font-size:11px">Oto Aksesuar & Montaj</div></div><div><div class="title">${escapePrintHtml(title)}</div><div class="no">Belge No: <b>${escapePrintHtml(documentNo)}</b></div></div></div>
+  <div class="grid"><div class="box"><div class="label">Müşteri</div><div class="value">${escapePrintHtml(record.customerName || "-")}</div></div><div class="box"><div class="label">Telefon</div><div class="value">${escapePrintHtml(record.phone || "-")}</div></div><div class="box"><div class="label">Araç / Plaka</div><div class="value">${escapePrintHtml([record.brand,record.model,record.type].filter(Boolean).join(" ") || "-")} · ${escapePrintHtml(record.plaka || "-")}</div></div><div class="box"><div class="label">Tarih</div><div class="value">${escapePrintHtml(formatDateTime(record.createdAt))}</div></div></div>
+  <div class="section"><h3>${warranty ? "Garantiye Bırakılan Ürün / İşlem" : "Sipariş Edilen Ürün / İşlem"}</h3><ul>${items || "<li>-</li>"}</ul></div>
+  <div class="section"><h3>Açıklama / Not</h3><div class="box"><div class="value" style="white-space:pre-wrap">${escapePrintHtml(cleanNote)}</div></div></div>
+  ${!warranty ? `<div class="section totals"><div class="box"><div class="label">Toplam</div><div class="value">${formatMoney(total)}</div></div><div class="box"><div class="label">Alınan / Kapora</div><div class="value">${formatMoney(paid)}</div></div><div class="box"><div class="label">Kalan</div><div class="value">${formatMoney(remaining)}</div></div></div>` : ""}
+  <div class="section info"><b>${escapePrintHtml(infoTitle)}</b><br>${escapePrintHtml(infoText)}</div>
+  <div class="sign"><div><div class="line">Müşteri / Teslim Eden</div></div><div><div class="line">Garage İstanbul / İşlem Sorumlusu</div></div></div>
+  </div></body></html>`);
+  popup.document.close();
+  popup.focus();
+}
+
+async function printOrderForm(id) {
+  let record = state.records.find(r => String(r.id) === String(id));
+  if (!record) return;
+  try {
+    const documentNo = await ensureRecordDocumentNumber(record, "SP");
+    record = state.records.find(r => String(r.id) === String(id)) || record;
+    openDocumentPrintWindow({
+      title: "SİPARİŞ FORMU", accent: "#7c3aed", documentNo, record,
+      infoTitle: "Sipariş Bilgilendirmesi",
+      infoText: "Siparişiniz tedarik sürecine alınmıştır. Tahmini tedarik süresi 7 iş günüdür. Ürün iş yerimize ulaştığında tarafınıza telefon ile bilgi verilecektir. Tedarikçi ve kargo süreçlerine bağlı olarak teslim süresi değişiklik gösterebilir."
+    });
+  } catch (e) { alert(e.message || "Sipariş formu hazırlanamadı"); }
+}
+
+async function printWarrantyForm(id) {
+  let record = state.records.find(r => String(r.id) === String(id));
+  if (!record) return;
+  try {
+    const documentNo = await ensureRecordDocumentNumber(record, "GR");
+    record = state.records.find(r => String(r.id) === String(id)) || record;
+    openDocumentPrintWindow({
+      title: "GARANTİ SERVİS FORMU", accent: "#ea580c", documentNo, record, warranty: true,
+      infoTitle: "Garanti Süreci Bilgilendirmesi",
+      infoText: "Ürününüz teknik servis incelemesine gönderilecektir. Ortalama işlem süresi 20 iş günüdür. Üretici veya teknik servis yoğunluğu, parça tedariki ve kargo süreçlerine bağlı olarak bu süre değişiklik gösterebilir. Süreç tamamlandığında tarafınıza telefon ile bilgi verilecektir."
+    });
+  } catch (e) { alert(e.message || "Garanti formu hazırlanamadı"); }
+}
 
    function printReceipt(id) {
   const record = state.records.find((r) => r.id === id);

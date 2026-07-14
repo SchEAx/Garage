@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-pwa-v20-2-payment-history";
+const CACHE_NAME = "garage-pwa-v21-kurumsal-belge-numaralari";
 const urlsToCache = ["/", "/index.html", "/js/app.js", "/js/update-check.js", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {
